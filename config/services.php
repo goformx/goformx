@@ -38,6 +38,7 @@ return [
     'goforms' => [
         'url' => env('GOFORMS_API_URL', 'http://localhost:8090'),
         'secret' => env('GOFORMS_SHARED_SECRET'),
+        'demo_form_id' => env('GOFORMS_DEMO_FORM_ID'),
     ],
 
 ];
