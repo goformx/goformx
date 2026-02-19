@@ -70,6 +70,64 @@ class FormController extends Controller
         ]);
     }
 
+    public function submissions(Request $request, string $id): Response|RedirectResponse
+    {
+        try {
+            $client = $this->goFormsClient->withUser(auth()->user());
+            $form = $client->getForm($id);
+        } catch (RequestException $e) {
+            return $this->handleGoError($e, $request);
+        }
+
+        if ($form === null) {
+            throw new NotFoundHttpException('Form not found.');
+        }
+
+        try {
+            $submissions = $client->listSubmissions($id);
+        } catch (RequestException $e) {
+            return $this->handleGoError($e, $request);
+        }
+
+        return Inertia::render('Forms/Submissions', [
+            'form' => $form,
+            'submissions' => $submissions,
+        ]);
+    }
+
+    public function submission(Request $request, string $id, string $sid): Response|RedirectResponse
+    {
+        try {
+            $client = $this->goFormsClient->withUser(auth()->user());
+            $form = $client->getForm($id);
+        } catch (RequestException $e) {
+            return $this->handleGoError($e, $request);
+        }
+
+        if ($form === null) {
+            throw new NotFoundHttpException('Form not found.');
+        }
+
+        try {
+            $submission = $client->getSubmission($id, $sid);
+        } catch (RequestException $e) {
+            if ($e->response && $e->response->status() === 404) {
+                throw new NotFoundHttpException('Submission not found.');
+            }
+
+            return $this->handleGoError($e, $request);
+        }
+
+        if ($submission === null) {
+            throw new NotFoundHttpException('Submission not found.');
+        }
+
+        return Inertia::render('Forms/SubmissionShow', [
+            'form' => $form,
+            'submission' => $submission,
+        ]);
+    }
+
     public function store(StoreFormRequest $request): RedirectResponse
     {
         try {
