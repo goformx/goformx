@@ -5,6 +5,8 @@ import { reactiveOmit } from "@vueuse/core"
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import SidebarMenuButtonChild from "./SidebarMenuButtonChild.vue"
 import { useSidebar } from "./utils"
+import { cn } from "@/lib/utils"
+import { sidebarMenuButtonVariants } from "."
 
 defineOptions({
   inheritAttrs: false,
@@ -21,6 +23,11 @@ const props = withDefaults(defineProps<SidebarMenuButtonProps & {
 const { isMobile, state } = useSidebar()
 
 const delegatedProps = reactiveOmit(props, "tooltip")
+
+const triggerClass = cn(
+  sidebarMenuButtonVariants({ variant: delegatedProps.variant, size: delegatedProps.size }),
+  delegatedProps.class,
+)
 </script>
 
 <template>
@@ -29,10 +36,16 @@ const delegatedProps = reactiveOmit(props, "tooltip")
   </SidebarMenuButtonChild>
 
   <Tooltip v-else>
-    <TooltipTrigger as-child>
-      <SidebarMenuButtonChild v-bind="{ ...delegatedProps, ...$attrs }">
-        <slot />
-      </SidebarMenuButtonChild>
+    <TooltipTrigger
+      as-child
+      data-slot="sidebar-menu-button"
+      data-sidebar="menu-button"
+      :class="triggerClass"
+      :data-active="delegatedProps.isActive"
+      :data-size="delegatedProps.size"
+      v-bind="$attrs"
+    >
+      <slot />
     </TooltipTrigger>
     <TooltipContent
       side="right"
