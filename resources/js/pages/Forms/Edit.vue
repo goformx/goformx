@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { useForm, router, Link } from '@inertiajs/vue3';
+import { Formio } from '@formio/js';
+import goforms from '@goformx/formio';
 import AppLayout from '@/layouts/AppLayout.vue';
 import BuilderLayout from '@/components/form-builder/BuilderLayout.vue';
 import FieldSettingsPanel from '@/components/form-builder/FieldSettingsPanel.vue';
@@ -21,10 +23,12 @@ import {
     formatShortcut,
 } from '@/composables/useKeyboardShortcuts';
 import type { FormComponent } from '@/composables/useFormBuilderState';
-import { Eye, ListChecks, Save, Code, Undo2, Redo2, Keyboard } from 'lucide-vue-next';
+import { Eye, ListChecks, Save, Code, Undo2, Redo2, Keyboard, Pencil } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { type BreadcrumbItem } from '@/types';
 import { dashboard } from '@/routes';
+
+Formio.use(goforms);
 
 interface Form {
     id?: string;
@@ -58,6 +62,8 @@ const detailsForm = useForm({
 const showSchemaModal = ref(false);
 const showShortcutsModal = ref(false);
 const isSavingAll = ref(false);
+const showInPlacePreview = ref(false);
+let inPlacePreviewInstance: { destroy?: () => void } | null = null;
 
 const initialSchema = computed((): FormSchema => {
     const s = props.form.schema;
@@ -207,6 +213,41 @@ watch(
     { immediate: true }
 );
 
+watch(showInPlacePreview, async (isPreview) => {
+    if (isPreview) {
+        await nextTick();
+        const container = document.getElementById('edit-inplace-preview');
+        if (!container) return;
+        const schema = getSchema();
+        if (!schema?.components?.length) {
+            toast.info('Add fields in the builder to preview.');
+            return;
+        }
+        try {
+            inPlacePreviewInstance = await Formio.createForm(container, schema, {
+                readOnly: true,
+                noSubmit: true,
+                noAlerts: true,
+            });
+        } catch (err) {
+            console.error('Preview failed:', err);
+            toast.error('Failed to load preview');
+        }
+    } else {
+        if (inPlacePreviewInstance?.destroy) {
+            inPlacePreviewInstance.destroy();
+        }
+        inPlacePreviewInstance = null;
+    }
+});
+
+onBeforeUnmount(() => {
+    if (inPlacePreviewInstance?.destroy) {
+        inPlacePreviewInstance.destroy();
+    }
+    inPlacePreviewInstance = null;
+});
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard().url },
     { title: 'Forms', href: '/forms' },
@@ -259,17 +300,35 @@ const breadcrumbs: BreadcrumbItem[] = [
                     <Code class="mr-2 h-4 w-4" />
                     Schema
                 </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    :class="!showInPlacePreview ? 'bg-muted' : ''"
+                    @click="showInPlacePreview = false"
+                >
+                    <Pencil class="mr-2 h-4 w-4" />
+                    Builder
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    :class="showInPlacePreview ? 'bg-muted' : ''"
+                    @click="showInPlacePreview = true"
+                >
+                    <Eye class="mr-2 h-4 w-4" />
+                    Preview
+                </Button>
                 <Button variant="outline" size="sm" as-child>
-                    <Link :href="`/forms/${formId}/preview`">
-                        <Eye class="mr-2 h-4 w-4" />
-                        Preview
-                    </Link>
+                    <Link :href="`/forms/${formId}/preview`">Shareable preview</Link>
                 </Button>
                 <Button variant="outline" size="sm" as-child>
                     <Link :href="`/forms/${formId}/submissions`">
                         <ListChecks class="mr-2 h-4 w-4" />
                         Submissions
                     </Link>
+                </Button>
+                <Button variant="outline" size="sm" as-child>
+                    <Link :href="`/forms/${formId}/embed`">Embed</Link>
                 </Button>
                 <Button
                     size="sm"
@@ -282,7 +341,18 @@ const breadcrumbs: BreadcrumbItem[] = [
                 </Button>
             </div>
 
+        <div
+            v-show="showInPlacePreview"
+            class="rounded-lg border bg-background p-6 shadow-sm"
+        >
+            <p class="mb-4 text-sm text-muted-foreground">
+                In-place preview (read-only). Use “Builder” to edit.
+            </p>
+            <div id="edit-inplace-preview" class="min-h-[400px]" />
+        </div>
+
         <BuilderLayout
+            v-show="!showInPlacePreview"
             class="rounded-lg border bg-background shadow-sm"
             :show-fields-panel="false"
         >
