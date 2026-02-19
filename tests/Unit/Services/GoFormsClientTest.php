@@ -78,3 +78,13 @@ it('throws when user is not set', function () {
 
     expect(fn () => $client->listForms())->toThrow(\RuntimeException::class, 'GoFormsClient requires an authenticated user');
 });
+
+it('throws when GOFORMS_SHARED_SECRET is not set', function () {
+    config(['services.goforms.secret' => null]);
+    Http::fake(fn () => Http::response([]));
+
+    $user = User::factory()->create();
+    $client = GoFormsClient::fromConfig()->withUser($user);
+
+    expect(fn () => $client->listForms())->toThrow(\RuntimeException::class, 'GOFORMS_SHARED_SECRET');
+});

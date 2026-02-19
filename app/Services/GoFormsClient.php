@@ -137,8 +137,12 @@ class GoFormsClient
             throw new \RuntimeException('GoFormsClient requires an authenticated user. Call withUser() first.');
         }
 
+        if ($this->secret === null || $this->secret === '') {
+            throw new \RuntimeException('GoFormsClient requires GOFORMS_SHARED_SECRET to be set in .env (must match the Go service).');
+        }
+
         return Http::baseUrl(rtrim($this->baseUrl, '/'))
-            ->withHeaders($this->signRequest($this->user->getKey(), $this->secret ?? ''));
+            ->withHeaders($this->signRequest($this->user->getKey(), $this->secret));
     }
 
     /**
