@@ -134,6 +134,38 @@ test('destroy deletes form and redirects to index', function () {
     $response->assertSessionHas('success');
 });
 
+test('index returns empty forms when Go API returns 401', function () {
+    Http::fake(['*/api/forms' => Http::response(['error' => 'no session found'], 401)]);
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('forms.index'));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Forms/Index')
+        ->has('forms', 0)
+    );
+});
+
+test('index returns empty forms when Go API returns 404', function () {
+    Http::fake(['*/api/forms' => Http::response([], 404)]);
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('forms.index'));
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->component('Forms/Index')
+        ->has('forms', 0)
+    );
+});
+
 test('index redirects with error when Go API returns 5xx', function () {
     Http::fake(['*/api/forms' => Http::response(['error' => 'Server error'], 500)]);
 

@@ -86,7 +86,7 @@ Or use the goforms repo’s Taskfile with `DB_HOST=goforms-db` and run the migra
 
 | Issue | What to check |
 |-------|----------------|
-| 401 on `/api/forms` | Laravel and goforms must use the same `GOFORMS_SHARED_SECRET`. In this setup both use `ddev-goforms-secret`. Run `ddev restart` after changing `.env`. |
+| 401 on `/api/forms` | Laravel and goforms must use the same `GOFORMS_SHARED_SECRET`. In this setup both use `ddev-goforms-secret`. Run `ddev restart` after changing `.env`. The Forms index page still loads with an empty list when Go returns 401 or 404 for list forms (see `storage/logs/laravel.log` for warnings). |
 | “path ... goforms not found” on build | Ensure the **goforms** repo exists as a sibling of **goformx-laravel** (paths in the compose file are relative to `.ddev/`). |
 | goforms container exits or unhealthy | Run `ddev logs -s goforms` and fix Go build or DB connection errors. Ensure goforms-db is healthy first. |
 | Laravel “Form service temporarily unavailable” | Sidecar may still be starting (first build). Wait and retry, or check `ddev describe` and `ddev logs -s goforms`. |

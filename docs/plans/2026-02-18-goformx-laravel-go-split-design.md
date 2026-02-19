@@ -130,8 +130,8 @@ No assertion headers required. Go treats as unauthenticated, applies public logi
 |----------|------------------|
 | Go unreachable | 502/503, "Form service temporarily unavailable" |
 | Go 422 | Map to Inertia validation errors |
-| Go 404 | 404 or redirect |
-| Go 401 | Log, treat as 500 (misconfiguration) |
+| Go 404 | 404 or redirect; **list forms:** render index with empty list |
+| Go 401 | Log, treat as 500 (misconfiguration); **list forms:** render index with empty list |
 | Go 5xx | 502, generic message, log |
 
 ### Go-Side

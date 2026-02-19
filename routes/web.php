@@ -7,8 +7,6 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
-Route::get('forms/{id}', [PublicFormController::class, 'show'])->name('forms.fill');
-
 Route::get('demo', DemoController::class)->name('demo');
 
 Route::get('/', function () {
@@ -21,8 +19,12 @@ Route::get('dashboard', function () {
     return Inertia::render('Dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
+// Exact path must be registered before parameterized forms/{id} so GET /forms matches
+Route::get('forms', [FormController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('forms.index');
+
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('forms', [FormController::class, 'index'])->name('forms.index');
     Route::post('forms', [FormController::class, 'store'])->name('forms.store');
     Route::get('forms/{id}/edit', [FormController::class, 'edit'])->name('forms.edit');
     Route::get('forms/{id}/preview', [FormController::class, 'preview'])->name('forms.preview');
@@ -32,5 +34,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('forms/{id}', [FormController::class, 'update'])->name('forms.update');
     Route::delete('forms/{id}', [FormController::class, 'destroy'])->name('forms.destroy');
 });
+
+Route::get('forms/{id}', [PublicFormController::class, 'show'])->name('forms.fill');
 
 require __DIR__.'/settings.php';

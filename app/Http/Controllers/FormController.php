@@ -26,6 +26,17 @@ class FormController extends Controller
             $client = $this->goFormsClient->withUser(auth()->user());
             $forms = $client->listForms();
         } catch (RequestException $e) {
+            $response = $e->response;
+            $status = $response?->status();
+            if ($status !== null && in_array($status, [401, 404], true)) {
+                Log::warning('GoForms API error on list forms; showing empty list', [
+                    'status' => $status,
+                    'body' => $response->body(),
+                ]);
+
+                return Inertia::render('Forms/Index', ['forms' => []]);
+            }
+
             return $this->handleGoError($e, request());
         }
 
