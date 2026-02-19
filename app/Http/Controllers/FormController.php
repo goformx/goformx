@@ -166,10 +166,30 @@ class FormController extends Controller
             $client = $this->goFormsClient->withUser(auth()->user());
             $form = $client->createForm($request->validated());
         } catch (RequestException $e) {
+            $status = $e->response?->status();
+            if ($status !== null && in_array($status, [401, 404], true)) {
+                Log::warning('GoForms API error on create form; redirecting back', [
+                    'status' => $status,
+                    'body' => $e->response->body(),
+                ]);
+
+                return redirect()->route('forms.index')
+                    ->with('error', 'Form service could not create the form. Please try again.')
+                    ->withInput();
+            }
+
             return $this->handleGoError($e, $request);
         }
 
         $formId = $form['id'] ?? $form['ID'] ?? null;
+
+        if ($formId === null) {
+            Log::warning('GoForms API create returned no form id', ['response' => $form]);
+
+            return redirect()->route('forms.index')
+                ->with('error', 'Form service returned an invalid response. Please try again.')
+                ->withInput();
+        }
 
         return redirect()->route('forms.edit', $formId)
             ->with('success', 'Form created successfully.');

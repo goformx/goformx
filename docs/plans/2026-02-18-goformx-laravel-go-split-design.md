@@ -120,6 +120,20 @@ No assertion headers required. Go treats as unauthenticated, applies public logi
 - **Config:** `config/services.php` — `goforms.url`, `goforms.secret`
 - **Routes:** Laravel owns `/dashboard`, `/forms`, `/forms/:id/edit`, etc.
 
+### User identity sync
+
+Laravel is the **source of truth** for users (Fortify, `users` table). Go has a `users` table only because `forms.user_id` has a foreign key to `users.uuid` for referential integrity.
+
+**Options:**
+
+| Approach | Description |
+|----------|-------------|
+| **Manual** | Seed goforms `users` for each Laravel user (e.g. after migrations). Simple but doesn’t scale; easy for dev. |
+| **Lazy sync (recommended)** | On the first assertion-authenticated request that needs the user (e.g. create form), Go ensures a row exists: `GetByID(ctx, userID)`; if not found, insert a minimal user (`uuid = X-User-Id`, placeholder email, non-login password). No change to Laravel; no manual step. |
+| **Push sync** | Laravel calls a Go “sync user” endpoint on login/register; Go upserts the user. Keeps Go in sync on auth events; requires a new endpoint and Laravel hook. |
+
+**Recommendation:** **Lazy sync** in Go. Laravel keeps owning auth; Go creates a shadow user on first use so the FK is satisfied and IDs stay in sync without extra work.
+
 ---
 
 ## 5. Error Handling

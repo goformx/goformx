@@ -65,7 +65,7 @@ This app is the **frontend and identity layer**. Form domain (CRUD, schema, subm
 
 ### Controllers and Errors
 
-- **FormController** is thin: auth user, call GoFormsClient, pass data to Inertia or redirect. Catch `RequestException` and map: 422 → validation, 404 → NotFoundHttpException, 5xx/connection → flash "Form service temporarily unavailable".
+- **FormController** is thin: auth user, call GoFormsClient, pass data to Inertia or redirect. Catch `RequestException` and map: 422 → validation, 404 → NotFoundHttpException, 5xx/connection → flash "Form service temporarily unavailable". For **list forms** only: if Go returns 401 or 404, render Forms/Index with empty list (log warning) so the page always loads.
 
 ### Design Doc
 

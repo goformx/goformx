@@ -105,6 +105,36 @@ test('store creates form and redirects to form edit', function () {
     $response->assertSessionHas('success');
 });
 
+test('store redirects back with error when Go API returns 401', function () {
+    Http::fake(['*/api/forms' => Http::response(['error' => 'unauthorized'], 401)]);
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->post(route('forms.store'), [
+            'title' => 'New Form',
+        ]);
+
+    $response->assertRedirect(route('forms.index'));
+    $response->assertSessionHas('error', 'Form service could not create the form. Please try again.');
+});
+
+test('store redirects back with error when Go API returns 404', function () {
+    Http::fake(['*/api/forms' => Http::response(['message' => 'Not Found'], 404)]);
+
+    $user = User::factory()->create();
+
+    $response = $this
+        ->actingAs($user)
+        ->post(route('forms.store'), [
+            'title' => 'New Form',
+        ]);
+
+    $response->assertRedirect(route('forms.index'));
+    $response->assertSessionHas('error', 'Form service could not create the form. Please try again.');
+});
+
 test('update redirects back with success', function () {
     Http::fake(['*/api/forms/form-1' => Http::response(['data' => []])]);
 

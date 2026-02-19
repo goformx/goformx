@@ -17,7 +17,7 @@ The Laravel app talks to a **Go forms API** (goforms). In local development we r
 The sidecar is declared in **`.ddev/docker-compose.goforms.yaml`**:
 
 - **goforms-db** – Postgres for the Go app (volume: `goformx-laravel-goforms-db-data`).
-- **goforms** – Go API: build from `../../goforms`, mount repo at `/app`, run with `air`. Listens on `0.0.0.0:8090`.
+- **goforms** – Go API: build from `../../goforms`, mount repo at `/app`, run with **air** (hot reload). Listens on `0.0.0.0:8090`. Code changes in the goforms repo are picked up automatically; no need to restart the container.
 - **web** – Gets `GOFORMS_API_URL=http://goforms:8090` so Laravel uses the sidecar.
 
 DDEV merges this file with its base compose on every `ddev start` / `ddev restart`, so no extra commands are needed to “enable” the sidecar.
@@ -82,6 +82,12 @@ ddev exec --service=goforms -- sh -c 'cd /app && migrate -path migrations/postgr
 
 Or use the goforms repo’s Taskfile with `DB_HOST=goforms-db` and run the migrate task from inside the DDEV web container or a one-off goforms container.
 
+**User sync:** The Go `forms` table has a foreign key to `users (uuid)`. Laravel sends `X-User-Id` (your Laravel user id, e.g. `1`). For "New form" to work, that id must exist as `users.uuid` in the goforms DB. After migrations, insert a placeholder user (replace `1` with your Laravel user id):
+
+```bash
+ddev exec --service=goforms-db -- psql -U goforms -d goforms -c "INSERT INTO users (uuid, email, hashed_password, first_name, last_name, role) VALUES ('1', 'you@example.com', 'x', 'Dev', 'User', 'user') ON CONFLICT (uuid) DO NOTHING;"
+```
+
 ## Troubleshooting
 
 | Issue | What to check |
@@ -89,4 +95,5 @@ Or use the goforms repo’s Taskfile with `DB_HOST=goforms-db` and run the migra
 | 401 on `/api/forms` | Laravel and goforms must use the same `GOFORMS_SHARED_SECRET`. In this setup both use `ddev-goforms-secret`. Run `ddev restart` after changing `.env`. The Forms index page still loads with an empty list when Go returns 401 or 404 for list forms (see `storage/logs/laravel.log` for warnings). |
 | “path ... goforms not found” on build | Ensure the **goforms** repo exists as a sibling of **goformx-laravel** (paths in the compose file are relative to `.ddev/`). |
 | goforms container exits or unhealthy | Run `ddev logs -s goforms` and fix Go build or DB connection errors. Ensure goforms-db is healthy first. |
+| Form service could not create the form or 500 on create | Run migrations (see above), then add a goforms user with uuid = your Laravel user id (see User sync above). Check `ddev logs -s goforms` for `relation "forms" does not exist` or `forms_user_id_fkey`. |
 | Laravel “Form service temporarily unavailable” | Sidecar may still be starting (first build). Wait and retry, or check `ddev describe` and `ddev logs -s goforms`. |
