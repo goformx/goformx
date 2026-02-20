@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: '3'
+output: 'prefixed'
+
+includes:
+  go:
+    taskfile: ./goforms/Taskfile.yml
+    dir: ./goforms
+
+tasks:
+  dev:
+    desc: Start both services concurrently
+    deps: [dev:go, dev:laravel]
+
+  dev:go:
+    desc: Start Go backend with hot reload
+    dir: ./goforms
+    cmd: task dev:backend
+
+  dev:laravel:
+    desc: Start Laravel with Vite
+    dir: ./goformx-laravel
+    cmd: composer run dev
+
+  install:
+    desc: Install dependencies for both services
+    cmds:
+      - task: install:go
+      - task: install:laravel
+
+  install:go:
+    desc: Install Go dependencies and tools
+    dir: ./goforms
+    cmd: task install
+
+  install:laravel:
+    desc: Install PHP and Node dependencies
+    dir: ./goformx-laravel
+    cmds:
+      - composer install
+      - npm install
+
+  test:
+    desc: Run all test suites
+    deps: [test:go, test:laravel]
+
+  test:go:
+    desc: Run Go unit tests
+    dir: ./goforms
+    cmd: task test:backend
+
+  test:laravel:
+    desc: Run Laravel Pest tests
+    dir: ./goformx-laravel
+    cmd: php artisan test --compact
+
+  lint:
+    desc: Run all linters
+    deps: [lint:go, lint:laravel]
+
+  lint:go:
+    desc: Run Go linters (fmt, vet, golangci-lint)
+    dir: ./goforms
+    cmd: task lint:backend
+
+  lint:laravel:
+    desc: Run PHP and frontend linters
+    dir: ./goformx-laravel
+    cmds:
+      - vendor/bin/pint --dirty --format agent
+      - npm run lint
+
+  setup:
+    desc: Full first-time setup (install, generate, migrate)
+    cmds:
+      - task: install
+      - task: go:generate
+      - task: go:migrate:up
