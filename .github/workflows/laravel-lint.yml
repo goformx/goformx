@@ -1,0 +1,48 @@
+name: "Laravel Linter"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'goformx-laravel/**'
+      - '.github/workflows/laravel-lint.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'goformx-laravel/**'
+      - '.github/workflows/laravel-lint.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./goformx-laravel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+
+      - name: Install Dependencies
+        run: |
+          composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+          npm install
+
+      - name: Run Pint
+        run: composer lint
+
+      - name: Format Frontend
+        run: npm run format
+
+      - name: Lint Frontend
+        run: npm run lint
