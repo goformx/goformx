@@ -29,8 +29,7 @@ security:
     enabled: true
     # NEVER use "*" with credentials - specify exact origins
     allowed_origins:
-      - "http://localhost:5173"  # Vite dev server
-      - "http://localhost:8090"  # Backend server
+      - "http://localhost:8000"  # Laravel dev server (goformx-laravel)
       # Add your production domains here when deploying:
       # - "https://yourdomain.com"
       # - "https://www.yourdomain.com"

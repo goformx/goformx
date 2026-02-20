@@ -10,7 +10,6 @@ services:
       - .env
     ports:
       - "8090:8090"
-      - "5173:5173" # Vite dev server
     environment:
       # Application Configuration
       - APP_NAME=${APP_NAME}
@@ -54,10 +53,6 @@ services:
       - API_KEY_ENABLED=${API_KEY_ENABLED}
       - API_KEYS=${API_KEYS}
       - API_KEY_HEADER_NAME=${API_KEY_HEADER_NAME}
-
-      # Development Settings
-      - VITE_DEV_HOST=${VITE_DEV_HOST}
-      - VITE_DEV_PORT=${VITE_DEV_PORT}
 
       # Timeouts
       - READ_TIMEOUT=${READ_TIMEOUT}
