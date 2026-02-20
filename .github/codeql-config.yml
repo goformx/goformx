@@ -1,0 +1,25 @@
+name: "Custom CodeQL Config"
+
+disable-default-queries: false
+
+queries:
+- uses: security-and-quality
+
+paths-ignore:
+- "**/*.md"
+- "**/docs/**"
+- "**/*.txt"
+- "**/testdata/**"
+- "**/*_test.go"
+- "**/test/**"
+- "**/tests/**"
+- "**/node_modules/**"
+- "**/dist/**"
+- "**/build/**"
+- "**/vendor/**"
+
+query-filters:
+- exclude:
+    id: go/path-injection
+- exclude:
+    id: js/incomplete-sanitization

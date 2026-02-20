@@ -1,0 +1,96 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '30 1 * * 0'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/security.yml'
+      - '.github/codeql-config.yml'
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            working-directory: ./goforms
+          - language: javascript
+            working-directory: ./goformx-laravel
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'goforms/go.mod'
+          cache: true
+
+      - name: Set up Node.js
+        if: matrix.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Task
+        if: matrix.language == 'go'
+        uses: arduino/setup-task@v2
+        with:
+          version: '3.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Go environment
+        if: matrix.language == 'go'
+        working-directory: ./goforms
+        run: |
+          task install:go-tools
+          task generate
+
+      - name: Prepare JavaScript environment
+        if: matrix.language == 'javascript'
+        working-directory: ./goformx-laravel
+        run: |
+          npm ci
+          npm run build
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended
+          config-file: ./.github/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC
