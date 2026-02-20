@@ -1,0 +1,8 @@
+# Vite dev server: proxied at https://vite.goformx-laravel.ddev.site
+# Run "ddev vite" to start the Vite dev server, then visit https://goformx-laravel.ddev.site
+additional_hostnames:
+  - vite.goformx-laravel
+web_environment:
+  - VITE_SERVER_URI=https://vite.goformx-laravel.ddev.site
+  - LARAVEL_APP_URL=https://goformx-laravel.ddev.site
+  - VITE_PACKAGE_MANAGER=npm

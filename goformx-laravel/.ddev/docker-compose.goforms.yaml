@@ -1,0 +1,74 @@
+# Go forms API sidecar: same network as web so Laravel can use http://goforms:8090
+# Requires sibling repo at ../../goforms (paths relative to this file in .ddev/)
+services:
+  goforms-db:
+    container_name: "ddev-${DDEV_SITENAME}-goforms-db"
+    image: postgres:17-alpine
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    restart: "no"
+    environment:
+      POSTGRES_DB: goforms
+      POSTGRES_USER: goforms
+      POSTGRES_PASSWORD: goforms
+    volumes:
+      - goforms-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goforms -d goforms"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  goforms:
+    container_name: "ddev-${DDEV_SITENAME}-goforms"
+    build:
+      context: ../../goforms
+      dockerfile: docker/development/Dockerfile
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: ${DDEV_APPROOT}
+    restart: "no"
+    depends_on:
+      goforms-db:
+        condition: service_healthy
+    env_file:
+      - ../.env
+    volumes:
+      - ../../goforms:/app
+    working_dir: /app
+    command: ["dumb-init", "--", "sh", "-c", "git config --global --add safe.directory /app && air -c .air.toml"]
+    environment:
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "8090"
+      APP_ENV: development
+      DATABASE_HOST: goforms-db
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: goforms
+      DATABASE_USERNAME: goforms
+      DATABASE_PASSWORD: goforms
+      DATABASE_DRIVER: postgres
+      # Must match Laravel .env GOFORMS_SHARED_SECRET (hardcoded so container always gets it)
+      GOFORMS_SHARED_SECRET: "ddev-goforms-secret"
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8090/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
+    x-ddev:
+      describe-info: |
+        Go forms API (assertion auth). Laravel uses GOFORMS_API_URL=http://goforms:8090.
+        Set GOFORMS_SHARED_SECRET in .env (same as this container, default: ddev-goforms-secret).
+      describe-url-port: "http://goforms:8090 (internal)"
+
+  web:
+    environment:
+      - GOFORMS_API_URL=http://goforms:8090
+
+volumes:
+  goforms-db-data:
+    name: "${DDEV_SITENAME}-goforms-db-data"
