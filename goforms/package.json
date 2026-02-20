@@ -1,0 +1,6 @@
+{
+  "name": "goforms",
+  "version": "1.0.0",
+  "description": "Go Forms API (frontend moved to goformx-laravel)",
+  "private": true
+}

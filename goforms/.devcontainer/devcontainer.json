@@ -1,0 +1,112 @@
+{
+    "$schema": "https://raw.githubusercontent.com/devcontainers/spec/main/schemas/devContainer.schema.json",
+    "name": "Goforms",
+    "dockerComposeFile": "docker-compose.yml",
+    "service": "app",
+    "workspaceFolder": "/workspaces/goforms",
+    "features": {
+        "ghcr.io/devcontainers-extra/features/act:1": {},
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "configureZshAsDefaultShell": true
+        },
+        "ghcr.io/devcontainers/features/github-cli:1": {},
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+        "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {},
+        "ghcr.io/devcontainers-extra/features/typescript:2": {},
+        "ghcr.io/devcontainers/features/node:1": {},
+        "ghcr.io/joshuanianji/devcontainer-features/github-cli-persistence:1": {}
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "github.vscode-github-actions",
+                "golang.go",
+                "SanjulaGanepola.github-local-actions",
+                "humao.rest-client",
+                "docker.docker",
+                "cweijan.vscode-mysql-client2",
+                "hbenl.vscode-test-explorer",
+                "ms-vscode.test-adapter-converter",
+                "vitest.explorer",
+                "task.vscode-task",
+                "redhat.vscode-yaml",
+                "kennylong.kubernetes-yaml-formatter",
+                "esbenp.prettier-vscode",
+                "ms-vscode.vscode-json",
+                "bradlc.vscode-tailwindcss",
+                "ckolkman.vscode-postgres"
+            ],
+            "settings": {
+                "go.useLanguageServer": true,
+                "go.formatTool": "gofmt",
+                "go.formatFlags": [
+                    "-s"
+                ],
+                "go.lintTool": "golangci-lint",
+                "go.lintFlags": [
+                    "--path-mode=abs",
+                    "--fast-only"
+                ],
+                "go.lintOnSave": "package",
+                "go.testFlags": [
+                    "-v",
+                    "-race"
+                ],
+                "go.buildOnSave": "package",
+                "go.vetOnSave": "package",
+                "vscode-postgres.connections": [
+                    {
+                        "host": "postgres",
+                        "port": 5432,
+                        "database": "goforms",
+                        "username": "goforms",
+                        "password": "goforms"
+                    }
+                ],
+                "editor.formatOnSave": true,
+                "editor.rulers": [
+                    80,
+                    120
+                ],
+                "files.trimTrailingWhitespace": true,
+                "files.insertFinalNewline": true,
+                "[go]": {
+                    "editor.defaultFormatter": "golang.go",
+                    "editor.formatOnSave": true,
+                    "editor.codeActionsOnSave": {
+                        "source.organizeImports": true,
+                        "source.fixAll": true
+                    }
+                },
+                "[docker]": {
+                    "editor.defaultFormatter": "docker.docker"
+                },
+                "[typescript]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode",
+                    "editor.formatOnSave": true
+                },
+                "[yaml]": {
+                    "editor.defaultFormatter": "kennylong.kubernetes-yaml-formatter"
+                }
+            }
+        }
+    },
+    "forwardPorts": [
+        5175,
+        8090
+    ],
+    "portsAttributes": {
+        "5173": {
+            "label": "Vite Dev Server",
+            "onAutoForward": "notify"
+        },
+        "8090": {
+            "label": "Go App Server",
+            "onAutoForward": "notify"
+        }
+    },
+    "mounts": [
+        "type=bind,source=/home/${localEnv:USER}/.ssh,target=/home/vscode/.ssh"
+    ],
+    "postCreateCommand": "task install && task generate"
+}

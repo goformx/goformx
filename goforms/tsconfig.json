@@ -1,0 +1,52 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "exactOptionalPropertyTypes": false,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@/components/*": ["src/components/*"],
+      "@/pages/*": ["src/pages/*"],
+      "@/composables/*": ["src/composables/*"],
+      "@/lib/*": ["src/lib/*"],
+      "@/types/*": ["src/types/*"],
+      "@/core/*": ["src/lib/core/*"],
+      "@/features/*": ["src/lib/features/*"],
+      "@/shared/*": ["src/lib/shared/*"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "vitest.config.ts",
+    "vite.config.ts",
+    "eslint.config.js",
+    "tailwind.config.ts"
+  ]
+}

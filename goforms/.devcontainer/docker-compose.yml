@@ -1,0 +1,49 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+    command: sleep infinity
+    networks:
+      - app-net
+    ports:
+      - "8090:8090"
+      - "5173:5173"
+    environment:
+      - DB_CONNECTION=postgres
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_DATABASE=goforms
+      - DB_USERNAME=goforms
+      - DB_PASSWORD=goforms
+      - DB_SSLMODE=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:latest
+    restart: unless-stopped
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - POSTGRES_USER=goforms
+      - POSTGRES_PASSWORD=goforms
+      - POSTGRES_DB=goforms
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U goforms" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    networks:
+      - app-net
+
+volumes:
+  postgres-data:
+networks:
+  app-net:
