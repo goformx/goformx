@@ -7,8 +7,6 @@ RUN apk add --no-cache \
     git \
     ca-certificates \
     tzdata \
-    nodejs \
-    npm \
     wget \
     go-task-task \
     curl \
@@ -33,14 +31,6 @@ RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest \
     && go install golang.org/x/tools/cmd/goimports@latest \
     && go install github.com/securego/gosec/v2/cmd/gosec@latest \
     && go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-
-# Frontend deps (install base dependencies - bind mount will overlay source)
-COPY package*.json ./
-RUN mkdir -p public/fonts \
-    && npm ci --ignore-scripts
-
-# Copy fonts manually (postinstall workaround)
-RUN cp -r node_modules/@formio/js/dist/fonts/* public/fonts/ 2>/dev/null || true
 
 # Create runtime dirs
 RUN mkdir -p logs

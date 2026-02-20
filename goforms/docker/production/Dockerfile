@@ -1,30 +1,3 @@
-# Build stage
-FROM node:20-alpine AS frontend-builder
-
-# Install git for npm packages that require it
-RUN apk add --no-cache git
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Create public/fonts directory before npm install to avoid postinstall script issues
-RUN mkdir -p public/fonts
-
-# Install all dependencies, skipping problematic postinstall scripts
-RUN npm ci --ignore-scripts
-
-# Manually copy fonts (equivalent to postinstall script)
-RUN cp -r node_modules/@formio/js/dist/fonts/* public/fonts/
-
-# Copy frontend source
-COPY src/ ./src/
-COPY vite.config.ts tsconfig.json postcss.config.cjs ./
-
-# Build frontend assets
-RUN npm run build
-
 # Go build stage
 FROM golang:1.25-alpine AS go-builder
 
@@ -45,9 +18,6 @@ RUN go mod download
 
 # Install build tools
 RUN go install go.uber.org/mock/mockgen@latest
-
-# Copy built frontend assets first
-COPY --from=frontend-builder /app/dist ./dist
 
 # Copy source code
 COPY . .
@@ -74,9 +44,6 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=go-builder /app/bin/goforms ./bin/goforms
-
-# Copy built frontend assets
-COPY --from=go-builder /app/dist ./dist
 
 # Create necessary directories
 RUN mkdir -p logs && \
