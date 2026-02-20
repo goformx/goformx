@@ -265,7 +265,7 @@ jobs:
           fetch-depth: 1
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: goformx-binary
           path: release/
