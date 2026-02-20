@@ -1,0 +1,3 @@
+[submodule "goformx-formio"]
+	path = goformx-formio
+	url = https://github.com/goformx/formio

@@ -1,0 +1,5 @@
+# Mount goformx-formio package so 'file:../goformx-formio' resolves inside the web container
+services:
+  web:
+    volumes:
+      - ../../goformx-formio:/var/www/goformx-formio:cached

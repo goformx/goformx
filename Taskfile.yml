@@ -2,25 +2,25 @@
 version: '3'
 output: 'prefixed'
 
-includes:
-  go:
-    taskfile: ./goforms/Taskfile.yml
-    dir: ./goforms
-
 tasks:
   dev:
-    desc: Start both services concurrently
-    deps: [dev:go, dev:laravel]
+    desc: Start all services (Go sidecar + Laravel via ddev, then Vite)
+    dir: ./goformx-laravel
+    cmds:
+      - ddev start
+      - ddev vite dev
 
   dev:go:
-    desc: Start Go backend with hot reload
+    desc: Start Go backend standalone (without ddev; requires local PostgreSQL)
     dir: ./goforms
     cmd: task dev:backend
 
   dev:laravel:
-    desc: Start Laravel with Vite
+    desc: Start Laravel via ddev (includes Go sidecar) and run Vite
     dir: ./goformx-laravel
-    cmd: composer run dev
+    cmds:
+      - ddev start
+      - ddev vite dev
 
   install:
     desc: Install dependencies for both services
@@ -34,11 +34,10 @@ tasks:
     cmd: task install
 
   install:laravel:
-    desc: Install PHP and Node dependencies
+    desc: Install PHP and Node dependencies via ddev (creates .env, generates key)
     dir: ./goformx-laravel
     cmds:
-      - composer install
-      - npm install
+      - ddev composer setup
 
   test:
     desc: Run all test suites
@@ -71,8 +70,25 @@ tasks:
       - npm run lint
 
   setup:
-    desc: Full first-time setup (install, generate, migrate)
+    desc: Full first-time setup (ddev, Go tools, deps, generate, migrate)
     cmds:
-      - task: install
-      - task: go:generate
-      - task: go:migrate:up
+      - task: setup:ddev:start
+      - task: install:go
+      - task: install:laravel
+      - task: setup:go:generate
+      - task: setup:go:migrate
+
+  setup:ddev:start:
+    desc: Start ddev environment (provides postgres and goforms container)
+    dir: ./goformx-laravel
+    cmd: ddev start
+
+  setup:go:generate:
+    desc: Generate Go code artifacts
+    dir: ./goforms
+    cmd: task generate
+
+  setup:go:migrate:
+    desc: Apply Go database migrations inside ddev goforms container
+    dir: ./goformx-laravel
+    cmd: ddev exec -s goforms task migrate:up DB_HOST=goforms-db DB_NAME=goforms DB_USERNAME=goforms DB_PASSWORD=goforms
