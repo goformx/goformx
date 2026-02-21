@@ -184,6 +184,13 @@ func shouldSkipCSRFForRoute(logger logging.Logger, path string, isDevelopment bo
 		return true
 	}
 
+	// API routes use HMAC assertion auth rather than session cookies, so CSRF
+	// does not apply. Check this before IsFormPage, which matches /api/forms/*
+	// because it does a broad substring check for "/forms/".
+	if IsAPIRoute(path) {
+		return true
+	}
+
 	// NEVER skip CSRF for form pages or auth pages - they ALWAYS need tokens
 	// This acts as a safety guard even if other checks are misconfigured
 	if IsFormPage(path) || IsAuthPage(path) {
@@ -194,10 +201,6 @@ func shouldSkipCSRFForRoute(logger logging.Logger, path string, isDevelopment bo
 	}
 
 	if IsAuthEndpoint(path) {
-		return true
-	}
-
-	if isDevelopment && IsAPIRoute(path) {
 		return true
 	}
 
