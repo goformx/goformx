@@ -37,7 +37,7 @@ set('rsync', [
     ],
     'include' => ['public/build/'],
     'filter'  => [],
-    'options' => ['--delete'],
+    'options' => ['delete'],
     'timeout' => 120,
 ]);
 
