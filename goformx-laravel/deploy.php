@@ -9,7 +9,7 @@ require 'contrib/rsync.php';
 host('production')
     ->set('hostname', getenv('DEPLOY_HOST') ?: 'coforge.xyz')
     ->set('remote_user', 'deployer')
-    ->set('deploy_path', '/var/www/goformx')
+    ->set('deploy_path', '/home/deployer/goformx')
     ->set('keep_releases', 5);
 
 // ── Project ───────────────────────────────────────────────────────────────────
