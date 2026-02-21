@@ -133,7 +133,6 @@ func (vc *ViperConfig) loadAllConfigSections(config *Config) error {
 		vc.loadAuthConfig,
 		vc.loadFormConfig,
 		vc.loadAPIConfig,
-		vc.loadWebConfig,
 		vc.loadUserConfig,
 	}
 
@@ -482,21 +481,6 @@ func (vc *ViperConfig) loadAPIConfig(config *Config) error {
 	return nil
 }
 
-// loadWebConfig loads web configuration
-func (vc *ViperConfig) loadWebConfig(config *Config) error {
-	config.Web = WebConfig{
-		TemplateDir:  vc.viper.GetString("web.template_dir"),
-		StaticDir:    vc.viper.GetString("web.static_dir"),
-		AssetsDir:    vc.viper.GetString("web.assets_dir"),
-		ReadTimeout:  vc.viper.GetDuration("web.read_timeout"),
-		WriteTimeout: vc.viper.GetDuration("web.write_timeout"),
-		IdleTimeout:  vc.viper.GetDuration("web.idle_timeout"),
-		Gzip:         vc.viper.GetBool("web.gzip"),
-	}
-
-	return nil
-}
-
 // loadUserConfig loads user configuration
 func (vc *ViperConfig) loadUserConfig(config *Config) error {
 	config.User = UserConfig{
@@ -554,7 +538,6 @@ func setDefaults(v *viper.Viper) {
 	setAuthDefaults(v)
 	setFormDefaults(v)
 	setAPIDefaults(v)
-	setWebDefaults(v)
 	setUserDefaults(v)
 }
 
@@ -771,17 +754,6 @@ func setAPIDefaults(v *viper.Viper) {
 	v.SetDefault("api.rate_limit.enabled", true)
 	v.SetDefault("api.rate_limit.rps", DefaultAPIRateLimitRPS)
 	v.SetDefault("api.rate_limit.burst", DefaultAPIRateBurst)
-}
-
-// setWebDefaults sets web default values
-func setWebDefaults(v *viper.Viper) {
-	v.SetDefault("web.template_dir", "templates")
-	v.SetDefault("web.static_dir", "static")
-	v.SetDefault("web.assets_dir", "assets")
-	v.SetDefault("web.read_timeout", DefaultReadTimeout)
-	v.SetDefault("web.write_timeout", DefaultWriteTimeout)
-	v.SetDefault("web.idle_timeout", DefaultIdleTimeout)
-	v.SetDefault("web.gzip", true)
 }
 
 // setUserDefaults sets user default values

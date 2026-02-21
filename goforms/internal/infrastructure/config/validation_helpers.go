@@ -58,7 +58,6 @@ func ValidateConfig(cfg *Config) ValidationResult {
 	validateAuthConfig(cfg.Auth, &result)
 	validateFormConfig(cfg.Form, &result)
 	validateAPIConfig(cfg.API, &result)
-	validateWebConfig(cfg.Web, &result)
 	validateUserConfig(cfg.User, &result)
 
 	// Validate cross-section dependencies

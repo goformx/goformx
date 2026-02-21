@@ -26,17 +26,6 @@ type APIConfig struct {
 	RateLimit  RateLimitConfig `json:"rate_limit"`
 }
 
-// WebConfig holds web-related configuration
-type WebConfig struct {
-	TemplateDir  string        `json:"template_dir"`
-	StaticDir    string        `json:"static_dir"`
-	AssetsDir    string        `json:"assets_dir"`
-	ReadTimeout  time.Duration `json:"read_timeout"`
-	WriteTimeout time.Duration `json:"write_timeout"`
-	IdleTimeout  time.Duration `json:"idle_timeout"`
-	Gzip         bool          `json:"gzip"`
-}
-
 // UserConfig holds user-related configuration
 type UserConfig struct {
 	Admin   AdminUserConfig   `json:"admin"`

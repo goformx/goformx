@@ -21,7 +21,6 @@ type Config struct {
 	Auth     AuthConfig     `json:"auth"`
 	Form     FormConfig     `json:"form"`
 	API      APIConfig      `json:"api"`
-	Web      WebConfig      `json:"web"`
 	User     UserConfig     `json:"user"`
 }
 

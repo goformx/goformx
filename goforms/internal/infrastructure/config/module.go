@@ -20,7 +20,6 @@ var Module = fx.Module("config",
 	fx.Provide(NewAuthConfig),
 	fx.Provide(NewFormConfig),
 	fx.Provide(NewAPIConfig),
-	fx.Provide(NewWebConfig),
 	fx.Provide(NewUserConfig),
 )
 
@@ -79,11 +78,6 @@ func NewFormConfig(cfg *Config) FormConfig {
 // NewAPIConfig provides API configuration
 func NewAPIConfig(cfg *Config) APIConfig {
 	return cfg.API
-}
-
-// NewWebConfig provides web configuration
-func NewWebConfig(cfg *Config) WebConfig {
-	return cfg.Web
 }
 
 // NewUserConfig provides user configuration
