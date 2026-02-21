@@ -8,6 +8,7 @@ test/mocks/
 
 # Go build artifacts
 bin/
+goforms
 *.exe
 *.exe~
 *.dll
