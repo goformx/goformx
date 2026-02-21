@@ -36,6 +36,7 @@ set('rsync', [
 ]);
 
 // Override update_code to use rsync instead of git clone
+Deployer::get()->tasks->remove('deploy:update_code');
 task('deploy:update_code', ['rsync']);
 
 // ── Shared (persisted across releases) ───────────────────────────────────────
