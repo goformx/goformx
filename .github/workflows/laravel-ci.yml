@@ -45,6 +45,10 @@ jobs:
       - name: Install Node Dependencies
         run: npm i
 
+      - name: Build @goformx/formio
+        working-directory: ./goformx-formio
+        run: npm ci && npm run build
+
       - name: Install Dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 

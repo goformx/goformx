@@ -38,6 +38,11 @@ jobs:
 
       - run: composer install --no-interaction --prefer-dist --optimize-autoloader
       - run: npm ci
+
+      - name: Build @goformx/formio
+        working-directory: ./goformx-formio
+        run: npm ci && npm run build
+
       - run: cp .env.example .env && php artisan key:generate
       - run: npm run build
       - run: vendor/bin/pest --compact
@@ -70,6 +75,11 @@ jobs:
 
       - run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
       - run: npm ci
+
+      - name: Build @goformx/formio
+        working-directory: ./goformx-formio
+        run: npm ci && npm run build
+
       - run: npm run build
 
       - name: Configure SSH

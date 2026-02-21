@@ -20,7 +20,7 @@ export default defineConfig({
             : undefined,
     resolve: {
         alias: {
-            '@goformx/formio': resolve(__dirname, 'node_modules/@goformx/formio/lib/mjs/index.js'),
+            '@goformx/formio': resolve(__dirname, 'node_modules/@goformx/formio'),
         },
         dedupe: ['@formio/js', '@goformx/formio'],
     },
