@@ -37,6 +37,9 @@ services:
       - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS:-true}
       - CORS_MAX_AGE=${CORS_MAX_AGE:-3600}
 
+      # Assertion auth shared secret (must match Laravel GOFORMS_SHARED_SECRET)
+      - GOFORMS_SHARED_SECRET=${GOFORMS_SHARED_SECRET}
+
       # API Key Configuration (Production)
       - API_KEY_ENABLED=${API_KEY_ENABLED:-true}
       - API_KEYS=${API_KEYS:-}

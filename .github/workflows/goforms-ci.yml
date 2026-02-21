@@ -252,6 +252,46 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
+  deploy:
+    name: Deploy to Production
+    needs: [docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://api.goformx.com/health
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: GHCR_TOKEN,GITHUB_ACTOR
+          script: |
+            set -euo pipefail
+            cd /opt/goforms
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+            docker compose pull goforms
+            docker compose up -d --no-deps goforms
+
+            # Wait up to 60s for health check
+            for i in $(seq 1 12); do
+              if curl -fsS http://127.0.0.1:8090/health >/dev/null 2>&1; then
+                echo "Health check passed"; break
+              fi
+              [ "$i" -eq 12 ] && { docker compose logs --tail=50 goforms; exit 1; }
+              sleep 5
+            done
+
+            docker image prune -f --filter "until=24h"
+
   release:
     name: Create Release
     needs: [build, docker]

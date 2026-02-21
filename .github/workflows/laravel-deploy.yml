@@ -1,0 +1,98 @@
+name: "Laravel Deploy"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'goformx-laravel/**'
+      - '.github/workflows/laravel-deploy.yml'
+
+concurrency:
+  group: laravel-deploy-${{ github.ref }}
+  cancel-in-progress: false   # Never cancel an in-flight deploy
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./goformx-laravel
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: goformx-laravel/package-lock.json
+
+      - run: composer install --no-interaction --prefer-dist --optimize-autoloader
+      - run: npm ci
+      - run: cp .env.example .env && php artisan key:generate
+      - run: npm run build
+      - run: vendor/bin/pest --compact
+
+  deploy:
+    name: Deploy to Production
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://goformx.com
+    defaults:
+      run:
+        working-directory: ./goformx-laravel
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: goformx-laravel/package-lock.json
+
+      - run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+      - run: npm ci
+      - run: npm run build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+
+      - name: Write SSH key
+        run: |
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Download Deployer
+        run: |
+          curl -L https://deployer.org/releases/v7.5.5/deployer.phar -o dep
+          chmod +x dep
+
+      - name: Deploy
+        run: ./dep deploy production --identity-file=~/.ssh/deploy_key -vv
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
