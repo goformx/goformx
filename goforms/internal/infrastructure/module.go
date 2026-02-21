@@ -11,8 +11,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.uber.org/fx"
 
-	"embed"
-
 	"github.com/goformx/goforms/internal/application/handlers/web"
 	"github.com/goformx/goforms/internal/domain/form"
 	formevent "github.com/goformx/goforms/internal/domain/form/event"
@@ -24,7 +22,6 @@ import (
 	"github.com/goformx/goforms/internal/infrastructure/sanitization"
 	"github.com/goformx/goforms/internal/infrastructure/server"
 	"github.com/goformx/goforms/internal/infrastructure/version"
-	infraweb "github.com/goformx/goforms/internal/infrastructure/web"
 )
 
 const (
@@ -112,23 +109,6 @@ type LoggerFactoryParams struct {
 	fx.In
 	Config    *config.Config                `validate:"required"`
 	Sanitizer sanitization.ServiceInterface `validate:"required"`
-}
-
-// AssetServerParams groups the dependencies for creating an asset server.
-// The asset server handles static file serving with environment-specific optimizations.
-type AssetServerParams struct {
-	fx.In
-	Config *config.Config `validate:"required"`
-	Logger logging.Logger `validate:"required"`
-	DistFS embed.FS
-}
-
-// AssetManagerParams contains dependencies for creating an asset manager
-type AssetManagerParams struct {
-	fx.In
-	DistFS embed.FS
-	Logger logging.Logger `validate:"required"`
-	Config *config.Config `validate:"required"`
 }
 
 // NewEventPublisher creates a new event publisher with proper dependency validation.
@@ -223,48 +203,6 @@ func NewLogger(factory *logging.Factory) (logging.Logger, error) {
 	}
 
 	return logger, nil
-}
-
-// ProvideAssetServer creates an appropriate asset server based on the environment.
-// In development, it serves static files from public directory while Vite handles JS/CSS.
-// In production, it serves from embedded filesystem for optimal performance.
-func ProvideAssetServer(p AssetServerParams) (infraweb.AssetServer, error) {
-	if p.Config == nil {
-		return nil, fmt.Errorf("asset server creation failed: %w", ErrMissingConfig)
-	}
-
-	if p.Logger == nil {
-		return nil, fmt.Errorf("asset server creation failed: %w", ErrMissingLogger)
-	}
-
-	if p.Config.App.IsDevelopment() {
-		p.Logger.Info("Initializing development asset server for static files")
-
-		return infraweb.NewDevelopmentAssetServer(p.Config, p.Logger), nil
-	}
-
-	p.Logger.Info("Initializing embedded asset server for production")
-
-	return infraweb.NewEmbeddedAssetServer(p.Logger, p.DistFS), nil
-}
-
-// NewAssetManager creates a new asset manager with proper dependency validation.
-// Returns the interface type for better dependency injection.
-func NewAssetManager(p AssetManagerParams) (infraweb.AssetManagerInterface, error) {
-	if p.Logger == nil {
-		return nil, fmt.Errorf("asset manager creation failed: %w", ErrMissingLogger)
-	}
-
-	if p.Config == nil {
-		return nil, fmt.Errorf("asset manager creation failed: %w", ErrMissingConfig)
-	}
-
-	manager, err := infraweb.NewAssetManager(p.Config, p.Logger, p.DistFS)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create asset manager: %w", err)
-	}
-
-	return manager, nil
 }
 
 // AnnotateHandler is a helper function that simplifies the creation of handler providers.

@@ -24,10 +24,6 @@ type AppConfig struct {
 	WriteTimeout   time.Duration `json:"write_timeout"`
 	IdleTimeout    time.Duration `json:"idle_timeout"`
 	RequestTimeout time.Duration `json:"request_timeout"`
-
-	// Development Settings
-	ViteDevHost string `json:"vite_dev_host"`
-	ViteDevPort string `json:"vite_dev_port"`
 }
 
 // IsDevelopment returns true if the application is running in development mode

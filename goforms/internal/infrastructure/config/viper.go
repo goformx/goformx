@@ -162,8 +162,6 @@ func (vc *ViperConfig) loadAppConfig(config *Config) error {
 		WriteTimeout:   vc.viper.GetDuration("app.write_timeout"),
 		IdleTimeout:    vc.viper.GetDuration("app.idle_timeout"),
 		RequestTimeout: vc.viper.GetDuration("app.request_timeout"),
-		ViteDevHost:    vc.viper.GetString("app.vite_dev_host"),
-		ViteDevPort:    vc.viper.GetString("app.vite_dev_port"),
 	}
 
 	return nil
@@ -575,8 +573,6 @@ func setAppDefaults(v *viper.Viper) {
 	v.SetDefault("app.write_timeout", DefaultWriteTimeout)
 	v.SetDefault("app.idle_timeout", DefaultIdleTimeout)
 	v.SetDefault("app.request_timeout", DefaultRequestTimeout)
-	v.SetDefault("app.vite_dev_host", "localhost")
-	v.SetDefault("app.vite_dev_port", "5173")
 }
 
 // setDatabaseDefaults sets database default values
