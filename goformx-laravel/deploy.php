@@ -33,7 +33,7 @@ set('rsync', [
         '.env',
         '.env.*',
         'storage',
-        'database',
+        'database/database.sqlite',
     ],
     'include' => ['public/build/'],
     'filter'  => [],
@@ -47,7 +47,7 @@ task('deploy:update_code', ['rsync']);
 
 // ── Shared (persisted across releases) ───────────────────────────────────────
 set('shared_files', ['.env']);
-set('shared_dirs', ['storage', 'database']);
+set('shared_dirs', ['storage']);
 set('writable_dirs', [
     'bootstrap/cache',
     'storage',
@@ -56,7 +56,6 @@ set('writable_dirs', [
     'storage/framework/sessions',
     'storage/framework/views',
     'storage/logs',
-    'database',
 ]);
 set('writable_mode', 'chmod');
 set('writable_chmod_mode', '0775');
