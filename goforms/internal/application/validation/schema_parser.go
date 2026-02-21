@@ -115,8 +115,8 @@ func (p *SchemaParser) extractOptionValue(value any, validation *FieldValidation
 		return
 	}
 
-	if label, labelOk := valueMap["label"].(string); labelOk {
-		validation.Options = append(validation.Options, label)
+	if optValue, optValueOk := valueMap["value"].(string); optValueOk {
+		validation.Options = append(validation.Options, optValue)
 	}
 }
 
