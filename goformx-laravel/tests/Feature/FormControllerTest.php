@@ -14,9 +14,13 @@ beforeEach(function () {
 test('index returns Inertia Forms/Index with forms', function () {
     Http::fake([
         '*/api/forms' => Http::response([
+            'success' => true,
             'data' => [
-                ['id' => '1', 'title' => 'Form One', 'description' => 'First form'],
-                ['id' => '2', 'title' => 'Form Two'],
+                'forms' => [
+                    ['id' => 'form-1', 'title' => 'Form One', 'description' => 'First form'],
+                    ['id' => 'form-2', 'title' => 'Form Two'],
+                ],
+                'count' => 2,
             ],
         ]),
     ]);
@@ -37,7 +41,7 @@ test('index returns Inertia Forms/Index with forms', function () {
 });
 
 test('index returns empty forms when API returns empty', function () {
-    Http::fake(['*/api/forms' => Http::response(['data' => []])]);
+    Http::fake(['*/api/forms' => Http::response(['success' => true, 'data' => ['forms' => [], 'count' => 0]])]);
 
     $user = User::factory()->create();
 
@@ -55,7 +59,8 @@ test('index returns empty forms when API returns empty', function () {
 test('edit returns Inertia Forms/Edit with form', function () {
     Http::fake([
         '*/api/forms/abc-123' => Http::response([
-            'data' => ['id' => 'abc-123', 'title' => 'My Form', 'description' => 'Test'],
+            'success' => true,
+            'data' => ['form' => ['id' => 'abc-123', 'title' => 'My Form', 'description' => 'Test']],
         ]),
     ]);
 
@@ -88,8 +93,9 @@ test('edit returns 404 when form does not exist', function () {
 test('store creates form and redirects to form edit', function () {
     Http::fake([
         '*/api/forms' => Http::response([
-            'data' => ['id' => 'new-id', 'title' => 'New Form'],
-        ]),
+            'success' => true,
+            'data' => ['form' => ['id' => 'new-id', 'title' => 'New Form']],
+        ], 201),
     ]);
 
     $user = User::factory()->create();
@@ -291,11 +297,12 @@ test('forms routes require authentication', function () {
 test('preview returns Inertia Forms/Preview with form', function () {
     Http::fake([
         '*/api/forms/abc-123' => Http::response([
-            'data' => [
+            'success' => true,
+            'data' => ['form' => [
                 'id' => 'abc-123',
                 'title' => 'My Form',
                 'schema' => ['display' => 'form', 'components' => []],
-            ],
+            ]],
         ]),
     ]);
 
@@ -328,9 +335,11 @@ test('preview returns 404 when form does not exist', function () {
 test('submissions returns Inertia Forms/Submissions with form and submissions', function () {
     Http::fake([
         '*/api/forms/abc-123' => Http::response([
-            'data' => ['id' => 'abc-123', 'title' => 'My Form'],
+            'success' => true,
+            'data' => ['form' => ['id' => 'abc-123', 'title' => 'My Form']],
         ]),
         '*/api/forms/abc-123/submissions' => Http::response([
+            'success' => true,
             'data' => [
                 'submissions' => [
                     ['id' => 'sub-1', 'submitted_at' => '2026-02-18T12:00:00Z', 'status' => 'pending'],
@@ -369,9 +378,11 @@ test('submissions returns 404 when form does not exist', function () {
 test('submission show returns Inertia Forms/SubmissionShow with form and submission', function () {
     Http::fake([
         '*/api/forms/abc-123' => Http::response([
-            'data' => ['id' => 'abc-123', 'title' => 'My Form'],
+            'success' => true,
+            'data' => ['form' => ['id' => 'abc-123', 'title' => 'My Form']],
         ]),
         '*/api/forms/abc-123/submissions/sub-1' => Http::response([
+            'success' => true,
             'data' => [
                 'id' => 'sub-1',
                 'form_id' => 'abc-123',
@@ -416,7 +427,8 @@ test('submission show returns 404 when submission does not exist', function () {
 test('embed returns Inertia Forms/Embed with form and embed_base_url', function () {
     Http::fake([
         '*/api/forms/abc-123' => Http::response([
-            'data' => ['id' => 'abc-123', 'title' => 'My Form'],
+            'success' => true,
+            'data' => ['form' => ['id' => 'abc-123', 'title' => 'My Form']],
         ]),
     ]);
 

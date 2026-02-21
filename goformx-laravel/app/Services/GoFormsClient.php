@@ -31,7 +31,7 @@ class GoFormsClient
     {
         $response = $this->get('/api/forms');
 
-        return $response->json('data', $response->json() ?? []);
+        return $response->json('data.forms', []);
     }
 
     /**
@@ -49,7 +49,7 @@ class GoFormsClient
             throw $e;
         }
 
-        return $response->json('data', $response->json());
+        return $response->json('data.form');
     }
 
     /**
@@ -60,7 +60,7 @@ class GoFormsClient
     {
         $response = $this->post('/api/forms', $data);
 
-        return $response->json('data', $response->json());
+        return $response->json('data.form', []);
     }
 
     /**
@@ -71,7 +71,7 @@ class GoFormsClient
     {
         $response = $this->put("/api/forms/{$id}", $data);
 
-        return $response->json('data', $response->json());
+        return $response->json('data.form', []);
     }
 
     public function deleteForm(string $id): bool
@@ -88,7 +88,7 @@ class GoFormsClient
     {
         $response = $this->get("/api/forms/{$formId}/submissions");
 
-        return $response->json('data', $response->json() ?? []);
+        return $response->json('data.submissions', []);
     }
 
     /**

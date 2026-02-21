@@ -88,3 +88,131 @@ it('throws when GOFORMS_SHARED_SECRET is not set', function () {
 
     expect(fn () => $client->listForms())->toThrow(\RuntimeException::class, 'GOFORMS_SHARED_SECRET');
 });
+
+// Response shape tests — each asserts the exact Go API envelope is unwrapped correctly.
+// If Go changes its response structure, these tests will catch the drift before it reaches prod.
+
+it('listForms unwraps data.forms and returns a flat array', function () {
+    Http::fake([
+        '*/api/forms' => Http::response([
+            'success' => true,
+            'data' => [
+                'forms' => [
+                    ['id' => 'form-1', 'title' => 'Alpha'],
+                    ['id' => 'form-2', 'title' => 'Beta'],
+                ],
+                'count' => 2,
+            ],
+        ]),
+    ]);
+
+    $forms = GoFormsClient::fromConfig()->withUser(User::factory()->create())->listForms();
+
+    expect($forms)->toBeArray()->toHaveCount(2)
+        ->and($forms[0]['id'])->toBe('form-1')
+        ->and($forms[1]['title'])->toBe('Beta');
+});
+
+it('listForms returns empty array when data.forms is absent', function () {
+    Http::fake(['*/api/forms' => Http::response(['success' => true, 'data' => []])]);
+
+    $forms = GoFormsClient::fromConfig()->withUser(User::factory()->create())->listForms();
+
+    expect($forms)->toBe([]);
+});
+
+it('getForm unwraps data.form and returns a flat form array', function () {
+    Http::fake([
+        '*/api/forms/form-1' => Http::response([
+            'success' => true,
+            'data' => ['form' => ['id' => 'form-1', 'title' => 'My Form', 'status' => 'draft']],
+        ]),
+    ]);
+
+    $form = GoFormsClient::fromConfig()->withUser(User::factory()->create())->getForm('form-1');
+
+    expect($form)->toBeArray()
+        ->and($form['id'])->toBe('form-1')
+        ->and($form['title'])->toBe('My Form')
+        ->and($form)->not->toHaveKey('form');
+});
+
+it('getForm returns null on 404', function () {
+    Http::fake(['*/api/forms/missing' => Http::response([], 404)]);
+
+    $form = GoFormsClient::fromConfig()->withUser(User::factory()->create())->getForm('missing');
+
+    expect($form)->toBeNull();
+});
+
+it('createForm unwraps data.form and returns a flat form array', function () {
+    Http::fake([
+        '*/api/forms' => Http::response([
+            'success' => true,
+            'data' => ['form' => ['id' => 'new-form-id', 'title' => 'Untitled Form', 'status' => 'draft']],
+        ], 201),
+    ]);
+
+    $form = GoFormsClient::fromConfig()->withUser(User::factory()->create())->createForm(['title' => 'Untitled Form']);
+
+    expect($form)->toBeArray()
+        ->and($form['id'])->toBe('new-form-id')
+        ->and($form)->not->toHaveKey('form');
+});
+
+it('updateForm unwraps data.form and returns a flat form array', function () {
+    Http::fake([
+        '*/api/forms/form-1' => Http::response([
+            'success' => true,
+            'data' => ['form' => ['id' => 'form-1', 'title' => 'Updated Title', 'status' => 'draft']],
+        ]),
+    ]);
+
+    $form = GoFormsClient::fromConfig()->withUser(User::factory()->create())->updateForm('form-1', ['title' => 'Updated Title']);
+
+    expect($form)->toBeArray()
+        ->and($form['id'])->toBe('form-1')
+        ->and($form['title'])->toBe('Updated Title')
+        ->and($form)->not->toHaveKey('form');
+});
+
+it('listSubmissions unwraps data.submissions and returns a flat array', function () {
+    Http::fake([
+        '*/api/forms/form-1/submissions' => Http::response([
+            'success' => true,
+            'data' => [
+                'submissions' => [
+                    ['id' => 'sub-1', 'status' => 'pending', 'submitted_at' => '2026-02-21T04:00:00Z'],
+                ],
+                'count' => 1,
+            ],
+        ]),
+    ]);
+
+    $submissions = GoFormsClient::fromConfig()->withUser(User::factory()->create())->listSubmissions('form-1');
+
+    expect($submissions)->toBeArray()->toHaveCount(1)
+        ->and($submissions[0]['id'])->toBe('sub-1')
+        ->and($submissions)->not->toHaveKey('submissions');
+});
+
+it('getSubmission returns flat submission data from data key', function () {
+    Http::fake([
+        '*/api/forms/form-1/submissions/sub-1' => Http::response([
+            'success' => true,
+            'data' => [
+                'id' => 'sub-1',
+                'form_id' => 'form-1',
+                'status' => 'pending',
+                'submitted_at' => '2026-02-21T04:00:00Z',
+                'data' => ['email' => 'test@example.com'],
+            ],
+        ]),
+    ]);
+
+    $submission = GoFormsClient::fromConfig()->withUser(User::factory()->create())->getSubmission('form-1', 'sub-1');
+
+    expect($submission)->toBeArray()
+        ->and($submission['id'])->toBe('sub-1')
+        ->and($submission['form_id'])->toBe('form-1');
+});
