@@ -4,11 +4,11 @@ output: 'prefixed'
 
 tasks:
   dev:
-    desc: Start all services (Go sidecar + Laravel via ddev, then Vite)
+    desc: Start all services (Go sidecar + Laravel via ddev)
     dir: ./goformx-laravel
     cmds:
       - ddev start
-      - ddev vite dev
+      - ddev composer dev
 
   dev:go:
     desc: Start Go backend standalone (without ddev; requires local PostgreSQL)
@@ -16,11 +16,11 @@ tasks:
     cmd: task dev:backend
 
   dev:laravel:
-    desc: Start Laravel via ddev (includes Go sidecar) and run Vite
+    desc: Start Laravel via ddev (includes Go sidecar)
     dir: ./goformx-laravel
     cmds:
       - ddev start
-      - ddev vite dev
+      - ddev composer dev
 
   install:
     desc: Install dependencies for both services

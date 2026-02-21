@@ -17,12 +17,11 @@ export type UseCurrentUrlReturn = {
     ) => T | F;
 };
 
-const page = usePage();
-const currentUrlReactive = computed(
-    () => new URL(page.url, window?.location.origin).pathname,
-);
-
 export function useCurrentUrl(): UseCurrentUrlReturn {
+    const page = usePage();
+    const currentUrlReactive = computed(
+        () => new URL(page.url, window?.location.origin).pathname,
+    );
     function isCurrentUrl(
         urlToCheck: NonNullable<InertiaLinkProps['href']>,
         currentUrl?: string,

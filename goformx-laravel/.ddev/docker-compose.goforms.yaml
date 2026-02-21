@@ -33,8 +33,6 @@ services:
     depends_on:
       goforms-db:
         condition: service_healthy
-    env_file:
-      - ../.env
     volumes:
       - ../../goforms:/app
     working_dir: /app
