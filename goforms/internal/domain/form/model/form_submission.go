@@ -4,6 +4,9 @@ package model
 import (
 	"time"
 
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/goformx/goforms/internal/domain/common/errors"
 	"github.com/goformx/goforms/internal/infrastructure/sanitization"
 )
@@ -43,6 +46,15 @@ const (
 	// SubmissionStatusFailed indicates the submission processing failed
 	SubmissionStatusFailed SubmissionStatus = "failed"
 )
+
+// BeforeCreate is a GORM hook that generates a UUID before inserting a new submission
+func (fs *FormSubmission) BeforeCreate(_ *gorm.DB) error {
+	if fs.ID == "" {
+		fs.ID = uuid.New().String()
+	}
+
+	return nil
+}
 
 // Validate validates the form submission
 func (fs *FormSubmission) Validate() error {
