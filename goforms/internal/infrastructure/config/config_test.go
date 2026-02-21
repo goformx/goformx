@@ -149,33 +149,6 @@ func TestConfig_Validate(t *testing.T) {
 			},
 			expectError: true,
 		},
-		{
-			name: "email config with host but missing credentials",
-			config: &config.Config{
-				App: config.AppConfig{
-					Name:        "Test App",
-					Environment: "development",
-					Port:        8080,
-				},
-				Database: config.DatabaseConfig{
-					Driver:   "postgres",
-					Host:     "localhost",
-					Port:     5432,
-					Name:     "testdb",
-					Username: "testuser",
-					Password: "testpass",
-				},
-				Security: config.SecurityConfig{
-					CSRF: config.CSRFConfig{Enabled: false},
-					CORS: config.CORSConfig{Enabled: false},
-				},
-				Email: config.EmailConfig{
-					Host:     "smtp.example.com",
-					Username: "", // Invalid: empty username when host is set
-				},
-			},
-			expectError: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -316,15 +289,6 @@ func TestConfig_GetConfigSummary(t *testing.T) {
 			RateLimit: config.RateLimitConfig{Enabled: true},
 			CSP:       config.CSPConfig{Enabled: true},
 		},
-		Email: config.EmailConfig{
-			Host: "smtp.example.com",
-		},
-		Cache: config.CacheConfig{
-			Type: "memory",
-		},
-		Storage: config.StorageConfig{
-			Type: "local",
-		},
 		Session: config.SessionConfig{
 			Type: "cookie",
 		},
@@ -359,8 +323,5 @@ func TestConfig_GetConfigSummary(t *testing.T) {
 	// Test services section
 	services, ok := summary["services"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, true, services["email_configured"])
-	assert.Equal(t, "memory", services["cache_type"])
-	assert.Equal(t, "local", services["storage_type"])
 	assert.Equal(t, "cookie", services["session_type"])
 }

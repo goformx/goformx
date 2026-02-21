@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
@@ -125,15 +124,7 @@ func (vc *ViperConfig) loadAllConfigSections(config *Config) error {
 		vc.loadAppConfig,
 		vc.loadDatabaseConfig,
 		vc.loadSecurityConfig,
-		vc.loadEmailConfig,
-		vc.loadStorageConfig,
-		vc.loadCacheConfig,
-		vc.loadLoggingConfig,
 		vc.loadSessionConfig,
-		vc.loadAuthConfig,
-		vc.loadFormConfig,
-		vc.loadAPIConfig,
-		vc.loadUserConfig,
 	}
 
 	for _, loader := range loaders {
@@ -343,78 +334,6 @@ func (vc *ViperConfig) loadSecurityConfig(config *Config) error {
 	return nil
 }
 
-// loadEmailConfig loads email configuration
-func (vc *ViperConfig) loadEmailConfig(config *Config) error {
-	config.Email = EmailConfig{
-		Host:     vc.viper.GetString("email.host"),
-		Port:     vc.viper.GetInt("email.port"),
-		Username: vc.viper.GetString("email.username"),
-		Password: vc.viper.GetString("email.password"),
-		From:     vc.viper.GetString("email.from"),
-		UseTLS:   vc.viper.GetBool("email.use_tls"),
-		UseSSL:   vc.viper.GetBool("email.use_ssl"),
-		Template: vc.viper.GetString("email.template"),
-	}
-
-	return nil
-}
-
-// loadStorageConfig loads storage configuration
-func (vc *ViperConfig) loadStorageConfig(config *Config) error {
-	config.Storage = StorageConfig{
-		Type: vc.viper.GetString("storage.type"),
-		Local: LocalStorageConfig{
-			Path: vc.viper.GetString("storage.local.path"),
-		},
-		S3: S3StorageConfig{
-			Bucket:    vc.viper.GetString("storage.s3.bucket"),
-			Region:    vc.viper.GetString("storage.s3.region"),
-			AccessKey: vc.viper.GetString("storage.s3.access_key"),
-			SecretKey: vc.viper.GetString("storage.s3.secret_key"),
-			Endpoint:  vc.viper.GetString("storage.s3.endpoint"),
-		},
-		MaxSize:     vc.viper.GetInt64("storage.max_size"),
-		AllowedExts: vc.viper.GetStringSlice("storage.allowed_extensions"),
-	}
-
-	return nil
-}
-
-// loadCacheConfig loads cache configuration
-func (vc *ViperConfig) loadCacheConfig(config *Config) error {
-	config.Cache = CacheConfig{
-		Type: vc.viper.GetString("cache.type"),
-		Redis: RedisConfig{
-			Host:     vc.viper.GetString("cache.redis.host"),
-			Port:     vc.viper.GetInt("cache.redis.port"),
-			Password: vc.viper.GetString("cache.redis.password"),
-			DB:       vc.viper.GetInt("cache.redis.db"),
-		},
-		Memory: MemoryConfig{
-			MaxSize: vc.viper.GetInt("cache.memory.max_size"),
-		},
-		TTL: vc.viper.GetDuration("cache.ttl"),
-	}
-
-	return nil
-}
-
-// loadLoggingConfig loads logging configuration
-func (vc *ViperConfig) loadLoggingConfig(config *Config) error {
-	config.Logging = LoggingConfig{
-		Level:      vc.viper.GetString("logging.level"),
-		Format:     vc.viper.GetString("logging.format"),
-		Output:     vc.viper.GetString("logging.output"),
-		File:       vc.viper.GetString("logging.file"),
-		MaxSize:    vc.viper.GetInt("logging.max_size"),
-		MaxBackups: vc.viper.GetInt("logging.max_backups"),
-		MaxAge:     vc.viper.GetInt("logging.max_age"),
-		Compress:   vc.viper.GetBool("logging.compress"),
-	}
-
-	return nil
-}
-
 // loadSessionConfig loads session configuration
 func (vc *ViperConfig) loadSessionConfig(config *Config) error {
 	config.Session = SessionConfig{
@@ -429,70 +348,6 @@ func (vc *ViperConfig) loadSessionConfig(config *Config) error {
 		Store:      vc.viper.GetString("session.store"),
 		StoreFile:  vc.viper.GetString("session.store_file"),
 		CookieName: vc.viper.GetString("session.cookie_name"),
-	}
-
-	return nil
-}
-
-// loadAuthConfig loads authentication configuration
-func (vc *ViperConfig) loadAuthConfig(config *Config) error {
-	config.Auth = AuthConfig{
-		RequireEmailVerification: vc.viper.GetBool("auth.require_email_verification"),
-		PasswordMinLength:        vc.viper.GetInt("auth.password_min_length"),
-		PasswordRequireSpecial:   vc.viper.GetBool("auth.password_require_special"),
-		SessionTimeout:           vc.viper.GetDuration("auth.session_timeout"),
-		MaxLoginAttempts:         vc.viper.GetInt("auth.max_login_attempts"),
-		LockoutDuration:          vc.viper.GetDuration("auth.lockout_duration"),
-	}
-
-	return nil
-}
-
-// loadFormConfig loads form configuration
-func (vc *ViperConfig) loadFormConfig(config *Config) error {
-	config.Form = FormConfig{
-		MaxFileSize:      vc.viper.GetInt64("form.max_file_size"),
-		AllowedFileTypes: vc.viper.GetStringSlice("form.allowed_file_types"),
-		MaxFields:        vc.viper.GetInt("form.max_fields"),
-		MaxMemory:        vc.viper.GetInt64("form.max_memory"),
-		Validation: ValidationConfig{
-			StrictMode: vc.viper.GetBool("form.validation.strict_mode"),
-			MaxErrors:  vc.viper.GetInt("form.validation.max_errors"),
-		},
-	}
-
-	return nil
-}
-
-// loadAPIConfig loads API configuration
-func (vc *ViperConfig) loadAPIConfig(config *Config) error {
-	config.API = APIConfig{
-		Version:    vc.viper.GetString("api.version"),
-		Prefix:     vc.viper.GetString("api.prefix"),
-		Timeout:    vc.viper.GetDuration("api.timeout"),
-		MaxRetries: vc.viper.GetInt("api.max_retries"),
-		RateLimit: RateLimitConfig{
-			Enabled: vc.viper.GetBool("api.rate_limit.enabled"),
-			RPS:     vc.viper.GetInt("api.rate_limit.rps"),
-			Burst:   vc.viper.GetInt("api.rate_limit.burst"),
-		},
-	}
-
-	return nil
-}
-
-// loadUserConfig loads user configuration
-func (vc *ViperConfig) loadUserConfig(config *Config) error {
-	config.User = UserConfig{
-		Admin: AdminUserConfig{
-			Email:    vc.viper.GetString("user.admin.email"),
-			Password: vc.viper.GetString("user.admin.password"),
-			Name:     vc.viper.GetString("user.admin.name"),
-		},
-		Default: DefaultUserConfig{
-			Role:        vc.viper.GetString("user.default.role"),
-			Permissions: vc.viper.GetStringSlice("user.default.permissions"),
-		},
 	}
 
 	return nil
@@ -530,15 +385,7 @@ func setDefaults(v *viper.Viper) {
 	setAppDefaults(v)
 	setDatabaseDefaults(v)
 	setSecurityDefaults(v)
-	setEmailDefaults(v)
-	setStorageDefaults(v)
-	setCacheDefaults(v)
-	setLoggingDefaults(v)
 	setSessionDefaults(v)
-	setAuthDefaults(v)
-	setFormDefaults(v)
-	setAPIDefaults(v)
-	setUserDefaults(v)
 }
 
 // setAppDefaults sets application default values
@@ -672,45 +519,6 @@ func setSecurityDefaults(v *viper.Viper) {
 	v.SetDefault("security.trust_proxy.trusted_proxies", []string{"127.0.0.1", "::1"})
 }
 
-// setEmailDefaults sets email default values
-func setEmailDefaults(v *viper.Viper) {
-	v.SetDefault("email.port", DefaultSMTPPort)
-	v.SetDefault("email.use_tls", true)
-	v.SetDefault("email.use_ssl", false)
-	v.SetDefault("email.template", "default")
-}
-
-// setStorageDefaults sets storage default values
-func setStorageDefaults(v *viper.Viper) {
-	v.SetDefault("storage.type", "local")
-	v.SetDefault("storage.local.path", "./uploads")
-	v.SetDefault("storage.s3.region", "us-east-1")
-	v.SetDefault("storage.max_size", DefaultMaxFileSize)
-	v.SetDefault("storage.allowed_extensions", []string{".jpg", ".jpeg", ".png", ".gif", ".pdf", ".doc", ".docx"})
-}
-
-// setCacheDefaults sets cache default values
-func setCacheDefaults(v *viper.Viper) {
-	v.SetDefault("cache.type", "memory")
-	v.SetDefault("cache.redis.host", "localhost")
-	v.SetDefault("cache.redis.port", DefaultRedisPort)
-	v.SetDefault("cache.redis.db", 0)
-	v.SetDefault("cache.memory.max_size", DefaultMemoryCacheSize)
-	v.SetDefault("cache.ttl", 1*time.Hour)
-}
-
-// setLoggingDefaults sets logging default values
-func setLoggingDefaults(v *viper.Viper) {
-	v.SetDefault("logging.level", "info")
-	v.SetDefault("logging.format", "json")
-	v.SetDefault("logging.output", "stdout")
-	v.SetDefault("logging.file", "logs/app.log")
-	v.SetDefault("logging.max_size", DefaultLogMaxSize)
-	v.SetDefault("logging.max_backups", DefaultLogMaxBackups)
-	v.SetDefault("logging.max_age", DefaultLogMaxAge)
-	v.SetDefault("logging.compress", true)
-}
-
 // setSessionDefaults sets session default values
 func setSessionDefaults(v *viper.Viper) {
 	v.SetDefault("session.type", "cookie")
@@ -723,46 +531,6 @@ func setSessionDefaults(v *viper.Viper) {
 	v.SetDefault("session.store", "memory")
 	v.SetDefault("session.store_file", "storage/sessions/sessions.json")
 	v.SetDefault("session.cookie_name", "session")
-}
-
-// setAuthDefaults sets authentication default values
-func setAuthDefaults(v *viper.Viper) {
-	v.SetDefault("auth.require_email_verification", false)
-	v.SetDefault("auth.password_min_length", DefaultPasswordMinLength)
-	v.SetDefault("auth.password_require_special", true)
-	v.SetDefault("auth.session_timeout", DefaultAuthTimeout)
-	v.SetDefault("auth.max_login_attempts", DefaultMaxLoginAttempts)
-	v.SetDefault("auth.lockout_duration", DefaultLockoutTime)
-}
-
-// setFormDefaults sets form default values
-func setFormDefaults(v *viper.Viper) {
-	v.SetDefault("form.max_file_size", DefaultMaxFileSize)
-	v.SetDefault("form.allowed_file_types", []string{"image/jpeg", "image/png", "image/gif", "application/pdf"})
-	v.SetDefault("form.max_fields", DefaultMaxFields)
-	v.SetDefault("form.max_memory", DefaultMaxFormMemory)
-	v.SetDefault("form.validation.strict_mode", false)
-	v.SetDefault("form.validation.max_errors", DefaultMaxErrors)
-}
-
-// setAPIDefaults sets API default values
-func setAPIDefaults(v *viper.Viper) {
-	v.SetDefault("api.version", "v1")
-	v.SetDefault("api.prefix", "/api")
-	v.SetDefault("api.timeout", DefaultRequestTimeout)
-	v.SetDefault("api.max_retries", DefaultMaxRetries)
-	v.SetDefault("api.rate_limit.enabled", true)
-	v.SetDefault("api.rate_limit.rps", DefaultAPIRateLimitRPS)
-	v.SetDefault("api.rate_limit.burst", DefaultAPIRateBurst)
-}
-
-// setUserDefaults sets user default values
-func setUserDefaults(v *viper.Viper) {
-	v.SetDefault("user.admin.email", "admin@example.com")
-	v.SetDefault("user.admin.password", "admin123")
-	v.SetDefault("user.admin.name", "Administrator")
-	v.SetDefault("user.default.role", "user")
-	v.SetDefault("user.default.permissions", []string{"read"})
 }
 
 // NewViperConfigProvider creates an Fx provider for Viper configuration

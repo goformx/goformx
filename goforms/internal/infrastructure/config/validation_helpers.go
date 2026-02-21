@@ -50,15 +50,7 @@ func ValidateConfig(cfg *Config) ValidationResult {
 	validateAppConfig(cfg.App, &result)
 	validateDatabaseConfig(cfg.Database, &result)
 	validateSecurityConfig(cfg.Security, &result)
-	validateEmailConfig(cfg.Email, &result)
-	validateStorageConfig(cfg.Storage, &result)
-	validateCacheConfig(cfg.Cache, &result)
-	validateLoggingConfig(cfg.Logging, &result)
 	validateSessionConfig(cfg.Session, &result)
-	validateAuthConfig(cfg.Auth, &result)
-	validateFormConfig(cfg.Form, &result)
-	validateAPIConfig(cfg.API, &result)
-	validateUserConfig(cfg.User, &result)
 
 	// Validate cross-section dependencies
 	validateCrossSectionDependencies(cfg, &result)
@@ -73,22 +65,6 @@ func validateCrossSectionDependencies(cfg *Config, result *ValidationResult) {
 		result.AddError("security.secure_cookie",
 			"secure cookies should be enabled when TLS is enabled",
 			cfg.Security.SecureCookie)
-	}
-
-	// Check if session store is Redis but Redis cache is not configured
-	if strings.EqualFold(cfg.Session.Store, "redis") && !strings.EqualFold(cfg.Cache.Type, "redis") {
-		result.AddError("session.store",
-			"Redis session store requires Redis cache configuration",
-			cfg.Session.Store)
-	}
-
-	// Check if email verification is required but email is not configured
-	if cfg.Auth.RequireEmailVerification && cfg.Email.Host == "" {
-		result.AddError(
-			"auth.require_email_verification",
-			"email verification requires email configuration",
-			cfg.Auth.RequireEmailVerification,
-		)
 	}
 }
 

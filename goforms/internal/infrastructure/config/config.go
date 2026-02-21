@@ -13,15 +13,7 @@ type Config struct {
 	App      AppConfig      `json:"app"`
 	Database DatabaseConfig `json:"database"`
 	Security SecurityConfig `json:"security"`
-	Email    EmailConfig    `json:"email"`
-	Storage  StorageConfig  `json:"storage"`
-	Cache    CacheConfig    `json:"cache"`
-	Logging  LoggingConfig  `json:"logging"`
 	Session  SessionConfig  `json:"session"`
-	Auth     AuthConfig     `json:"auth"`
-	Form     FormConfig     `json:"form"`
-	API      APIConfig      `json:"api"`
-	User     UserConfig     `json:"user"`
 }
 
 // validateConfig validates the configuration
@@ -73,56 +65,13 @@ func (c *Config) validateCoreConfig() error {
 
 // validateConditionalConfig validates configuration sections that depend on other settings
 func (c *Config) validateConditionalConfig() error {
-	var errs []string
-
-	// Validate Session config only if session type is not "none"
-	if err := c.validateSessionConfig(); err != nil {
-		errs = append(errs, err.Error())
-	}
-
-	// Validate Email config only if email host is set
-	if err := c.validateEmailConfig(); err != nil {
-		errs = append(errs, err.Error())
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, "; "))
-	}
-
-	return nil
+	return c.validateSessionConfig()
 }
 
 // validateSessionConfig validates session configuration
 func (c *Config) validateSessionConfig() error {
 	if c.Session.Type != "none" && c.Session.Secret == "" {
 		return errors.New("session secret is required when session type is not 'none'")
-	}
-
-	return nil
-}
-
-// validateEmailConfig validates email configuration
-func (c *Config) validateEmailConfig() error {
-	if c.Email.Host == "" {
-		return nil // Email is optional
-	}
-
-	var errs []string
-
-	if c.Email.Username == "" {
-		errs = append(errs, "Email username is required when email host is set")
-	}
-
-	if c.Email.Password == "" {
-		errs = append(errs, "Email password is required when email host is set")
-	}
-
-	if c.Email.From == "" {
-		errs = append(errs, "Email from address is required when email host is set")
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 
 	return nil
@@ -150,10 +99,7 @@ func (c *Config) GetConfigSummary() map[string]any {
 			"csp_enabled":        c.Security.CSP.Enabled,
 		},
 		"services": map[string]any{
-			"email_configured": c.Email.Host != "",
-			"cache_type":       c.Cache.Type,
-			"storage_type":     c.Storage.Type,
-			"session_type":     c.Session.Type,
+			"session_type": c.Session.Type,
 		},
 	}
 }
