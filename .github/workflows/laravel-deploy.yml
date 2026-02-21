@@ -107,6 +107,9 @@ jobs:
           chmod +x dep
 
       - name: Deploy
-        run: ./dep deploy production --identity-file=~/.ssh/deploy_key -vv
+        run: |
+          eval $(ssh-agent -s)
+          ssh-add ~/.ssh/deploy_key
+          ./dep deploy production -vv
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
