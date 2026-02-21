@@ -20,6 +20,7 @@ set('application', 'goformx-laravel');
 // public/build/ is pre-built by `npm run build` in the CI step.
 set('rsync_src', __DIR__);
 set('rsync', [
+    'flags'   => 'rzE',
     'exclude' => [
         '.git',
         '.ddev',
