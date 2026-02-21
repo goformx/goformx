@@ -5,14 +5,12 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
 // File permission constants
 const (
 	permUserWrite = 0o200
-	permUserRead  = 0o400
 )
 
 // ValidationError represents a configuration validation error
@@ -85,22 +83,6 @@ func isWritableDirectory(path string) bool {
 	}
 
 	return info.IsDir() && (info.Mode()&permUserWrite) != 0
-}
-
-// isReadableDirectory checks if a directory is readable
-func isReadableDirectory(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-
-	return info.IsDir() && (info.Mode()&permUserRead) != 0
-}
-
-// isValidEmail checks if an email address is valid
-func isValidEmail(email string) bool {
-	// Simple email validation - in production, consider using a more robust library
-	return strings.Contains(email, "@") && strings.Contains(email, ".")
 }
 
 // ValidateEnvironmentVariables validates that required environment variables are set
