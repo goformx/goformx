@@ -1,0 +1,3 @@
+-- Remove seeded demo form and demo user (reverse order due to FK).
+DELETE FROM forms WHERE uuid = '22222222-2222-4222-8222-222222222222';
+DELETE FROM users WHERE uuid = '11111111-1111-4111-8111-111111111111';
