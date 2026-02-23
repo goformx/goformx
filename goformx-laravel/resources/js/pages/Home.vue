@@ -15,7 +15,7 @@ import {
     Database,
     Globe,
 } from 'lucide-vue-next';
-import { dashboard, login, register } from '@/routes';
+import { dashboard, demo, login, register } from '@/routes';
 
 defineProps<{
     canRegister: boolean;
@@ -157,8 +157,16 @@ const features = [
                                 class="border-border/50 bg-background/50 backdrop-blur hover:bg-background/80"
                                 as-child
                             >
+                                <Link :href="demo().url">Try the demo</Link>
+                            </Button>
+                            <Button
+                                size="lg"
+                                variant="outline"
+                                class="border-border/50 bg-background/50 backdrop-blur hover:bg-background/80"
+                                as-child
+                            >
                                 <a
-                                    href="https://github.com/goformx/goforms"
+                                    href="https://github.com/goformx/goformx"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                 >
