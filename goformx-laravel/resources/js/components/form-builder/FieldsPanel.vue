@@ -1,8 +1,4 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
     Type,
     AlignLeft,
@@ -19,6 +15,10 @@ import {
     Square,
     Star,
 } from 'lucide-vue-next';
+import { ref, computed } from 'vue';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 interface FieldType {
     type: string;

@@ -1,32 +1,32 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
-import { Head, useForm, router, Link } from '@inertiajs/vue3';
 import { Formio } from '@formio/js';
 import goforms from '@goformx/formio';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { Head, useForm, router, Link } from '@inertiajs/vue3';
+import { Eye, ListChecks, Save, Code, Undo2, Redo2, Keyboard, Pencil } from 'lucide-vue-next';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
+import { toast } from 'vue-sonner';
 import BuilderLayout from '@/components/form-builder/BuilderLayout.vue';
 import FieldSettingsPanel from '@/components/form-builder/FieldSettingsPanel.vue';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { useFormBuilder, type FormSchema } from '@/composables/useFormBuilder';
+import type { FormComponent } from '@/composables/useFormBuilderState';
 import {
     useKeyboardShortcuts,
     formatShortcut,
 } from '@/composables/useKeyboardShortcuts';
-import type { FormComponent } from '@/composables/useFormBuilderState';
-import { Eye, ListChecks, Save, Code, Undo2, Redo2, Keyboard, Pencil } from 'lucide-vue-next';
-import { toast } from 'vue-sonner';
-import { type BreadcrumbItem } from '@/types';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
+import { type BreadcrumbItem } from '@/types';
 
 Formio.use(goforms);
 

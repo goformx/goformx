@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { Check, Copy } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { type BreadcrumbItem } from '@/types';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { index as formsIndex, edit } from '@/routes/forms';
-import { Check, Copy } from 'lucide-vue-next';
+import { type BreadcrumbItem } from '@/types';
 
 interface Form {
     id?: string;

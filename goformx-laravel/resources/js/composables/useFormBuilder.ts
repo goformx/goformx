@@ -1,6 +1,6 @@
-import { ref, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import { Formio } from '@formio/js';
 import goforms from '@goformx/formio';
+import { ref, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import { Logger } from '@/lib/logger';
 import { useFormBuilderState, type FormComponent } from './useFormBuilderState';
 

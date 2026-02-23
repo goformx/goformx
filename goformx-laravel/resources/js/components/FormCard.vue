@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
+import { Badge } from '@/components/ui/badge';
 import {
     Card,
     CardContent,
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { edit } from '@/routes/forms';
 
 interface Form {

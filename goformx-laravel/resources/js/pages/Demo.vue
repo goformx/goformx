@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
 import { Formio } from '@formio/js';
 import goforms from '@goformx/formio';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import { AlertCircle, CheckCircle2 } from 'lucide-vue-next';
+import { ref, computed, onMounted } from 'vue';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { dashboard, login, register } from '@/routes';
 import { index as formsIndex } from '@/routes/forms';
 
@@ -18,10 +18,10 @@ const page = usePage();
 const goFormsPublicUrl = computed(() => (page.props.goFormsPublicUrl as string) ?? '');
 
 const schemaUrl = computed(
-    () => (goFormsPublicUrl ? `${goFormsPublicUrl}/forms/${props.formId}/schema` : ''),
+    () => (goFormsPublicUrl.value ? `${goFormsPublicUrl.value}/forms/${props.formId}/schema` : ''),
 );
 const submitUrl = computed(
-    () => (goFormsPublicUrl ? `${goFormsPublicUrl}/forms/${props.formId}/submit` : ''),
+    () => (goFormsPublicUrl.value ? `${goFormsPublicUrl.value}/forms/${props.formId}/submit` : ''),
 );
 
 const status = ref<'loading' | 'form' | 'success' | 'error'>('loading');

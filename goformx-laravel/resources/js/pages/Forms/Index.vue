@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { Plus } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
 import FormCard from '@/components/FormCard.vue';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-vue-next';
-import { type BreadcrumbItem } from '@/types';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { index as formsIndex, store as formsStore } from '@/routes/forms';
+import { type BreadcrumbItem } from '@/types';
 
 interface Form {
     id?: string;

@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { type BreadcrumbItem } from '@/types';
-import PlaceholderPattern from '../components/PlaceholderPattern.vue';
 import { FileText } from 'lucide-vue-next';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { index as formsIndex } from '@/routes/forms';
+import { type BreadcrumbItem } from '@/types';
+import PlaceholderPattern from '../components/PlaceholderPattern.vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {

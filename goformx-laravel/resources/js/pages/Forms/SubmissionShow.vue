@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Head, Link } from '@inertiajs/vue3';
-import AppLayout from '@/layouts/AppLayout.vue';
+import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { type BreadcrumbItem } from '@/types';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { index as formsIndex, edit } from '@/routes/forms';
+import { type BreadcrumbItem } from '@/types';
 
 interface Form {
     id?: string;

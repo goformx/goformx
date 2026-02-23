@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { ref, onMounted } from 'vue';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { Logger } from '@/lib/logger';
 
 interface Props {

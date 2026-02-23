@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { Head, Link } from '@inertiajs/vue3';
 import { Formio } from '@formio/js';
 import goforms from '@goformx/formio';
-import AppLayout from '@/layouts/AppLayout.vue';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Head, Link } from '@inertiajs/vue3';
 import { AlertCircle, Pencil } from 'lucide-vue-next';
-import { type BreadcrumbItem } from '@/types';
+import { ref, computed, onMounted } from 'vue';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { index as formsIndex, edit } from '@/routes/forms';
+import { type BreadcrumbItem } from '@/types';
 
 Formio.use(goforms);
 

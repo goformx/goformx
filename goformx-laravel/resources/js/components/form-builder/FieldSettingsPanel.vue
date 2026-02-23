@@ -1,18 +1,18 @@
 <script setup lang="ts">
+import { Settings2, Copy, Trash2 } from 'lucide-vue-next';
 import { computed } from 'vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import {
     Tabs,
     TabsContent,
     TabsList,
     TabsTrigger,
 } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Settings2, Copy, Trash2 } from 'lucide-vue-next';
 import type { FormComponent } from '@/composables/useFormBuilderState';
 
 interface Props {

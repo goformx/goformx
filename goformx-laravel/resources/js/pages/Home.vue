@@ -1,12 +1,5 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
 import {
     FileText,
     Zap,
@@ -15,6 +8,13 @@ import {
     Database,
     Globe,
 } from 'lucide-vue-next';
+import { Button } from '@/components/ui/button';
+import {
+    Card,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { dashboard, demo, login, register } from '@/routes';
 
 defineProps<{
