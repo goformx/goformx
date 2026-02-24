@@ -8,17 +8,20 @@ use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Symfony\Component\HttpFoundation\Response;
 
+// Crawl strategy: all public pages are indexable; authenticated routes use noindex via layout meta tags
 Route::get('robots.txt', function (): Response {
-    $appUrl = rtrim(config('app.url'), '/');
+    $appUrl = rtrim((string) config('app.url'), '/');
 
+    // Empty Disallow directive permits all paths — auth pages are excluded via noindex meta tags instead
     return response("User-agent: *\nDisallow:\n\nSitemap: {$appUrl}/sitemap.xml\n", 200, [
         'Content-Type' => 'text/plain',
     ]);
 })->name('robots');
 
+// Sitemap lists only public marketing pages; user-generated form URLs are excluded
 Route::get('sitemap.xml', function (): Response {
-    $appUrl = rtrim(config('app.url'), '/');
-    $lastmod = now()->toAtomString();
+    $appUrl = rtrim((string) config('app.url'), '/');
+    $lastmod = '2026-02-23T00:00:00+00:00';
 
     $urls = [
         ['loc' => $appUrl.'/', 'lastmod' => $lastmod],

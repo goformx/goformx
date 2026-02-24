@@ -37,7 +37,7 @@ export interface UseFormBuilderStateReturn extends BuilderState {
 const MAX_HISTORY_SIZE = 50;
 
 export function useFormBuilderState(
-    formId?: string
+    formId?: string,
 ): UseFormBuilderStateReturn {
     const selectedField = ref<string | null>(null);
     const isDirty = ref(false);
@@ -46,13 +46,13 @@ export function useFormBuilderState(
 
     const canUndo = computed(() => historyIndex.value > 0);
     const canRedo = computed(
-        () => historyIndex.value < history.value.length - 1
+        () => historyIndex.value < history.value.length - 1,
     );
 
     if (formId) {
         try {
             const savedState = localStorage.getItem(
-                `form-builder-state-${formId}`
+                `form-builder-state-${formId}`,
             );
             if (savedState) {
                 const parsed = JSON.parse(savedState) as {
@@ -73,7 +73,7 @@ export function useFormBuilderState(
             };
             localStorage.setItem(
                 `form-builder-state-${formId}`,
-                JSON.stringify(state)
+                JSON.stringify(state),
             );
         } catch (error) {
             Logger.error('Failed to save form builder state:', error);
@@ -110,7 +110,7 @@ export function useFormBuilderState(
         if (!canUndo.value) return null;
         historyIndex.value--;
         return JSON.parse(
-            JSON.stringify(history.value[historyIndex.value])
+            JSON.stringify(history.value[historyIndex.value]),
         ) as FormSchema;
     };
 
@@ -118,7 +118,7 @@ export function useFormBuilderState(
         if (!canRedo.value) return null;
         historyIndex.value++;
         return JSON.parse(
-            JSON.stringify(history.value[historyIndex.value])
+            JSON.stringify(history.value[historyIndex.value]),
         ) as FormSchema;
     };
 

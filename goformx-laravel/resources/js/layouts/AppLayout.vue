@@ -13,6 +13,7 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
+    <!-- Authenticated pages must not be indexed by search engines -->
     <Head>
         <meta name="robots" content="noindex, nofollow" />
     </Head>

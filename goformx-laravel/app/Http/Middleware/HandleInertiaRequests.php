@@ -32,10 +32,12 @@ class HandleInertiaRequests extends Middleware
      * @see https://inertiajs.com/shared-data
      *
      * @return array<string, mixed>
+     *
+     * @phpstan-return array{name: mixed, auth: array{user: mixed}, sidebarOpen: bool, goFormsPublicUrl: string, flash: array{error: \Closure, success: \Closure}, seo: array{appUrl: string, currentUrl: string, defaultOgImage: string|null}, ...}
      */
     public function share(Request $request): array
     {
-        $appUrl = rtrim(config('app.url'), '/');
+        $appUrl = rtrim((string) config('app.url'), '/');
 
         return [
             ...parent::share($request),
@@ -52,7 +54,7 @@ class HandleInertiaRequests extends Middleware
             'seo' => [
                 'appUrl' => $appUrl,
                 'currentUrl' => $request->url(),
-                'defaultOgImage' => null,
+                'defaultOgImage' => null, // TODO: set a real OG image URL once branding assets are available
             ],
         ];
     }

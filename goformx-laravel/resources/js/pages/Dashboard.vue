@@ -29,7 +29,9 @@ const breadcrumbs: BreadcrumbItem[] = [
                 >
                     <FileText class="size-8 text-muted-foreground" />
                     <span class="font-medium">Forms</span>
-                    <span class="text-sm text-muted-foreground">Create and manage forms</span>
+                    <span class="text-sm text-muted-foreground"
+                        >Create and manage forms</span
+                    >
                 </Link>
                 <div
                     class="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border"

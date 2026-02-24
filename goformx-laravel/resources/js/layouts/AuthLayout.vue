@@ -9,6 +9,7 @@ defineProps<{
 </script>
 
 <template>
+    <!-- Auth pages must not be indexed -->
     <Head>
         <meta name="robots" content="noindex, nofollow" />
     </Head>

@@ -40,10 +40,16 @@ const isCreating = ref(false);
 function createForm() {
     if (isCreating.value) return;
     isCreating.value = true;
-    router.post(formsStore.url(), { title: 'Untitled Form' }, {
-        preserveScroll: true,
-        onFinish: () => { isCreating.value = false; },
-    });
+    router.post(
+        formsStore.url(),
+        { title: 'Untitled Form' },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                isCreating.value = false;
+            },
+        },
+    );
 }
 </script>
 
@@ -51,13 +57,12 @@ function createForm() {
     <Head title="Forms" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <h1 class="text-xl font-semibold">Forms</h1>
-                <Button
-                    :disabled="isCreating"
-                    @click="createForm"
-                >
+                <Button :disabled="isCreating" @click="createForm">
                     <Plus class="size-4" />
                     New form
                 </Button>

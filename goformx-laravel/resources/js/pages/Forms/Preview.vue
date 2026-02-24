@@ -31,7 +31,10 @@ const formId = computed(() => props.form.id ?? props.form.ID ?? '');
 const breadcrumbs = computed((): BreadcrumbItem[] => [
     { title: 'Dashboard', href: dashboard().url },
     { title: 'Forms', href: formsIndex.url() },
-    { title: props.form.title ?? 'Form', href: formId.value ? edit.url({ id: formId.value }) : '#' },
+    {
+        title: props.form.title ?? 'Form',
+        href: formId.value ? edit.url({ id: formId.value }) : '#',
+    },
     { title: 'Preview', href: '#' },
 ]);
 
@@ -48,7 +51,8 @@ onMounted(async () => {
 
     const schema = props.form.schema;
     if (!schema || !schema.components || schema.components.length === 0) {
-        error.value = 'This form has no fields yet. Add fields in the form builder.';
+        error.value =
+            'This form has no fields yet. Add fields in the form builder.';
         isLoading.value = false;
         return;
     }
@@ -72,7 +76,9 @@ onMounted(async () => {
     <Head :title="`Preview: ${form.title ?? 'Form'}`" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <h1 class="text-xl font-semibold">Preview</h1>
                 <Button v-if="formId" variant="outline" as-child>

@@ -31,7 +31,9 @@ defineProps<{
                         <span class="sr-only">{{ title }}</span>
                     </Link>
                     <div class="space-y-2 text-center">
-                        <h1 class="font-display text-xl font-semibold tracking-tight">
+                        <h1
+                            class="font-display text-xl font-semibold tracking-tight"
+                        >
                             {{ title }}
                         </h1>
                         <p class="text-center text-sm text-muted-foreground">

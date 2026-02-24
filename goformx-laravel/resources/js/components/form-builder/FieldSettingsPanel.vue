@@ -7,12 +7,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import {
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { FormComponent } from '@/composables/useFormBuilderState';
 
 interface Props {
@@ -87,26 +82,26 @@ function onValidateNumberChange(validateKey: string, event: Event) {
 </script>
 
 <template>
-    <div class="settings-panel flex flex-col h-full">
+    <div class="settings-panel flex h-full flex-col">
         <div
             v-if="!hasSelectedField"
-            class="flex-1 flex flex-col items-center justify-center p-6 text-center"
+            class="flex flex-1 flex-col items-center justify-center p-6 text-center"
         >
-            <Settings2 class="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 class="font-semibold text-sm mb-2">No Field Selected</h3>
-            <p class="text-xs text-muted-foreground max-w-[200px]">
+            <Settings2 class="mb-4 h-12 w-12 text-muted-foreground/50" />
+            <h3 class="mb-2 text-sm font-semibold">No Field Selected</h3>
+            <p class="max-w-[200px] text-xs text-muted-foreground">
                 Select a field in the canvas to view and edit its properties
             </p>
         </div>
 
-        <div v-else class="flex-1 flex flex-col overflow-hidden">
-            <div class="px-4 py-3 border-b">
+        <div v-else class="flex flex-1 flex-col overflow-hidden">
+            <div class="border-b px-4 py-3">
                 <div class="flex items-start justify-between gap-2">
-                    <div class="flex-1 min-w-0">
-                        <h3 class="font-semibold text-sm truncate">
+                    <div class="min-w-0 flex-1">
+                        <h3 class="truncate text-sm font-semibold">
                             {{ field.label ?? field.type }}
                         </h3>
-                        <p class="text-xs text-muted-foreground truncate">
+                        <p class="truncate text-xs text-muted-foreground">
                             {{ field.type }}
                         </p>
                     </div>
@@ -133,7 +128,10 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                 </div>
             </div>
 
-            <Tabs default-value="display" class="flex-1 flex flex-col overflow-hidden">
+            <Tabs
+                default-value="display"
+                class="flex flex-1 flex-col overflow-hidden"
+            >
                 <div class="px-4 pt-3">
                     <TabsList class="grid w-full grid-cols-3">
                         <TabsTrigger value="display" class="text-xs">
@@ -151,7 +149,7 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                 <ScrollArea class="flex-1">
                     <TabsContent
                         value="display"
-                        class="px-4 pb-4 mt-0 space-y-4"
+                        class="mt-0 space-y-4 px-4 pb-4"
                     >
                         <div class="space-y-4 pt-4">
                             <div class="space-y-2">
@@ -235,7 +233,7 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                         </div>
                     </TabsContent>
 
-                    <TabsContent value="data" class="px-4 pb-4 mt-0 space-y-4">
+                    <TabsContent value="data" class="mt-0 space-y-4 px-4 pb-4">
                         <div class="space-y-4 pt-4">
                             <div class="space-y-2">
                                 <Label for="field-key" class="text-xs"
@@ -274,7 +272,9 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                             <Separator />
                             <div class="flex items-center justify-between">
                                 <div>
-                                    <Label for="field-persistent" class="text-xs"
+                                    <Label
+                                        for="field-persistent"
+                                        class="text-xs"
                                         >Persistent</Label
                                     >
                                     <p class="text-xs text-muted-foreground">
@@ -284,14 +284,13 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                                 <Switch
                                     id="field-persistent"
                                     :checked="
-                                        (field['persistent'] as boolean) ??
-                                        true
+                                        (field['persistent'] as boolean) ?? true
                                     "
                                     @update:checked="
                                         (checked: boolean) =>
                                             onSwitchChange(
                                                 'persistent',
-                                                checked
+                                                checked,
                                             )
                                     "
                                 />
@@ -301,7 +300,7 @@ function onValidateNumberChange(validateKey: string, event: Event) {
 
                     <TabsContent
                         value="validation"
-                        class="px-4 pb-4 mt-0 space-y-4"
+                        class="mt-0 space-y-4 px-4 pb-4"
                     >
                         <div class="space-y-4 pt-4">
                             <div class="flex items-center justify-between">
@@ -323,7 +322,7 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                                         (checked: boolean) =>
                                             onValidateChange(
                                                 'required',
-                                                checked
+                                                checked,
                                             )
                                     "
                                 />
@@ -348,15 +347,13 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                             <template
                                 v-if="
                                     ['textfield', 'textarea', 'email'].includes(
-                                        field.type
+                                        field.type,
                                     )
                                 "
                             >
                                 <Separator />
                                 <div class="space-y-2">
-                                    <Label
-                                        for="field-minlength"
-                                        class="text-xs"
+                                    <Label for="field-minlength" class="text-xs"
                                         >Minimum Length</Label
                                     >
                                     <Input
@@ -371,15 +368,13 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                                             (e: Event) =>
                                                 onValidateNumberChange(
                                                     'minLength',
-                                                    e
+                                                    e,
                                                 )
                                         "
                                     />
                                 </div>
                                 <div class="space-y-2">
-                                    <Label
-                                        for="field-maxlength"
-                                        class="text-xs"
+                                    <Label for="field-maxlength" class="text-xs"
                                         >Maximum Length</Label
                                     >
                                     <Input
@@ -394,7 +389,7 @@ function onValidateNumberChange(validateKey: string, event: Event) {
                                             (e: Event) =>
                                                 onValidateNumberChange(
                                                     'maxLength',
-                                                    e
+                                                    e,
                                                 )
                                         "
                                     />

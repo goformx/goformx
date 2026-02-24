@@ -15,18 +15,27 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
-const seo = computed(
-    () =>
-        (page.props.seo as { appUrl: string; currentUrl: string; defaultOgImage: string | null }) ??
-        { appUrl: '', currentUrl: '', defaultOgImage: null },
-);
-const goFormsPublicUrl = computed(() => (page.props.goFormsPublicUrl as string) ?? '');
+const seo = computed(() => page.props.seo);
 
-const schemaUrl = computed(
-    () => (goFormsPublicUrl.value ? `${goFormsPublicUrl.value}/forms/${props.formId}/schema` : ''),
+const title = 'Demo – GoFormX';
+const ogTitle = 'Demo – GoFormX';
+const description =
+    'Try the GoFormX demo form. Submit a test response and see how embedded forms work with the GoFormX API.';
+const ogDescription =
+    'Try the GoFormX demo form. Submit a test response and see how embedded forms work.';
+const goFormsPublicUrl = computed(
+    () => (page.props.goFormsPublicUrl as string) ?? '',
 );
-const submitUrl = computed(
-    () => (goFormsPublicUrl.value ? `${goFormsPublicUrl.value}/forms/${props.formId}/submit` : ''),
+
+const schemaUrl = computed(() =>
+    goFormsPublicUrl.value
+        ? `${goFormsPublicUrl.value}/forms/${props.formId}/schema`
+        : '',
+);
+const submitUrl = computed(() =>
+    goFormsPublicUrl.value
+        ? `${goFormsPublicUrl.value}/forms/${props.formId}/submit`
+        : '',
 );
 
 const status = ref<'loading' | 'form' | 'success' | 'error'>('loading');
@@ -69,42 +78,47 @@ onMounted(async () => {
         });
         formInstance.value = form;
 
-        form.on('submit', async (submission: { data?: Record<string, unknown> }) => {
-            errorMessage.value = null;
-            try {
-                const res = await fetch(submitUrl.value, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(submission?.data ?? submission),
-                });
+        form.on(
+            'submit',
+            async (submission: { data?: Record<string, unknown> }) => {
+                errorMessage.value = null;
+                try {
+                    const res = await fetch(submitUrl.value, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(submission?.data ?? submission),
+                    });
 
-                if (res.ok) {
-                    status.value = 'success';
-                    return;
-                }
-                if (res.status === 422) {
-                    const errData = await res.json().catch(() => ({}));
-                    const errors = errData?.errors ?? errData?.data?.errors ?? [];
-                    if (Array.isArray(errors)) {
-                        form.emit('submitError', { errors });
-                    } else if (typeof errors === 'object') {
-                        form.emit('submitError', { errors });
+                    if (res.ok) {
+                        status.value = 'success';
+                        return;
                     }
-                    return;
+                    if (res.status === 422) {
+                        const errData = await res.json().catch(() => ({}));
+                        const errors =
+                            errData?.errors ?? errData?.data?.errors ?? [];
+                        if (Array.isArray(errors)) {
+                            form.emit('submitError', { errors });
+                        } else if (typeof errors === 'object') {
+                            form.emit('submitError', { errors });
+                        }
+                        return;
+                    }
+                    if (res.status === 429) {
+                        errorMessage.value =
+                            'Too many submissions. Please try again later.';
+                        return;
+                    }
+                    if (res.status === 404) {
+                        errorMessage.value = 'Form no longer available.';
+                        return;
+                    }
+                    errorMessage.value = 'Submission failed. Please try again.';
+                } catch {
+                    errorMessage.value = 'Submission failed. Please try again.';
                 }
-                if (res.status === 429) {
-                    errorMessage.value = 'Too many submissions. Please try again later.';
-                    return;
-                }
-                if (res.status === 404) {
-                    errorMessage.value = 'Form no longer available.';
-                    return;
-                }
-                errorMessage.value = 'Submission failed. Please try again.';
-            } catch {
-                errorMessage.value = 'Submission failed. Please try again.';
-            }
-        });
+            },
+        );
 
         status.value = 'form';
     } catch {
@@ -116,18 +130,12 @@ onMounted(async () => {
 
 <template>
     <div class="flex min-h-screen flex-col bg-background text-foreground">
-        <Head title="Demo">
-            <meta
-                name="description"
-                content="Try the GoFormX demo form. Submit a test response and see how embedded forms work with the GoFormX API."
-            />
+        <Head :title="title">
+            <meta name="description" :content="description" />
             <link rel="canonical" :href="seo.currentUrl" />
             <meta property="og:type" content="website" />
-            <meta property="og:title" content="Demo – GoFormX" />
-            <meta
-                property="og:description"
-                content="Try the GoFormX demo form. Submit a test response and see how embedded forms work."
-            />
+            <meta property="og:title" :content="ogTitle" />
+            <meta property="og:description" :content="ogDescription" />
             <meta property="og:url" :content="seo.currentUrl" />
             <meta property="og:site_name" :content="page.props.name" />
             <meta
@@ -135,12 +143,14 @@ onMounted(async () => {
                 property="og:image"
                 :content="seo.defaultOgImage"
             />
-            <meta name="twitter:card" content="summary_large_image" />
-            <meta name="twitter:title" content="Demo – GoFormX" />
             <meta
-                name="twitter:description"
-                content="Try the GoFormX demo form. Submit a test response and see how embedded forms work."
+                name="twitter:card"
+                :content="
+                    seo.defaultOgImage ? 'summary_large_image' : 'summary'
+                "
             />
+            <meta name="twitter:title" :content="ogTitle" />
+            <meta name="twitter:description" :content="ogDescription" />
             <meta
                 v-if="seo.defaultOgImage"
                 name="twitter:image"
@@ -197,7 +207,9 @@ onMounted(async () => {
                     >
                         <CheckCircle2 class="h-8 w-8" />
                     </div>
-                    <h2 class="font-display text-xl font-semibold tracking-tight">
+                    <h2
+                        class="font-display text-xl font-semibold tracking-tight"
+                    >
                         Thank you
                     </h2>
                     <p class="mt-1 text-muted-foreground">

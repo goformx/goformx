@@ -40,13 +40,18 @@ const submissionList = computed((): Submission[] => {
 const breadcrumbs = computed((): BreadcrumbItem[] => [
     { title: 'Dashboard', href: dashboard().url },
     { title: 'Forms', href: formsIndex.url() },
-    { title: props.form.title ?? 'Form', href: formId.value ? edit.url({ id: formId.value }) : '#' },
+    {
+        title: props.form.title ?? 'Form',
+        href: formId.value ? edit.url({ id: formId.value }) : '#',
+    },
     { title: 'Submissions', href: '#' },
 ]);
 
 function submissionDetailUrl(submission: Submission): string {
     const sid = submission.id ?? submission.ID ?? '';
-    return formId.value && sid ? `/forms/${formId.value}/submissions/${sid}` : '#';
+    return formId.value && sid
+        ? `/forms/${formId.value}/submissions/${sid}`
+        : '#';
 }
 
 function formatDate(value: string | undefined): string {
@@ -66,7 +71,9 @@ function formatDate(value: string | undefined): string {
     <Head :title="`Submissions: ${form.title ?? 'Form'}`" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <h1 class="text-xl font-semibold">Submissions</h1>
                 <Button v-if="formId" variant="outline" as-child>
@@ -84,7 +91,9 @@ function formatDate(value: string | undefined): string {
                     :key="sub.id ?? sub.ID"
                     class="border-sidebar-border/70"
                 >
-                    <CardHeader class="flex flex-row items-center justify-between gap-2 py-3">
+                    <CardHeader
+                        class="flex flex-row items-center justify-between gap-2 py-3"
+                    >
                         <div class="space-y-0.5">
                             <p class="text-sm font-medium">
                                 {{ formatDate(sub.submitted_at) }}
