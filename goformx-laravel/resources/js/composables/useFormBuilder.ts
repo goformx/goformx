@@ -9,6 +9,7 @@ Formio.use(goforms);
 export interface FormSchema {
     display?: string;
     components: FormComponent[];
+    [key: string]: unknown;
 }
 
 export interface FormBuilderOptions {
@@ -34,6 +35,7 @@ export interface UseFormBuilderReturn {
     selectField: (fieldKey: string | null) => void;
     duplicateField: (fieldKey: string) => void;
     deleteField: (fieldKey: string) => void;
+    updateField: (fieldKey: string, updates: Partial<FormComponent>) => void;
     undo: () => void;
     redo: () => void;
     canUndo: Ref<boolean>;
@@ -67,8 +69,18 @@ export function useFormBuilder(
         markDirty,
     } = useFormBuilderState(options.formId);
 
-    let builderInstance: { schema: FormSchema; destroy?: () => void } | null =
-        null;
+    // 1a: Expanded builder instance type with form setter, on/off for events
+    let builderInstance: {
+        schema: FormSchema;
+        form: FormSchema;
+        on: (event: string, callback: (...args: unknown[]) => void) => void;
+        off: (event: string, callback: (...args: unknown[]) => void) => void;
+        destroy?: () => void;
+    } | null = null;
+
+    // Re-entrancy guard: prevents circular updates when we set builder.form
+    let isSettingSchema = false;
+
     let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
     async function initializeBuilder() {
@@ -87,7 +99,8 @@ export function useFormBuilder(
                 schema.value = options.schema;
             }
 
-            builderInstance = await Formio.builder(container, schema.value, {
+            // 1b: Removed editForm override — restores native Form.io edit dialogs
+            builderInstance = (await Formio.builder(container, schema.value, {
                 builder: {
                     basic: {
                         default: true,
@@ -132,30 +145,52 @@ export function useFormBuilder(
                         premium: 'Premium',
                     },
                 },
-                editForm: {
-                    textfield: [
-                        { key: 'display', components: [] },
-                        { key: 'data', components: [] },
-                        { key: 'validation', components: [] },
-                        { key: 'api', components: [] },
-                        { key: 'conditional', components: [] },
-                        { key: 'logic', components: [] },
-                    ],
-                },
-            });
+            })) as typeof builderInstance;
 
             builder.value = builderInstance;
 
-            const builderWithEvents = builderInstance as unknown as {
-                on?: (event: string, callback: (s: FormSchema) => void) => void;
-            };
+            // 1c: Rewrite builder event listeners
+            if (builderInstance) {
+                builderInstance.on(
+                    'change',
+                    (newSchema: unknown, flags: unknown) => {
+                        // Ignore programmatic changes (from setSchema/builder.form assignment)
+                        if (flags || isSettingSchema) return;
+                        const s = newSchema as FormSchema;
+                        schema.value = s;
+                        pushHistory(s);
+                        markDirty();
+                        options.onSchemaChange?.(s);
+                    },
+                );
 
-            if (builderInstance && typeof builderWithEvents.on === 'function') {
-                builderWithEvents.on('change', (newSchema: FormSchema) => {
-                    schema.value = newSchema;
-                    options.onSchemaChange?.(newSchema);
+                builderInstance.on('editComponent', (component: unknown) => {
+                    const comp = component as FormComponent;
+                    if (comp.key) {
+                        selectField(comp.key);
+                    }
+                });
+
+                builderInstance.on('saveComponent', () => {
+                    // Re-select to refresh sidebar data after native dialog save
+                    if (selectedField.value) {
+                        selectField(selectedField.value);
+                    }
+                });
+
+                builderInstance.on('removeComponent', (component: unknown) => {
+                    const comp = component as FormComponent;
+                    if (
+                        selectedField.value &&
+                        comp.key === selectedField.value
+                    ) {
+                        selectField(null);
+                    }
                 });
             }
+
+            // 1i: Push initial schema to history as baseline for undo
+            pushHistory(schema.value);
 
             Logger.debug('Form.io builder initialized successfully');
         } catch (err) {
@@ -173,8 +208,17 @@ export function useFormBuilder(
         return schema.value;
     }
 
+    // 1d: Rewrite setSchema to sync to builder DOM
     function setSchema(newSchema: FormSchema) {
         schema.value = newSchema;
+        if (builderInstance) {
+            isSettingSchema = true;
+            builderInstance.form = newSchema;
+            // Reset guard after microtask so the resulting 'change' event is ignored
+            void Promise.resolve().then(() => {
+                isSettingSchema = false;
+            });
+        }
     }
 
     async function saveSchema() {
@@ -233,15 +277,8 @@ export function useFormBuilder(
         );
     }
 
-    watch(
-        schema,
-        (newSchema) => {
-            pushHistory(newSchema);
-            markDirty();
-            options.onSchemaChange?.(newSchema);
-        },
-        { deep: true },
-    );
+    // 1e: Removed the deep watch(schema) that caused undo/redo infinite loop.
+    // All callers that mutate schema now explicitly call pushHistory/markDirty/onSchemaChange.
 
     function undo() {
         const previousSchema = undoHistory();
@@ -277,6 +314,34 @@ export function useFormBuilder(
         return null;
     }
 
+    // 1g: Generate unique key that doesn't collide with existing keys
+    function generateUniqueKey(
+        baseKey: string,
+        existingComponents: FormComponent[],
+    ): string {
+        const allKeys = new Set<string>();
+        const collectKeys = (components: unknown[]): void => {
+            for (const component of components) {
+                const comp = component as FormComponent;
+                allKeys.add(comp.key);
+                if (comp['components']) {
+                    collectKeys(comp['components'] as unknown[]);
+                }
+            }
+        };
+        collectKeys(existingComponents);
+
+        const copyKey = `${baseKey}_copy`;
+        if (!allKeys.has(copyKey)) return copyKey;
+
+        let counter = 2;
+        while (allKeys.has(`${copyKey}_${counter}`)) {
+            counter++;
+        }
+        return `${copyKey}_${counter}`;
+    }
+
+    // 1f: Explicit history/dirty/callback calls in mutation functions
     function duplicateField(fieldKey: string) {
         const currentSchema = getSchema();
         const component = findComponent(currentSchema.components, fieldKey);
@@ -287,10 +352,16 @@ export function useFormBuilder(
         const duplicate = JSON.parse(
             JSON.stringify(component),
         ) as FormComponent;
-        duplicate.key = `${component.key}_copy`;
+        duplicate.key = generateUniqueKey(
+            component.key,
+            currentSchema.components,
+        );
         duplicate.label = `${component.label ?? component.type} (Copy)`;
         currentSchema.components.push(duplicate);
         setSchema(currentSchema);
+        pushHistory(currentSchema);
+        markDirty();
+        options.onSchemaChange?.(currentSchema);
         Logger.debug(`Duplicated component: ${fieldKey}`);
     }
 
@@ -310,8 +381,38 @@ export function useFormBuilder(
             });
         };
         currentSchema.components = filterComponents(currentSchema.components);
+        // Deselect if the deleted field was selected
+        if (selectedField.value === fieldKey) {
+            selectField(null);
+        }
         setSchema(currentSchema);
+        pushHistory(currentSchema);
+        markDirty();
+        options.onSchemaChange?.(currentSchema);
         Logger.debug(`Deleted component: ${fieldKey}`);
+    }
+
+    // 1h: Update a field's properties by key (used by FieldSettingsPanel)
+    function updateField(
+        fieldKey: string,
+        updates: Partial<FormComponent>,
+    ): void {
+        const currentSchema = JSON.parse(
+            JSON.stringify(getSchema()),
+        ) as FormSchema;
+        const component = findComponent(currentSchema.components, fieldKey);
+        if (!component) {
+            Logger.warn(
+                `updateField: component with key "${fieldKey}" not found`,
+            );
+            return;
+        }
+        Object.assign(component, updates);
+        setSchema(currentSchema);
+        pushHistory(currentSchema);
+        markDirty();
+        options.onSchemaChange?.(currentSchema);
+        Logger.debug(`Updated component: ${fieldKey}`);
     }
 
     function exportSchema(): string {
@@ -323,6 +424,9 @@ export function useFormBuilder(
         try {
             const imported = JSON.parse(json) as FormSchema;
             setSchema(imported);
+            pushHistory(imported);
+            markDirty();
+            options.onSchemaChange?.(imported);
             Logger.debug('Schema imported successfully');
         } catch (err) {
             Logger.error('Failed to import schema:', err);
@@ -343,6 +447,7 @@ export function useFormBuilder(
         selectField,
         duplicateField,
         deleteField,
+        updateField,
         undo,
         redo,
         canUndo,

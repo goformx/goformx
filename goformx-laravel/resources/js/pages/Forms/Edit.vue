@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Formio } from '@formio/js';
-import goforms from '@goformx/formio';
+import type { RequestPayload } from '@inertiajs/core';
 import { Head, useForm, router, Link } from '@inertiajs/vue3';
 import {
     Eye,
@@ -36,8 +36,6 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
-
-Formio.use(goforms);
 
 interface Form {
     id?: string;
@@ -92,6 +90,7 @@ const {
     selectField,
     duplicateField,
     deleteField,
+    updateField,
     undo,
     redo,
     canUndo,
@@ -108,12 +107,12 @@ const {
             router.put(
                 `/forms/${formId}`,
                 {
-                    schema,
+                    schema: schema as unknown,
                     title: detailsForm.title,
                     description: detailsForm.description,
                     status: detailsForm.status,
                     cors_origins: detailsForm.cors_origins,
-                },
+                } as RequestPayload,
                 {
                     preserveScroll: true,
                     onSuccess: () => resolve(),
@@ -462,7 +461,7 @@ const breadcrumbs: BreadcrumbItem[] = [
                 <template #settings-panel>
                     <FieldSettingsPanel
                         :selected-field="selectedFieldData"
-                        @update:field="() => {}"
+                        @update:field="(field: FormComponent) => updateField(field.key, field)"
                         @duplicate="(key) => duplicateField(key)"
                         @delete="(key) => deleteField(key)"
                         @close="() => selectField(null)"

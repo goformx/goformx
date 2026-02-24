@@ -88,7 +88,7 @@ function formatDate(value: string | undefined): string {
             <div v-else class="grid gap-3">
                 <Card
                     v-for="sub in submissionList"
-                    :key="sub.id ?? sub.ID"
+                    :key="sub.id ?? String(sub.ID)"
                     class="border-sidebar-border/70"
                 >
                     <CardHeader
