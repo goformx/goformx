@@ -42,14 +42,23 @@ task migrate:down   # Rollback one migration
 
 ## Architecture Overview
 
-GoFormX is the **forms API backend**. The web UI (dashboard, form builder) lives in **goformx-laravel** (Laravel + Inertia/Vue). This repo is API-only: form domain, public embed/submit, and assertion auth.
+GoFormX is the **forms API backend** (Go 1.25). The web UI (dashboard, form builder) lives in **goformx-laravel** (Laravel + Inertia/Vue). This repo is API-only: form domain, public embed/submit, and assertion auth.
 
 **Clean Architecture** with Uber FX:
 
 ```
 internal/
-├── domain/           # Business entities, interfaces, services (form/, common/)
-├── application/      # HTTP handlers, middleware, validation, response builders
+├── domain/           # Business entities, interfaces, services
+│   ├── entities/     # Core entity structs (user.go)
+│   ├── form/         # Form + FormSubmission models, service, repository
+│   ├── user/         # User model, service, syncer
+│   └── common/       # Shared errors, events, interfaces
+├── application/      # HTTP layer
+│   ├── constants/    # Application constants
+│   ├── handlers/web/ # REST handlers (implement web.Handler interface)
+│   ├── middleware/    # Assertion, security, CORS, access control
+│   ├── response/     # Response builders
+│   └── validation/   # Form schema validation
 └── infrastructure/   # Database, config, logging, server, event bus
 ```
 

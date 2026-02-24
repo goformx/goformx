@@ -46,6 +46,24 @@ This project has domain-specific skills available. You MUST activate the relevan
 - Stick to existing directory structure; don't create new base folders without approval.
 - Do not change the application's dependencies without approval.
 
+## Development Environment (DDEV)
+
+This project runs inside **DDEV** (MariaDB 11.8, nginx-fpm, PHP 8.4). The Go API runs as a DDEV sidecar container.
+
+```bash
+ddev start                # Start DDEV (Laravel + Go sidecar + PostgreSQL)
+ddev composer dev         # Start Laravel server + queue + Pail logs + Vite
+ddev composer setup       # First-time setup: install deps, create .env, generate key
+ddev artisan test --compact                      # Run Pest tests
+ddev artisan test --compact --filter=TestName     # Single test
+ddev exec vendor/bin/pint --dirty --format agent  # PHP formatting
+ddev exec npm run lint    # ESLint
+ddev exec npm run build   # Production frontend build
+ddev ssh                  # Shell into web container
+```
+
+Go sidecar is accessible at `http://goforms:8090` inside DDEV, and `http://localhost:8091` from host.
+
 ## GoFormX + Go Integration
 
 This app is the **frontend and identity layer**. Form domain (CRUD, schema, submissions) lives in a separate **Go service** (goforms). Laravel never touches form tables; it calls Go with signed assertions.

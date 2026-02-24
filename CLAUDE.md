@@ -9,11 +9,32 @@ GoFormX is a forms management platform organized as a monorepo with two services
 - **`goforms/`** — Go API backend (Echo, GORM, Uber FX). Owns the entire forms domain: CRUD, schema storage, submissions, public embed/submit. API-only, no UI.
 - **`goformx-laravel/`** — Laravel 12 + Vue 3 + Inertia v2 frontend. Handles identity (Fortify auth, 2FA), user dashboard, form builder UI (Form.io), and settings.
 
+- **`goformx-formio/`** — Git submodule (`goformx/formio`). Form.io wrapper library.
+
 Each service has its own CLAUDE.md with detailed development instructions. Read those when working within a specific service.
 
-## Development Commands
+## Development Environment
 
-### GoForms (Go Backend) — runs on :8090
+The primary dev workflow uses **DDEV**. DDEV provides Laravel (nginx + PHP 8.4 + MariaDB 11.8) and runs the Go API as a sidecar container with its own PostgreSQL.
+
+```bash
+# Full-stack (recommended) — from monorepo root
+task dev                  # Starts DDEV + Laravel (Go sidecar auto-starts)
+task setup                # First-time: DDEV start, install deps, generate, migrate
+
+# Individual services
+task dev:go               # Go backend standalone (requires local PostgreSQL)
+task dev:laravel          # Laravel via DDEV (includes Go sidecar)
+
+# Testing & linting (both services)
+task test                 # Run all test suites (Go + Laravel)
+task lint                 # Run all linters (Go + Laravel)
+
+# Install deps
+task install              # Install Go tools + PHP/Node deps via DDEV
+```
+
+### GoForms (Go Backend) — runs on :8090 (host :8091 via DDEV)
 
 ```bash
 cd goforms
@@ -31,26 +52,27 @@ task migrate:down         # Rollback one migration
 go test -v -run TestFunctionName ./path/to/package/...
 ```
 
-### GoFormX-Laravel (PHP/Vue Frontend) — runs on :8000
+### GoFormX-Laravel (PHP/Vue Frontend) — runs on https://goformx-laravel.ddev.site
 
 ```bash
 cd goformx-laravel
-composer install && npm install
-composer run dev          # Starts Laravel server + queue + Pail logs + Vite concurrently
-php artisan test --compact                          # Run all Pest tests
-php artisan test --compact --filter=TestName         # Single test
-vendor/bin/pint --dirty --format agent               # PHP formatting (Pint)
-npm run lint              # ESLint
-npm run format            # Prettier
-npm run build             # Production frontend build
+ddev start                # Start DDEV environment
+ddev composer setup       # First-time: install deps, create .env, generate key
+ddev composer dev         # Starts Laravel server + queue + Pail logs + Vite
+ddev artisan test --compact                          # Run all Pest tests
+ddev artisan test --compact --filter=TestName         # Single test
+ddev exec vendor/bin/pint --dirty --format agent      # PHP formatting (Pint)
+ddev exec npm run lint    # ESLint
+ddev exec npm run format  # Prettier
+ddev exec npm run build   # Production frontend build
 ```
 
 ## Cross-Service Architecture
 
 ```
-Browser → Laravel (:8000) → GoFormsClient → GoForms API (:8090) → PostgreSQL
+Browser → Laravel (DDEV) → GoFormsClient → GoForms API (:8090) → PostgreSQL
               │                                    │
-         Users/Sessions DB                    Forms/Submissions DB
+         Users/Sessions DB (MariaDB)          Forms/Submissions DB (PostgreSQL)
 ```
 
 ### Assertion-Based Authentication
@@ -73,8 +95,8 @@ Usage: `GoFormsClient::fromConfig()->withUser(auth()->user())->listForms()`.
 
 ### Database Separation
 
-- **Laravel DB** (SQLite in dev): users, sessions, password resets
-- **Go DB** (PostgreSQL 17): forms, form_submissions, users (shadow-synced from Laravel assertions)
+- **Laravel DB** (MariaDB 11.8 via DDEV): users, sessions, password resets
+- **Go DB** (PostgreSQL 17 via DDEV sidecar): forms, form_submissions, users (shadow-synced from Laravel assertions)
 
 Laravel never touches form tables; Go never touches auth tables.
 
@@ -87,17 +109,20 @@ Laravel never touches form tables; Go never touches auth tables.
 **Public** (no auth, rate limited):
 - `GET /forms/:id/schema`, `POST /forms/:id/submit`, `GET /forms/:id/embed`
 
-## Go Architecture (Clean Architecture + Uber FX)
+## Go Architecture (Clean Architecture + Uber FX, Go 1.25)
 
 ```
 internal/
-├── domain/           # Entities, service interfaces, repository interfaces
+├── domain/           # Business entities, service interfaces, repository interfaces
+│   ├── entities/     # Core entity structs (user.go)
 │   ├── form/         # Form + FormSubmission models, service, repository
 │   ├── user/         # User model, service, syncer
 │   └── common/       # Shared errors, events, interfaces
-├── application/      # HTTP handlers, middleware, validation, response builders
+├── application/      # HTTP layer
+│   ├── constants/    # Application constants
 │   ├── handlers/web/ # REST handlers (implement web.Handler interface)
 │   ├── middleware/    # Assertion, security, CORS, access control
+│   ├── response/     # Response builders
 │   └── validation/   # Form schema validation
 └── infrastructure/   # GORM repos, Viper config, Zap logging, Echo server, event bus
 ```
@@ -109,7 +134,7 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 ## Laravel Architecture
 
 - **Controllers** are thin: auth user → call GoFormsClient → Inertia render or redirect
-- **FormController** catches `RequestException` from Go and maps status codes (422→validation, 404→not found, 5xx→flash message)
+- **FormController**, **DemoController**, **PublicFormController** — FormController catches `RequestException` from Go and maps status codes (422→validation, 404→not found, 5xx→flash message)
 - **Frontend**: Vue 3 pages in `resources/js/pages/`, layouts in `resources/js/layouts/`, shadcn-vue components
 - **Routes**: Wayfinder generates type-safe TypeScript route functions from Laravel routes (import from `@/actions/` or `@/routes/`)
 - **Form builder**: Form.io integration (`@goformx/formio` wrapper) in `Forms/Edit.vue`
