@@ -13,6 +13,11 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
+const seo = computed(
+    () =>
+        (page.props.seo as { appUrl: string; currentUrl: string; defaultOgImage: string | null }) ??
+        { appUrl: '', currentUrl: '', defaultOgImage: null },
+);
 const goFormsPublicUrl = computed(() => (page.props.goFormsPublicUrl as string) ?? '');
 
 const schemaUrl = computed(
@@ -108,7 +113,13 @@ onMounted(async () => {
 </script>
 
 <template>
-    <Head :title="`Form`" />
+    <Head title="Fill out this form – GoFormX">
+        <meta
+            name="description"
+            content="Fill out and submit this form. Powered by GoFormX."
+        />
+        <link rel="canonical" :href="seo.currentUrl" />
+    </Head>
     <div class="relative min-h-screen bg-background p-6">
         <div
             class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,hsl(var(--brand)/0.04),transparent_60%)]"

@@ -15,6 +15,11 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
+const seo = computed(
+    () =>
+        (page.props.seo as { appUrl: string; currentUrl: string; defaultOgImage: string | null }) ??
+        { appUrl: '', currentUrl: '', defaultOgImage: null },
+);
 const goFormsPublicUrl = computed(() => (page.props.goFormsPublicUrl as string) ?? '');
 
 const schemaUrl = computed(
@@ -111,7 +116,37 @@ onMounted(async () => {
 
 <template>
     <div class="flex min-h-screen flex-col bg-background text-foreground">
-        <Head title="Demo" />
+        <Head title="Demo">
+            <meta
+                name="description"
+                content="Try the GoFormX demo form. Submit a test response and see how embedded forms work with the GoFormX API."
+            />
+            <link rel="canonical" :href="seo.currentUrl" />
+            <meta property="og:type" content="website" />
+            <meta property="og:title" content="Demo – GoFormX" />
+            <meta
+                property="og:description"
+                content="Try the GoFormX demo form. Submit a test response and see how embedded forms work."
+            />
+            <meta property="og:url" :content="seo.currentUrl" />
+            <meta property="og:site_name" :content="page.props.name" />
+            <meta
+                v-if="seo.defaultOgImage"
+                property="og:image"
+                :content="seo.defaultOgImage"
+            />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" content="Demo – GoFormX" />
+            <meta
+                name="twitter:description"
+                content="Try the GoFormX demo form. Submit a test response and see how embedded forms work."
+            />
+            <meta
+                v-if="seo.defaultOgImage"
+                name="twitter:image"
+                :content="seo.defaultOgImage"
+            />
+        </Head>
 
         <header
             class="w-full border-b border-border/50 bg-background/80 backdrop-blur-sm"

@@ -6,6 +6,39 @@ use App\Http\Controllers\PublicFormController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
+use Symfony\Component\HttpFoundation\Response;
+
+Route::get('robots.txt', function (): Response {
+    $appUrl = rtrim(config('app.url'), '/');
+
+    return response("User-agent: *\nDisallow:\n\nSitemap: {$appUrl}/sitemap.xml\n", 200, [
+        'Content-Type' => 'text/plain',
+    ]);
+})->name('robots');
+
+Route::get('sitemap.xml', function (): Response {
+    $appUrl = rtrim(config('app.url'), '/');
+    $lastmod = now()->toAtomString();
+
+    $urls = [
+        ['loc' => $appUrl.'/', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/demo', 'lastmod' => $lastmod],
+    ];
+
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
+    $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
+    foreach ($urls as $url) {
+        $xml .= '  <url>'."\n";
+        $xml .= '    <loc>'.e($url['loc']).'</loc>'."\n";
+        $xml .= '    <lastmod>'.e($url['lastmod']).'</lastmod>'."\n";
+        $xml .= '  </url>'."\n";
+    }
+    $xml .= '</urlset>';
+
+    return response($xml, 200, [
+        'Content-Type' => 'application/xml',
+    ]);
+})->name('sitemap');
 
 Route::get('demo', DemoController::class)->name('demo');
 

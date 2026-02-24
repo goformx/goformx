@@ -35,6 +35,8 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $appUrl = rtrim(config('app.url'), '/');
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -46,6 +48,11 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'error' => fn () => $request->session()->get('error'),
                 'success' => fn () => $request->session()->get('success'),
+            ],
+            'seo' => [
+                'appUrl' => $appUrl,
+                'currentUrl' => $request->url(),
+                'defaultOgImage' => null,
             ],
         ];
     }

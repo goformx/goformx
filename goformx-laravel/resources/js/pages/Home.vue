@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
 import {
     FileText,
     Zap,
@@ -8,6 +8,7 @@ import {
     Database,
     Globe,
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -15,11 +16,26 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import JsonLdScript from '@/components/JsonLdScript.vue';
 import { dashboard, demo, login, register } from '@/routes';
 
 defineProps<{
     canRegister: boolean;
 }>();
+
+const page = usePage();
+const seo = computed(() => (page.props.seo as { appUrl: string; currentUrl: string; defaultOgImage: string | null }) ?? { appUrl: '', currentUrl: '', defaultOgImage: null });
+const title = 'GoFormX – Your Forms, Our Backend';
+const description =
+    'Build and host forms with a visual dashboard and form builder. RESTful API and public submit for embeds. Self-hosted, no lock-in.';
+const jsonLd = computed(() => ({
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'GoFormX',
+    url: seo.value.appUrl,
+    description,
+    applicationCategory: 'DeveloperApplication',
+}));
 
 const features = [
     {
@@ -61,7 +77,29 @@ const features = [
     <div
         class="flex min-h-screen flex-col bg-background text-foreground"
     >
-        <Head title="GoFormX – Your Forms, Our Backend" />
+        <Head :title="title">
+            <meta name="description" :content="description" />
+            <link rel="canonical" :href="seo.currentUrl" />
+            <meta property="og:type" content="website" />
+            <meta property="og:title" :content="title" />
+            <meta property="og:description" :content="description" />
+            <meta property="og:url" :content="seo.currentUrl" />
+            <meta property="og:site_name" :content="page.props.name" />
+            <meta
+                v-if="seo.defaultOgImage"
+                property="og:image"
+                :content="seo.defaultOgImage"
+            />
+            <meta name="twitter:card" content="summary_large_image" />
+            <meta name="twitter:title" :content="title" />
+            <meta name="twitter:description" :content="description" />
+            <meta
+                v-if="seo.defaultOgImage"
+                name="twitter:image"
+                :content="seo.defaultOgImage"
+            />
+            <JsonLdScript :data="jsonLd" />
+        </Head>
 
         <header
             class="w-full border-b border-border/50 bg-background/80 backdrop-blur-sm"
