@@ -139,27 +139,25 @@ const filteredFields = computed(() => {
     return fieldTypes.filter((field) => {
         if (field.label.toLowerCase().includes(query)) return true;
         if (field.type.toLowerCase().includes(query)) return true;
-        if (
-            field.keywords?.some((keyword) => keyword.includes(query))
-        )
+        if (field.keywords?.some((keyword) => keyword.includes(query)))
             return true;
         return false;
     });
 });
 
 const basicFields = computed(() =>
-    filteredFields.value.filter((f) => f.category === 'basic')
+    filteredFields.value.filter((f) => f.category === 'basic'),
 );
 const layoutFields = computed(() =>
-    filteredFields.value.filter((f) => f.category === 'layout')
+    filteredFields.value.filter((f) => f.category === 'layout'),
 );
 const advancedFields = computed(() =>
-    filteredFields.value.filter((f) => f.category === 'advanced')
+    filteredFields.value.filter((f) => f.category === 'advanced'),
 );
 </script>
 
 <template>
-    <div class="fields-panel flex flex-col h-full">
+    <div class="fields-panel flex h-full flex-col">
         <div class="px-4 py-3">
             <Input
                 v-model="searchQuery"
@@ -170,11 +168,11 @@ const advancedFields = computed(() =>
         </div>
 
         <ScrollArea class="flex-1">
-            <div class="px-2 pb-4 space-y-4">
+            <div class="space-y-4 px-2 pb-4">
                 <div v-if="basicFields.length > 0">
-                    <div class="px-2 mb-2">
+                    <div class="mb-2 px-2">
                         <h4
-                            class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                            class="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
                         >
                             Basic
                         </h4>
@@ -183,7 +181,7 @@ const advancedFields = computed(() =>
                         <button
                             v-for="field in basicFields"
                             :key="field.type"
-                            class="field-item w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors cursor-move"
+                            class="field-item flex w-full cursor-move items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground"
                             :data-type="field.type"
                             :title="field.label"
                         >
@@ -192,7 +190,7 @@ const advancedFields = computed(() =>
                                 class="h-4 w-4 flex-shrink-0 text-muted-foreground"
                             />
                             <span
-                                class="text-sm font-medium flex-1 text-left truncate"
+                                class="flex-1 truncate text-left text-sm font-medium"
                                 >{{ field.label }}</span
                             >
                         </button>
@@ -207,9 +205,9 @@ const advancedFields = computed(() =>
                 />
 
                 <div v-if="layoutFields.length > 0">
-                    <div class="px-2 mb-2">
+                    <div class="mb-2 px-2">
                         <h4
-                            class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                            class="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
                         >
                             Layout
                         </h4>
@@ -218,7 +216,7 @@ const advancedFields = computed(() =>
                         <button
                             v-for="field in layoutFields"
                             :key="field.type"
-                            class="field-item w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors cursor-move"
+                            class="field-item flex w-full cursor-move items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground"
                             :data-type="field.type"
                             :title="field.label"
                         >
@@ -227,19 +225,21 @@ const advancedFields = computed(() =>
                                 class="h-4 w-4 flex-shrink-0 text-muted-foreground"
                             />
                             <span
-                                class="text-sm font-medium flex-1 text-left truncate"
+                                class="flex-1 truncate text-left text-sm font-medium"
                                 >{{ field.label }}</span
                             >
                         </button>
                     </div>
                 </div>
 
-                <Separator v-if="layoutFields.length > 0 && advancedFields.length > 0" />
+                <Separator
+                    v-if="layoutFields.length > 0 && advancedFields.length > 0"
+                />
 
                 <div v-if="advancedFields.length > 0">
-                    <div class="px-2 mb-2">
+                    <div class="mb-2 px-2">
                         <h4
-                            class="text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+                            class="text-xs font-semibold tracking-wide text-muted-foreground uppercase"
                         >
                             Advanced
                         </h4>
@@ -248,7 +248,7 @@ const advancedFields = computed(() =>
                         <button
                             v-for="field in advancedFields"
                             :key="field.type"
-                            class="field-item w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors cursor-move"
+                            class="field-item flex w-full cursor-move items-center gap-3 rounded-md px-3 py-2 transition-colors hover:bg-accent hover:text-accent-foreground"
                             :data-type="field.type"
                             :title="field.label"
                         >
@@ -257,7 +257,7 @@ const advancedFields = computed(() =>
                                 class="h-4 w-4 flex-shrink-0 text-muted-foreground"
                             />
                             <span
-                                class="text-sm font-medium flex-1 text-left truncate"
+                                class="flex-1 truncate text-left text-sm font-medium"
                                 >{{ field.label }}</span
                             >
                         </button>
@@ -269,7 +269,7 @@ const advancedFields = computed(() =>
                     class="px-3 py-8 text-center"
                 >
                     <p class="text-sm text-muted-foreground">No fields found</p>
-                    <p class="text-xs text-muted-foreground mt-1">
+                    <p class="mt-1 text-xs text-muted-foreground">
                         Try a different search term
                     </p>
                 </div>

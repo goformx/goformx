@@ -11,3 +11,16 @@ test('returns GoFormX home landing page', function () {
         ->has('canRegister')
     );
 });
+
+test('home page shares seo props', function () {
+    config(['app.url' => 'https://example.com']);
+
+    $response = $this->get('/');
+
+    $response->assertOk();
+    $response->assertInertia(fn (Assert $page) => $page
+        ->has('seo')
+        ->where('seo.appUrl', 'https://example.com')
+        ->where('seo.defaultOgImage', null)
+    );
+});

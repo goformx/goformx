@@ -21,10 +21,10 @@ const isSettingsPanelCollapsed = ref(false);
 onMounted(() => {
     try {
         const savedFieldsState = localStorage.getItem(
-            'builder-fields-panel-collapsed'
+            'builder-fields-panel-collapsed',
         );
         const savedSettingsState = localStorage.getItem(
-            'builder-settings-panel-collapsed'
+            'builder-settings-panel-collapsed',
         );
 
         if (savedFieldsState !== null) {
@@ -43,7 +43,7 @@ function toggleFieldsPanel() {
     try {
         localStorage.setItem(
             'builder-fields-panel-collapsed',
-            String(isFieldsPanelCollapsed.value)
+            String(isFieldsPanelCollapsed.value),
         );
     } catch (error) {
         Logger.error('Failed to save fields panel state:', error);
@@ -55,7 +55,7 @@ function toggleSettingsPanel() {
     try {
         localStorage.setItem(
             'builder-settings-panel-collapsed',
-            String(isSettingsPanelCollapsed.value)
+            String(isSettingsPanelCollapsed.value),
         );
     } catch (error) {
         Logger.error('Failed to save settings panel state:', error);
@@ -64,8 +64,11 @@ function toggleSettingsPanel() {
 </script>
 
 <template>
-    <div class="builder-layout flex flex-col h-full">
-        <div v-if="$slots['header']" class="builder-header border-b bg-background">
+    <div class="builder-layout flex h-full flex-col">
+        <div
+            v-if="$slots['header']"
+            class="builder-header border-b bg-background"
+        >
             <slot name="header" />
         </div>
 
@@ -77,11 +80,14 @@ function toggleSettingsPanel() {
                     isFieldsPanelCollapsed ? 'w-0' : 'w-64',
                 ]"
             >
-                <div v-if="!isFieldsPanelCollapsed" class="h-full flex flex-col">
+                <div
+                    v-if="!isFieldsPanelCollapsed"
+                    class="flex h-full flex-col"
+                >
                     <div
-                        class="flex items-center justify-between px-4 py-3 border-b"
+                        class="flex items-center justify-between border-b px-4 py-3"
                     >
-                        <h3 class="font-semibold text-sm">Fields</h3>
+                        <h3 class="text-sm font-semibold">Fields</h3>
                         <Button
                             variant="ghost"
                             size="icon"
@@ -99,7 +105,7 @@ function toggleSettingsPanel() {
 
             <div
                 v-if="props.showFieldsPanel && isFieldsPanelCollapsed"
-                class="flex items-start pt-3 px-1 border-r"
+                class="flex items-start border-r px-1 pt-3"
             >
                 <Button
                     variant="ghost"
@@ -111,13 +117,13 @@ function toggleSettingsPanel() {
                 </Button>
             </div>
 
-            <div class="builder-canvas flex-1 bg-muted/10 overflow-auto">
+            <div class="builder-canvas flex-1 overflow-auto bg-muted/10">
                 <slot name="canvas" />
             </div>
 
             <div
                 v-if="props.showSettingsPanel && isSettingsPanelCollapsed"
-                class="flex items-start pt-3 px-1 border-l"
+                class="flex items-start border-l px-1 pt-3"
             >
                 <Button
                     variant="ghost"
@@ -138,12 +144,12 @@ function toggleSettingsPanel() {
             >
                 <div
                     v-if="!isSettingsPanelCollapsed"
-                    class="h-full flex flex-col"
+                    class="flex h-full flex-col"
                 >
                     <div
-                        class="flex items-center justify-between px-4 py-3 border-b"
+                        class="flex items-center justify-between border-b px-4 py-3"
                     >
-                        <h3 class="font-semibold text-sm">Settings</h3>
+                        <h3 class="text-sm font-semibold">Settings</h3>
                         <Button
                             variant="ghost"
                             size="icon"

@@ -25,7 +25,7 @@ export interface UseKeyboardShortcutsReturn {
 
 export function useKeyboardShortcuts(
     shortcuts: ShortcutConfig[],
-    options?: UseKeyboardShortcutsOptions
+    options?: UseKeyboardShortcutsOptions,
 ): UseKeyboardShortcutsReturn {
     const isEnabled = options?.enabled ?? ref(true);
     const isMac = ref(false);
@@ -36,7 +36,7 @@ export function useKeyboardShortcuts(
 
     const matchesShortcut = (
         event: KeyboardEvent,
-        shortcut: ShortcutConfig
+        shortcut: ShortcutConfig,
     ): boolean => {
         const keyMatches =
             event.key.toLowerCase() === shortcut.key.toLowerCase();
@@ -45,14 +45,18 @@ export function useKeyboardShortcuts(
         const shiftMatches = shortcut.shift ? event.shiftKey : !event.shiftKey;
         const altMatches = shortcut.alt ? event.altKey : !event.altKey;
         return (
-            keyMatches && ctrlMatches && metaMatches && shiftMatches && altMatches
+            keyMatches &&
+            ctrlMatches &&
+            metaMatches &&
+            shiftMatches &&
+            altMatches
         );
     };
 
     const handleKeyDown = (event: KeyboardEvent): void => {
         if (!isEnabled.value) return;
         const matchedShortcut = shortcuts.find((shortcut) =>
-            matchesShortcut(event, shortcut)
+            matchesShortcut(event, shortcut),
         );
         if (matchedShortcut) {
             if (matchedShortcut.preventDefault !== false) {

@@ -48,12 +48,10 @@ const defaultSchema: FormSchema = {
 };
 
 export function useFormBuilder(
-    options: FormBuilderOptions
+    options: FormBuilderOptions,
 ): UseFormBuilderReturn {
     const builder = ref<unknown | null>(null);
-    const schema = ref<FormSchema>(
-        options.schema ?? { ...defaultSchema }
-    );
+    const schema = ref<FormSchema>(options.schema ?? { ...defaultSchema });
     const isLoading = ref(true);
     const error = ref<string | null>(null);
     const isSaving = ref(false);
@@ -231,7 +229,7 @@ export function useFormBuilder(
                     void saveSchema();
                 }, delay);
             },
-            { deep: true }
+            { deep: true },
         );
     }
 
@@ -242,7 +240,7 @@ export function useFormBuilder(
             markDirty();
             options.onSchemaChange?.(newSchema);
         },
-        { deep: true }
+        { deep: true },
     );
 
     function undo() {
@@ -261,7 +259,7 @@ export function useFormBuilder(
 
     function findComponent(
         components: unknown[],
-        key: string
+        key: string,
     ): FormComponent | null {
         for (const component of components) {
             const comp = component as FormComponent;
@@ -271,7 +269,7 @@ export function useFormBuilder(
             if (comp['components']) {
                 const found = findComponent(
                     comp['components'] as unknown[],
-                    key
+                    key,
                 );
                 if (found) return found;
             }
@@ -287,7 +285,7 @@ export function useFormBuilder(
             return;
         }
         const duplicate = JSON.parse(
-            JSON.stringify(component)
+            JSON.stringify(component),
         ) as FormComponent;
         duplicate.key = `${component.key}_copy`;
         duplicate.label = `${component.label ?? component.type} (Copy)`;
@@ -299,13 +297,13 @@ export function useFormBuilder(
     function deleteField(fieldKey: string) {
         const currentSchema = getSchema();
         const filterComponents = (
-            components: FormComponent[]
+            components: FormComponent[],
         ): FormComponent[] => {
             return components.filter((comp) => {
                 if (comp.key === fieldKey) return false;
                 if (comp['components']) {
                     comp['components'] = filterComponents(
-                        comp['components'] as FormComponent[]
+                        comp['components'] as FormComponent[],
                     );
                 }
                 return true;

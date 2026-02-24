@@ -3,7 +3,13 @@ import { Head, Link } from '@inertiajs/vue3';
 import { Check, Copy } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
@@ -37,7 +43,10 @@ const iframeSnippet = computed(() => {
 const breadcrumbs = computed((): BreadcrumbItem[] => [
     { title: 'Dashboard', href: dashboard().url },
     { title: 'Forms', href: formsIndex.url() },
-    { title: props.form.title ?? 'Form', href: formId.value ? edit.url({ id: formId.value }) : '#' },
+    {
+        title: props.form.title ?? 'Form',
+        href: formId.value ? edit.url({ id: formId.value }) : '#',
+    },
     { title: 'Embed', href: '#' },
 ]);
 
@@ -47,7 +56,9 @@ async function copyToClipboard(text: string, type: 'url' | 'iframe') {
     try {
         await navigator.clipboard.writeText(text);
         copied.value = type;
-        setTimeout(() => { copied.value = null; }, 2000);
+        setTimeout(() => {
+            copied.value = null;
+        }, 2000);
     } catch {
         // ignore
     }
@@ -58,7 +69,9 @@ async function copyToClipboard(text: string, type: 'url' | 'iframe') {
     <Head :title="`Embed: ${form.title ?? 'Form'}`" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <h1 class="text-xl font-semibold">Embed</h1>
                 <Button v-if="formId" variant="outline" as-child>
@@ -99,14 +112,20 @@ async function copyToClipboard(text: string, type: 'url' | 'iframe') {
                     </CardDescription>
                 </CardHeader>
                 <CardContent class="flex flex-col gap-2">
-                    <pre class="overflow-x-auto rounded-md border border-border bg-muted/50 p-3 text-xs font-mono">{{ iframeSnippet }}</pre>
+                    <pre
+                        class="overflow-x-auto rounded-md border border-border bg-muted/50 p-3 font-mono text-xs"
+                        >{{ iframeSnippet }}</pre
+                    >
                     <Button
                         variant="outline"
                         size="sm"
                         class="w-fit"
                         @click="copyToClipboard(iframeSnippet, 'iframe')"
                     >
-                        <Check v-if="copied === 'iframe'" class="mr-2 h-4 w-4" />
+                        <Check
+                            v-if="copied === 'iframe'"
+                            class="mr-2 h-4 w-4"
+                        />
                         <Copy v-else class="mr-2 h-4 w-4" />
                         {{ copied === 'iframe' ? 'Copied' : 'Copy snippet' }}
                     </Button>

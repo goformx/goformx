@@ -13,13 +13,24 @@ const props = defineProps<{
 }>();
 
 const page = usePage();
-const goFormsPublicUrl = computed(() => (page.props.goFormsPublicUrl as string) ?? '');
+const seo = computed(() => page.props.seo);
 
-const schemaUrl = computed(
-    () => (goFormsPublicUrl.value ? `${goFormsPublicUrl.value}/forms/${props.formId}/schema` : ''),
+const title = 'Fill out this form – GoFormX';
+const ogTitle = 'Fill out this form – GoFormX';
+const description = 'Fill out and submit this form. Powered by GoFormX.';
+const goFormsPublicUrl = computed(
+    () => (page.props.goFormsPublicUrl as string) ?? '',
 );
-const submitUrl = computed(
-    () => (goFormsPublicUrl.value ? `${goFormsPublicUrl.value}/forms/${props.formId}/submit` : ''),
+
+const schemaUrl = computed(() =>
+    goFormsPublicUrl.value
+        ? `${goFormsPublicUrl.value}/forms/${props.formId}/schema`
+        : '',
+);
+const submitUrl = computed(() =>
+    goFormsPublicUrl.value
+        ? `${goFormsPublicUrl.value}/forms/${props.formId}/submit`
+        : '',
 );
 
 const status = ref<'loading' | 'form' | 'success' | 'error'>('loading');
@@ -62,42 +73,47 @@ onMounted(async () => {
         });
         formInstance.value = form;
 
-        form.on('submit', async (submission: { data?: Record<string, unknown> }) => {
-            errorMessage.value = null;
-            try {
-                const res = await fetch(submitUrl.value, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(submission?.data ?? submission),
-                });
+        form.on(
+            'submit',
+            async (submission: { data?: Record<string, unknown> }) => {
+                errorMessage.value = null;
+                try {
+                    const res = await fetch(submitUrl.value, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(submission?.data ?? submission),
+                    });
 
-                if (res.ok) {
-                    status.value = 'success';
-                    return;
-                }
-                if (res.status === 422) {
-                    const errData = await res.json().catch(() => ({}));
-                    const errors = errData?.errors ?? errData?.data?.errors ?? [];
-                    if (Array.isArray(errors)) {
-                        form.emit('submitError', { errors });
-                    } else if (typeof errors === 'object') {
-                        form.emit('submitError', { errors });
+                    if (res.ok) {
+                        status.value = 'success';
+                        return;
                     }
-                    return;
+                    if (res.status === 422) {
+                        const errData = await res.json().catch(() => ({}));
+                        const errors =
+                            errData?.errors ?? errData?.data?.errors ?? [];
+                        if (Array.isArray(errors)) {
+                            form.emit('submitError', { errors });
+                        } else if (typeof errors === 'object') {
+                            form.emit('submitError', { errors });
+                        }
+                        return;
+                    }
+                    if (res.status === 429) {
+                        errorMessage.value =
+                            'Too many submissions. Please try again later.';
+                        return;
+                    }
+                    if (res.status === 404) {
+                        errorMessage.value = 'Form no longer available.';
+                        return;
+                    }
+                    errorMessage.value = 'Submission failed. Please try again.';
+                } catch {
+                    errorMessage.value = 'Submission failed. Please try again.';
                 }
-                if (res.status === 429) {
-                    errorMessage.value = 'Too many submissions. Please try again later.';
-                    return;
-                }
-                if (res.status === 404) {
-                    errorMessage.value = 'Form no longer available.';
-                    return;
-                }
-                errorMessage.value = 'Submission failed. Please try again.';
-            } catch {
-                errorMessage.value = 'Submission failed. Please try again.';
-            }
-        });
+            },
+        );
 
         status.value = 'form';
     } catch {
@@ -108,7 +124,31 @@ onMounted(async () => {
 </script>
 
 <template>
-    <Head :title="`Form`" />
+    <Head :title="title">
+        <meta name="description" :content="description" />
+        <link rel="canonical" :href="seo.currentUrl" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" :content="ogTitle" />
+        <meta property="og:description" :content="description" />
+        <meta property="og:url" :content="seo.currentUrl" />
+        <meta property="og:site_name" :content="page.props.name" />
+        <meta
+            v-if="seo.defaultOgImage"
+            property="og:image"
+            :content="seo.defaultOgImage"
+        />
+        <meta
+            name="twitter:card"
+            :content="seo.defaultOgImage ? 'summary_large_image' : 'summary'"
+        />
+        <meta name="twitter:title" :content="ogTitle" />
+        <meta name="twitter:description" :content="description" />
+        <meta
+            v-if="seo.defaultOgImage"
+            name="twitter:image"
+            :content="seo.defaultOgImage"
+        />
+    </Head>
     <div class="relative min-h-screen bg-background p-6">
         <div
             class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,hsl(var(--brand)/0.04),transparent_60%)]"
@@ -147,9 +187,7 @@ onMounted(async () => {
                     <div
                         class="h-8 w-8 animate-pulse rounded-full bg-[hsl(var(--brand)/0.2)]"
                     />
-                    <p class="text-sm text-muted-foreground">
-                        Loading form…
-                    </p>
+                    <p class="text-sm text-muted-foreground">Loading form…</p>
                 </div>
                 <div id="form-fill-container" class="min-h-[200px]" />
             </div>

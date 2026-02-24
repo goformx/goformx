@@ -2,12 +2,7 @@
 import { Link } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { edit } from '@/routes/forms';
 
 interface Form {
@@ -25,7 +20,9 @@ const props = defineProps<{
 }>();
 
 const formId = computed(() => props.form.id ?? props.form.ID ?? '');
-const editUrl = computed(() => (formId.value ? edit.url({ id: formId.value }) : ''));
+const editUrl = computed(() =>
+    formId.value ? edit.url({ id: formId.value }) : '',
+);
 const formattedDate = computed(() => {
     const raw = props.form.updated_at;
     if (!raw) return null;
@@ -43,15 +40,25 @@ const formattedDate = computed(() => {
 </script>
 
 <template>
-    <Link v-if="editUrl" :href="editUrl" class="block transition-opacity hover:opacity-90">
+    <Link
+        v-if="editUrl"
+        :href="editUrl"
+        class="block transition-opacity hover:opacity-90"
+    >
         <Card
             class="h-full cursor-pointer border-sidebar-border/70 transition-colors hover:bg-sidebar-accent/50"
         >
-            <CardHeader class="flex flex-row items-start justify-between gap-2 pb-2">
+            <CardHeader
+                class="flex flex-row items-start justify-between gap-2 pb-2"
+            >
                 <CardTitle class="line-clamp-1 text-base">
                     {{ form.title ?? 'Untitled' }}
                 </CardTitle>
-                <Badge v-if="form.status" variant="secondary" class="shrink-0 capitalize">
+                <Badge
+                    v-if="form.status"
+                    variant="secondary"
+                    class="shrink-0 capitalize"
+                >
                     {{ form.status }}
                 </Badge>
             </CardHeader>

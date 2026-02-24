@@ -18,7 +18,8 @@ withDefaults(defineProps<Props>(), {
 
 const page = usePage();
 watch(
-    () => (page.props as { flash?: { error?: string; success?: string } }).flash,
+    () =>
+        (page.props as { flash?: { error?: string; success?: string } }).flash,
     (flash) => {
         if (flash?.error) toast.error(flash.error);
         if (flash?.success) toast.success(flash.success);

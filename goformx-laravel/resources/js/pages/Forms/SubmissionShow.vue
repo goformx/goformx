@@ -34,8 +34,14 @@ const formId = computed(() => props.form.id ?? props.form.ID ?? '');
 const breadcrumbs = computed((): BreadcrumbItem[] => [
     { title: 'Dashboard', href: dashboard().url },
     { title: 'Forms', href: formsIndex.url() },
-    { title: props.form.title ?? 'Form', href: formId.value ? edit.url({ id: formId.value }) : '#' },
-    { title: 'Submissions', href: formId.value ? `/forms/${formId.value}/submissions` : '#' },
+    {
+        title: props.form.title ?? 'Form',
+        href: formId.value ? edit.url({ id: formId.value }) : '#',
+    },
+    {
+        title: 'Submissions',
+        href: formId.value ? `/forms/${formId.value}/submissions` : '#',
+    },
     { title: 'Submission', href: '#' },
 ]);
 
@@ -70,11 +76,15 @@ function formatValue(value: unknown): string {
     <Head :title="`Submission: ${form.title ?? 'Form'}`" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
             <div class="flex items-center justify-between">
                 <h1 class="text-xl font-semibold">Submission</h1>
                 <Button v-if="formId" variant="outline" as-child>
-                    <Link :href="`/forms/${formId}/submissions`">Back to submissions</Link>
+                    <Link :href="`/forms/${formId}/submissions`"
+                        >Back to submissions</Link
+                    >
                 </Button>
             </div>
 
@@ -83,7 +93,10 @@ function formatValue(value: unknown): string {
                     <p class="text-sm text-muted-foreground">
                         Submitted {{ formatDate(submission.submitted_at) }}
                     </p>
-                    <p v-if="submission.status" class="text-xs capitalize text-muted-foreground">
+                    <p
+                        v-if="submission.status"
+                        class="text-xs text-muted-foreground capitalize"
+                    >
                         Status: {{ submission.status }}
                     </p>
                 </CardHeader>
@@ -94,8 +107,13 @@ function formatValue(value: unknown): string {
                             :key="key"
                             class="flex flex-col gap-0.5 border-b border-border/50 pb-2 last:border-0 last:pb-0"
                         >
-                            <span class="text-xs font-medium text-muted-foreground">{{ key }}</span>
-                            <span class="text-sm">{{ formatValue(value) }}</span>
+                            <span
+                                class="text-xs font-medium text-muted-foreground"
+                                >{{ key }}</span
+                            >
+                            <span class="text-sm">{{
+                                formatValue(value)
+                            }}</span>
                         </div>
                     </template>
                     <p v-else class="text-sm text-muted-foreground">

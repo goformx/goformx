@@ -1,4 +1,5 @@
 import type { Auth } from '@/types/auth';
+import type { SeoProps } from '@/types/seo';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -18,6 +19,7 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
+            seo: SeoProps;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };

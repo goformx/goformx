@@ -2,7 +2,16 @@
 import { Formio } from '@formio/js';
 import goforms from '@goformx/formio';
 import { Head, useForm, router, Link } from '@inertiajs/vue3';
-import { Eye, ListChecks, Save, Code, Undo2, Redo2, Keyboard, Pencil } from 'lucide-vue-next';
+import {
+    Eye,
+    ListChecks,
+    Save,
+    Code,
+    Undo2,
+    Redo2,
+    Keyboard,
+    Pencil,
+} from 'lucide-vue-next';
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
 import BuilderLayout from '@/components/form-builder/BuilderLayout.vue';
@@ -96,17 +105,21 @@ const {
     onSchemaChange: () => {},
     onSave: async (schema: FormSchema) => {
         await new Promise<void>((resolve, reject) => {
-            router.put(`/forms/${formId}`, {
-                schema,
-                title: detailsForm.title,
-                description: detailsForm.description,
-                status: detailsForm.status,
-                cors_origins: detailsForm.cors_origins,
-            }, {
-                preserveScroll: true,
-                onSuccess: () => resolve(),
-                onError: () => reject(new Error('Failed to save form')),
-            });
+            router.put(
+                `/forms/${formId}`,
+                {
+                    schema,
+                    title: detailsForm.title,
+                    description: detailsForm.description,
+                    status: detailsForm.status,
+                    cors_origins: detailsForm.cors_origins,
+                },
+                {
+                    preserveScroll: true,
+                    onSuccess: () => resolve(),
+                    onError: () => reject(new Error('Failed to save form')),
+                },
+            );
         });
     },
 });
@@ -129,7 +142,12 @@ const selectedFieldData = computed<FormComponent | null>(() => {
 });
 
 const shortcuts = [
-    { key: 's', meta: true, handler: () => void handleSave(), description: 'Save form' },
+    {
+        key: 's',
+        meta: true,
+        handler: () => void handleSave(),
+        description: 'Save form',
+    },
     {
         key: 'p',
         meta: true,
@@ -163,7 +181,9 @@ const shortcuts = [
     {
         key: '/',
         meta: true,
-        handler: () => { showShortcutsModal.value = true; },
+        handler: () => {
+            showShortcutsModal.value = true;
+        },
         description: 'Show shortcuts',
     },
 ];
@@ -202,7 +222,7 @@ watch(
         if (flash?.success) toast.success(flash.success);
         if (flash?.error) toast.error(flash.error);
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 watch(
@@ -210,7 +230,7 @@ watch(
     (error) => {
         if (error) toast.error(error);
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 watch(showInPlacePreview, async (isPreview) => {
@@ -224,11 +244,15 @@ watch(showInPlacePreview, async (isPreview) => {
             return;
         }
         try {
-            inPlacePreviewInstance = await Formio.createForm(container, schema, {
-                readOnly: true,
-                noSubmit: true,
-                noAlerts: true,
-            });
+            inPlacePreviewInstance = await Formio.createForm(
+                container,
+                schema,
+                {
+                    readOnly: true,
+                    noSubmit: true,
+                    noAlerts: true,
+                },
+            );
         } catch (err) {
             console.error('Preview failed:', err);
             toast.error('Failed to load preview');
@@ -319,7 +343,9 @@ const breadcrumbs: BreadcrumbItem[] = [
                     Preview
                 </Button>
                 <Button variant="outline" size="sm" as-child>
-                    <Link :href="`/forms/${formId}/preview`">Shareable preview</Link>
+                    <Link :href="`/forms/${formId}/preview`"
+                        >Shareable preview</Link
+                    >
                 </Button>
                 <Button variant="outline" size="sm" as-child>
                     <Link :href="`/forms/${formId}/submissions`">
@@ -341,146 +367,159 @@ const breadcrumbs: BreadcrumbItem[] = [
                 </Button>
             </div>
 
-        <div
-            v-show="showInPlacePreview"
-            class="rounded-lg border bg-background p-6 shadow-sm"
-        >
-            <p class="mb-4 text-sm text-muted-foreground">
-                In-place preview (read-only). Use “Builder” to edit.
-            </p>
-            <div id="edit-inplace-preview" class="min-h-[400px]" />
-        </div>
+            <div
+                v-show="showInPlacePreview"
+                class="rounded-lg border bg-background p-6 shadow-sm"
+            >
+                <p class="mb-4 text-sm text-muted-foreground">
+                    In-place preview (read-only). Use “Builder” to edit.
+                </p>
+                <div id="edit-inplace-preview" class="min-h-[400px]" />
+            </div>
 
-        <BuilderLayout
-            v-show="!showInPlacePreview"
-            class="rounded-lg border bg-background shadow-sm"
-            :show-fields-panel="false"
-        >
-            <template #header>
-                <div class="px-6 py-4 space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
+            <BuilderLayout
+                v-show="!showInPlacePreview"
+                class="rounded-lg border bg-background shadow-sm"
+                :show-fields-panel="false"
+            >
+                <template #header>
+                    <div class="space-y-4 px-6 py-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <Label for="title" class="text-xs"
+                                    >Form Title</Label
+                                >
+                                <Input
+                                    id="title"
+                                    v-model="detailsForm.title"
+                                    type="text"
+                                    placeholder="Enter form title"
+                                    required
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <Label for="status" class="text-xs"
+                                    >Status</Label
+                                >
+                                <select
+                                    id="status"
+                                    v-model="detailsForm.status"
+                                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                >
+                                    <option value="draft">Draft</option>
+                                    <option value="published">Published</option>
+                                    <option value="archived">Archived</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="space-y-2">
-                            <Label for="title" class="text-xs">Form Title</Label>
+                            <Label for="description" class="text-xs"
+                                >Description</Label
+                            >
                             <Input
-                                id="title"
-                                v-model="detailsForm.title"
+                                id="description"
+                                v-model="detailsForm.description"
                                 type="text"
-                                placeholder="Enter form title"
-                                required
+                                placeholder="Enter form description"
                             />
                         </div>
                         <div class="space-y-2">
-                            <Label for="status" class="text-xs">Status</Label>
-                            <select
-                                id="status"
-                                v-model="detailsForm.status"
-                                class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            <Label for="corsOrigins" class="text-xs"
+                                >Allowed Origins (CORS)</Label
                             >
-                                <option value="draft">Draft</option>
-                                <option value="published">Published</option>
-                                <option value="archived">Archived</option>
-                            </select>
+                            <Input
+                                id="corsOrigins"
+                                v-model="detailsForm.cors_origins"
+                                type="text"
+                                placeholder="e.g. *, https://example.com"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                Required when publishing. Use * to allow all
+                                origins.
+                            </p>
                         </div>
                     </div>
-                    <div class="space-y-2">
-                        <Label for="description" class="text-xs"
-                            >Description</Label
-                        >
-                        <Input
-                            id="description"
-                            v-model="detailsForm.description"
-                            type="text"
-                            placeholder="Enter form description"
-                        />
-                    </div>
-                    <div class="space-y-2">
-                        <Label for="corsOrigins" class="text-xs"
-                            >Allowed Origins (CORS)</Label
-                        >
-                        <Input
-                            id="corsOrigins"
-                            v-model="detailsForm.cors_origins"
-                            type="text"
-                            placeholder="e.g. *, https://example.com"
-                        />
-                        <p class="text-xs text-muted-foreground">
-                            Required when publishing. Use * to allow all origins.
-                        </p>
-                    </div>
-                </div>
-            </template>
+                </template>
 
-            <template #canvas>
-                <div class="p-6">
-                    <div
-                        v-if="isBuilderLoading"
-                        class="flex items-center justify-center py-12"
-                    >
-                        <div class="text-muted-foreground">
-                            Loading form builder...
+                <template #canvas>
+                    <div class="p-6">
+                        <div
+                            v-if="isBuilderLoading"
+                            class="flex items-center justify-center py-12"
+                        >
+                            <div class="text-muted-foreground">
+                                Loading form builder...
+                            </div>
                         </div>
+                        <div
+                            id="form-schema-builder"
+                            class="min-h-[500px]"
+                            :data-form-id="formId"
+                        />
                     </div>
-                    <div
-                        id="form-schema-builder"
-                        class="min-h-[500px]"
-                        :data-form-id="formId"
+                </template>
+
+                <template #settings-panel>
+                    <FieldSettingsPanel
+                        :selected-field="selectedFieldData"
+                        @update:field="() => {}"
+                        @duplicate="(key) => duplicateField(key)"
+                        @delete="(key) => deleteField(key)"
+                        @close="() => selectField(null)"
                     />
-                </div>
-            </template>
-
-            <template #settings-panel>
-                <FieldSettingsPanel
-                    :selected-field="selectedFieldData"
-                    @update:field="() => {}"
-                    @duplicate="(key) => duplicateField(key)"
-                    @delete="(key) => deleteField(key)"
-                    @close="() => selectField(null)"
-                />
-            </template>
-        </BuilderLayout>
+                </template>
+            </BuilderLayout>
 
             <Dialog v-model:open="showSchemaModal">
-            <DialogContent class="max-w-3xl max-h-[80vh]">
-                <DialogHeader>
-                    <DialogTitle>Form Schema (JSON)</DialogTitle>
-                </DialogHeader>
-                <div class="overflow-auto max-h-[60vh]">
-                    <pre
-                        class="text-xs bg-muted p-4 rounded-md overflow-auto"
-                    >{{ exportSchema() }}</pre>
-                </div>
-                <div class="flex justify-end gap-2">
-                    <Button variant="outline" @click="showSchemaModal = false">
-                        Close
-                    </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
-
-        <Dialog v-model:open="showShortcutsModal">
-            <DialogContent class="max-w-md">
-                <DialogHeader>
-                    <DialogTitle>Keyboard Shortcuts</DialogTitle>
-                </DialogHeader>
-                <div class="space-y-3">
-                    <div
-                        v-for="shortcut in shortcuts"
-                        :key="shortcut.description"
-                        class="flex items-center justify-between py-2"
-                    >
-                        <span class="text-sm">{{ shortcut.description }}</span>
-                        <kbd
-                            class="inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-1 text-xs font-mono"
+                <DialogContent class="max-h-[80vh] max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Form Schema (JSON)</DialogTitle>
+                    </DialogHeader>
+                    <div class="max-h-[60vh] overflow-auto">
+                        <pre
+                            class="overflow-auto rounded-md bg-muted p-4 text-xs"
+                            >{{ exportSchema() }}</pre
                         >
-                            {{ formatShortcut(shortcut) }}
-                        </kbd>
                     </div>
-                </div>
-                <div class="flex justify-end">
-                    <Button @click="showShortcutsModal = false">Close</Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+                    <div class="flex justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            @click="showSchemaModal = false"
+                        >
+                            Close
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog v-model:open="showShortcutsModal">
+                <DialogContent class="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Keyboard Shortcuts</DialogTitle>
+                    </DialogHeader>
+                    <div class="space-y-3">
+                        <div
+                            v-for="shortcut in shortcuts"
+                            :key="shortcut.description"
+                            class="flex items-center justify-between py-2"
+                        >
+                            <span class="text-sm">{{
+                                shortcut.description
+                            }}</span>
+                            <kbd
+                                class="inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-1 font-mono text-xs"
+                            >
+                                {{ formatShortcut(shortcut) }}
+                            </kbd>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <Button @click="showShortcutsModal = false"
+                            >Close</Button
+                        >
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     </AppLayout>
 </template>
