@@ -7,12 +7,13 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Cashier\Billable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, HasUuids, Notifiable, TwoFactorAuthenticatable;
+    use Billable, HasFactory, HasUuids, Notifiable, TwoFactorAuthenticatable;
 
     protected $keyType = 'string';
 
@@ -27,6 +28,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'plan_override',
     ];
 
     /**
@@ -52,6 +54,36 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'plan_override' => 'string',
         ];
+    }
+
+    public function planTier(): string
+    {
+        if ($this->plan_override) {
+            return $this->plan_override;
+        }
+
+        $prices = config('services.stripe.prices');
+
+        $businessPrices = array_filter([
+            $prices['business_monthly'] ?? null,
+            $prices['business_annual'] ?? null,
+        ]);
+
+        if ($businessPrices && $this->subscribedToPrice($businessPrices)) {
+            return 'business';
+        }
+
+        $proPrices = array_filter([
+            $prices['pro_monthly'] ?? null,
+            $prices['pro_annual'] ?? null,
+        ]);
+
+        if ($proPrices && $this->subscribedToPrice($proPrices)) {
+            return 'pro';
+        }
+
+        return 'free';
     }
 }
