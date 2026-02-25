@@ -76,6 +76,11 @@ const (
 	ErrCodeUserInvalid ErrorCode = "USER_INVALID"
 	// ErrCodeUserUnauthorized represents a user unauthorized error
 	ErrCodeUserUnauthorized ErrorCode = "USER_UNAUTHORIZED"
+
+	// ErrCodeLimitExceeded represents a plan limit exceeded error
+	ErrCodeLimitExceeded ErrorCode = "LIMIT_EXCEEDED"
+	// ErrCodeFeatureNotAvailable represents a feature not available for the current plan
+	ErrCodeFeatureNotAvailable ErrorCode = "FEATURE_NOT_AVAILABLE"
 )
 
 // DomainError represents a domain-specific error
@@ -119,7 +124,8 @@ func GetHTTPStatus(code ErrorCode) int {
 		return http.StatusBadRequest
 	case ErrCodeUnauthorized, ErrCodeUserUnauthorized, ErrCodeAuthentication:
 		return http.StatusUnauthorized
-	case ErrCodeForbidden, ErrCodeFormAccessDenied, ErrCodeInsufficientRole:
+	case ErrCodeForbidden, ErrCodeFormAccessDenied, ErrCodeInsufficientRole,
+		ErrCodeLimitExceeded, ErrCodeFeatureNotAvailable:
 		return http.StatusForbidden
 	case ErrCodeNotFound, ErrCodeFormNotFound, ErrCodeUserNotFound:
 		return http.StatusNotFound
@@ -208,6 +214,32 @@ var (
 // Wrap wraps an existing error with domain context
 func Wrap(err error, code ErrorCode, message string) *DomainError {
 	return New(code, message, err)
+}
+
+// NewLimitExceeded creates a plan limit exceeded error with usage context.
+func NewLimitExceeded(limitType string, current, limit int, requiredTier string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeLimitExceeded,
+		Message: fmt.Sprintf("Plan limit reached for %s", limitType),
+		Context: map[string]any{
+			"limit_type":    limitType,
+			"current":       current,
+			"limit":         limit,
+			"required_tier": requiredTier,
+		},
+	}
+}
+
+// NewFeatureNotAvailable creates a feature not available error.
+func NewFeatureNotAvailable(feature, requiredTier string) *DomainError {
+	return &DomainError{
+		Code:    ErrCodeFeatureNotAvailable,
+		Message: fmt.Sprintf("Feature %s requires %s plan or higher", feature, requiredTier),
+		Context: map[string]any{
+			"feature":       feature,
+			"required_tier": requiredTier,
+		},
+	}
 }
 
 // IsNotFound checks if the error represents a "not found" error
