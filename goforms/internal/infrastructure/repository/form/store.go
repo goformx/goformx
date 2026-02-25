@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -325,4 +326,42 @@ func (s *Store) GetSubmissionsByStatus(
 	}
 
 	return submissions, nil
+}
+
+// CountFormsByUser returns the number of forms owned by a user.
+func (s *Store) CountFormsByUser(ctx context.Context, userID string) (int, error) {
+	var count int64
+	if err := s.db.GetDB().WithContext(ctx).
+		Model(&model.Form{}).
+		Where("user_id = ?", userID).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count forms by user: %w", err)
+	}
+
+	return int(count), nil
+}
+
+// CountSubmissionsByUserMonth returns the number of submissions for a user in a given month.
+func (s *Store) CountSubmissionsByUserMonth(
+	ctx context.Context,
+	userID string,
+	year int,
+	month int,
+) (int, error) {
+	startOfMonth := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+	endOfMonth := startOfMonth.AddDate(0, 1, 0)
+
+	var count int64
+	if err := s.db.GetDB().WithContext(ctx).
+		Model(&model.FormSubmission{}).
+		Joins("JOIN forms ON forms.uuid = form_submissions.form_id").
+		Where(
+			"forms.user_id = ? AND form_submissions.created_at >= ? AND form_submissions.created_at < ?",
+			userID, startOfMonth, endOfMonth,
+		).
+		Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("count submissions by user month: %w", err)
+	}
+
+	return int(count), nil
 }
