@@ -276,7 +276,8 @@ func (h *FormAPIHandler) handleUpdateForm(c echo.Context) error {
 		return h.wrapError("handle update error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	if updateErr := h.FormServiceHandler.UpdateForm(c.Request().Context(), form, req); updateErr != nil {
+	updatePlanTier := ctxmw.GetPlanTier(c)
+	if updateErr := h.FormServiceHandler.UpdateForm(c.Request().Context(), form, req, updatePlanTier); updateErr != nil {
 		h.Logger.Error("failed to update form", "error", updateErr, "form_id", form.ID)
 
 		return h.HandleError(c, updateErr, "Failed to update form")

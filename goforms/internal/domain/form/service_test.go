@@ -284,7 +284,7 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, form)
+		err := svc.UpdateForm(ctx, form, plans.TierFree)
 		require.NoError(t, err)
 	})
 
@@ -300,7 +300,7 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, invalidForm)
+		err := svc.UpdateForm(ctx, invalidForm, plans.TierFree)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "validate form")
 	})
@@ -313,7 +313,7 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, form)
+		err := svc.UpdateForm(ctx, form, plans.TierFree)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "update form in repository")
 	})
@@ -328,7 +328,7 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, form)
+		err := svc.UpdateForm(ctx, form, plans.TierFree)
 		require.NoError(t, err) // Event bus errors are logged but don't fail the operation
 	})
 }

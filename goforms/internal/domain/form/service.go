@@ -28,7 +28,7 @@ const (
 // Service defines the interface for form-related business logic
 type Service interface {
 	CreateForm(ctx context.Context, form *model.Form, planTier string) error
-	UpdateForm(ctx context.Context, form *model.Form) error
+	UpdateForm(ctx context.Context, form *model.Form, planTier string) error
 	DeleteForm(ctx context.Context, formID string) error
 	GetForm(ctx context.Context, formID string) (*model.Form, error)
 	ListForms(ctx context.Context, userID string) ([]*model.Form, error)
@@ -66,6 +66,13 @@ func (s *formService) CreateForm(ctx context.Context, form *model.Form, planTier
 	// Enforce plan limits
 	if err := s.enforcePlanLimits(ctx, form.UserID, planTier); err != nil {
 		return err
+	}
+
+	// Validate schema features against plan tier
+	if form.Schema != nil {
+		if err := plans.ValidateSchemaFeatures(form.Schema, planTier); err != nil {
+			return err
+		}
 	}
 
 	form.PlanTier = planTier
@@ -111,10 +118,17 @@ func (s *formService) enforcePlanLimits(ctx context.Context, userID, planTier st
 	return nil
 }
 
-// UpdateForm updates a form
-func (s *formService) UpdateForm(ctx context.Context, form *model.Form) error {
+// UpdateForm updates a form, enforcing feature gating on schema changes.
+func (s *formService) UpdateForm(ctx context.Context, form *model.Form, planTier string) error {
 	if validateErr := form.Validate(); validateErr != nil {
 		return fmt.Errorf("validate form: %w", validateErr)
+	}
+
+	// Validate schema features against plan tier
+	if form.Schema != nil {
+		if err := plans.ValidateSchemaFeatures(form.Schema, planTier); err != nil {
+			return err
+		}
 	}
 
 	// Update the form

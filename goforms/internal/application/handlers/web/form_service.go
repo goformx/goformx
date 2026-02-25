@@ -55,7 +55,12 @@ func (s *FormService) CreateForm(
 }
 
 // UpdateForm updates an existing form with the given request data
-func (s *FormService) UpdateForm(ctx context.Context, form *model.Form, req *FormUpdateRequest) error {
+func (s *FormService) UpdateForm(
+	ctx context.Context,
+	form *model.Form,
+	req *FormUpdateRequest,
+	planTier string,
+) error {
 	form.Title = req.Title
 	form.Description = req.Description
 	form.Status = req.Status
@@ -68,7 +73,7 @@ func (s *FormService) UpdateForm(ctx context.Context, form *model.Form, req *For
 		form.Schema = req.Schema
 	}
 
-	if err := s.formService.UpdateForm(ctx, form); err != nil {
+	if err := s.formService.UpdateForm(ctx, form, planTier); err != nil {
 		return fmt.Errorf("update form: %w", err)
 	}
 
