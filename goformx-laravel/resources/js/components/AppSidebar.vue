@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FileText, Folder, LayoutGrid } from 'lucide-vue-next';
+import { BookOpen, CreditCard, FileText, Folder, LayoutGrid } from 'lucide-vue-next';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
@@ -14,6 +14,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as billingIndex } from '@/routes/billing';
 import { index as formsIndex } from '@/routes/forms';
 import { type NavItem } from '@/types';
 import AppLogo from './AppLogo.vue';
@@ -28,6 +29,11 @@ const mainNavItems: NavItem[] = [
         title: 'Forms',
         href: formsIndex.url(),
         icon: FileText,
+    },
+    {
+        title: 'Billing',
+        href: billingIndex.url(),
+        icon: CreditCard,
     },
 ];
 

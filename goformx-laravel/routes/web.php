@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\DemoController;
 use App\Http\Controllers\FormController;
+use App\Http\Controllers\PricingController;
 use App\Http\Controllers\PublicFormController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -44,6 +46,7 @@ Route::get('sitemap.xml', function (): Response {
 })->name('sitemap');
 
 Route::get('demo', DemoController::class)->name('demo');
+Route::get('pricing', PricingController::class)->name('pricing');
 
 Route::get('/', function () {
     return Inertia::render('Home', [
@@ -71,6 +74,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('forms/{id}/embed', [FormController::class, 'embed'])->name('forms.embed');
     Route::put('forms/{id}', [FormController::class, 'update'])->name('forms.update');
     Route::delete('forms/{id}', [FormController::class, 'destroy'])->name('forms.destroy');
+});
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
+    Route::post('billing/checkout', [BillingController::class, 'checkout'])->name('billing.checkout');
+    Route::get('billing/portal', [BillingController::class, 'portal'])->name('billing.portal');
 });
 
 Route::get('forms/{id}', [PublicFormController::class, 'show'])->name('forms.fill');

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/goformx/goforms/internal/application/middleware/context"
+	"github.com/goformx/goforms/internal/domain/common/plans"
 	appconfig "github.com/goformx/goforms/internal/infrastructure/config"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
 	"github.com/labstack/echo/v4"
@@ -20,6 +21,9 @@ const (
 	headerUserID    = "X-User-Id"
 	headerTimestamp = "X-Timestamp"
 	headerSignature = "X-Signature"
+	headerPlanTier  = "X-Plan-Tier"
+
+	defaultPlanTier = "free"
 
 	// FailureReasonContextKey is the Echo context key set when assertion verification fails (value: reason string).
 	// The request logging middleware can include it in the "request completed with client error" log.
@@ -44,57 +48,74 @@ func (m *Middleware) Verify() echo.MiddlewareFunc {
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			userID, failReason := verifyAssertionHeaders(c.Request().Header, cfg)
+			userID, planTier, failReason := verifyAssertionHeaders(c.Request().Header, cfg)
 			if failReason != "" {
 				m.logFailure(c, failReason)
 
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			}
 
+			if strings.TrimSpace(c.Request().Header.Get(headerPlanTier)) == "" && m.logger != nil {
+				m.logger.Warn("X-Plan-Tier header missing, defaulting to free",
+					"user_id", userID, "path", c.Path())
+			}
+
 			context.SetUserID(c, userID)
+			context.SetPlanTier(c, planTier)
 
 			return next(c)
 		}
 	}
 }
 
-// verifyAssertionHeaders checks headers and config; returns (userID, "") on success or ("", reason) on failure.
-func verifyAssertionHeaders(headers http.Header, cfg appconfig.AssertionConfig) (userID, failureReason string) {
+// verifyAssertionHeaders checks headers and config; returns (userID, planTier, "") on success
+// or ("", "", reason) on failure.
+func verifyAssertionHeaders(
+	headers http.Header,
+	cfg appconfig.AssertionConfig,
+) (userID, planTier, failureReason string) {
 	userID = strings.TrimSpace(headers.Get(headerUserID))
 	timestamp := strings.TrimSpace(headers.Get(headerTimestamp))
 	signature := strings.TrimSpace(headers.Get(headerSignature))
 
+	planTier = strings.TrimSpace(headers.Get(headerPlanTier))
+	if planTier == "" {
+		planTier = defaultPlanTier
+	} else if !plans.IsValidTier(planTier) {
+		return "", "", "invalid_plan_tier"
+	}
+
 	if userID == "" || timestamp == "" || signature == "" {
-		return "", "missing_headers"
+		return "", "", "missing_headers"
 	}
 
 	if cfg.Secret == "" {
-		return "", "empty_secret"
+		return "", "", "empty_secret"
 	}
 
 	ts, err := parseTimestamp(timestamp)
 	if err != nil {
-		return "", "timestamp_parse_error"
+		return "", "", "timestamp_parse_error"
 	}
 
 	skew := time.Duration(cfg.TimestampSkewSeconds) * time.Second
 	if time.Since(ts) > skew {
-		return "", "timestamp_too_old"
+		return "", "", "timestamp_too_old"
 	}
 
-	payload := userID + ":" + timestamp
+	payload := userID + ":" + timestamp + ":" + planTier
 	expected := computeHMAC(cfg.Secret, payload)
 
 	sigBytes, err := hex.DecodeString(signature)
 	if err != nil {
-		return "", "signature_not_hex"
+		return "", "", "signature_not_hex"
 	}
 
 	if !hmacEqual(sigBytes, expected) {
-		return "", "signature_mismatch"
+		return "", "", "signature_mismatch"
 	}
 
-	return userID, ""
+	return userID, planTier, ""
 }
 
 func (m *Middleware) logFailure(c echo.Context, reason string) {

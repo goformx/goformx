@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,9 +14,11 @@ import (
 	"github.com/goformx/goforms/internal/application/constants"
 	"github.com/goformx/goforms/internal/application/middleware/access"
 	"github.com/goformx/goforms/internal/application/middleware/assertion"
+	ctxmw "github.com/goformx/goforms/internal/application/middleware/context"
 	"github.com/goformx/goforms/internal/application/middleware/security"
 	"github.com/goformx/goforms/internal/application/response"
 	"github.com/goformx/goforms/internal/application/validation"
+	domainerrors "github.com/goformx/goforms/internal/domain/common/errors"
 	formdomain "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/domain/user"
@@ -82,6 +85,11 @@ func (h *FormAPIHandler) RegisterLaravelRoutes(e *echo.Echo) {
 
 	formsLaravel.GET("", h.handleListForms)
 	formsLaravel.POST("", h.handleCreateForm)
+
+	// Usage endpoints — registered before /:id to avoid parameter conflict
+	formsLaravel.GET("/usage/forms-count", h.handleFormsCount)
+	formsLaravel.GET("/usage/submissions-count", h.handleSubmissionsCount)
+
 	formsLaravel.GET("/:id", h.handleGetForm)
 	formsLaravel.PUT("/:id", h.handleUpdateForm)
 	formsLaravel.DELETE("/:id", h.handleDeleteForm)
@@ -229,9 +237,23 @@ func (h *FormAPIHandler) handleCreateForm(c echo.Context) error {
 		return h.wrapError("handle create error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	form, err := h.FormServiceHandler.CreateForm(c.Request().Context(), userID, req)
+	planTier, _ := ctxmw.GetPlanTier(c)
+	if planTier == "" {
+		planTier = "free"
+	}
+
+	form, err := h.FormServiceHandler.CreateForm(c.Request().Context(), userID, req, planTier)
 	if err != nil {
 		h.Logger.Error("failed to create form", "error", err)
+
+		var domainErr *domainerrors.DomainError
+		if errors.As(err, &domainErr) {
+			return c.JSON(domainErr.HTTPStatus(), response.APIResponse{
+				Success: false,
+				Message: domainErr.Message,
+				Data:    domainErr.Context,
+			})
+		}
 
 		return h.HandleError(c, err, "Failed to create form")
 	}
@@ -267,8 +289,21 @@ func (h *FormAPIHandler) handleUpdateForm(c echo.Context) error {
 		return h.wrapError("handle update error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	if updateErr := h.FormServiceHandler.UpdateForm(c.Request().Context(), form, req); updateErr != nil {
+	updatePlanTier, _ := ctxmw.GetPlanTier(c)
+	if updatePlanTier == "" {
+		updatePlanTier = "free"
+	}
+	if updateErr := h.FormServiceHandler.UpdateForm(c.Request().Context(), form, req, updatePlanTier); updateErr != nil {
 		h.Logger.Error("failed to update form", "error", updateErr, "form_id", form.ID)
+
+		var domainErr *domainerrors.DomainError
+		if errors.As(updateErr, &domainErr) {
+			return c.JSON(domainErr.HTTPStatus(), response.APIResponse{
+				Success: false,
+				Message: domainErr.Message,
+				Data:    domainErr.Context,
+			})
+		}
 
 		return h.HandleError(c, updateErr, "Failed to update form")
 	}
@@ -476,6 +511,84 @@ func (h *FormAPIHandler) handleFormSubmit(c echo.Context) error {
 	}
 
 	return nil
+}
+
+// GET /api/forms/usage/forms-count — returns the user's total form count
+func (h *FormAPIHandler) handleFormsCount(c echo.Context) error {
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		return h.HandleForbidden(c, "User not authenticated")
+	}
+
+	count, err := h.FormService.CountFormsByUser(c.Request().Context(), userID)
+	if err != nil {
+		return h.HandleError(c, err, "Failed to count forms")
+	}
+
+	return c.JSON(http.StatusOK, response.APIResponse{
+		Success: true,
+		Data:    map[string]any{"count": count},
+	})
+}
+
+// GET /api/forms/usage/submissions-count?month=YYYY-MM — returns the user's monthly submission count
+func (h *FormAPIHandler) handleSubmissionsCount(c echo.Context) error {
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		return h.HandleForbidden(c, "User not authenticated")
+	}
+
+	monthStr := c.QueryParam("month")
+
+	year, month, err := parseYearMonth(monthStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, response.APIResponse{
+			Success: false,
+			Message: "Invalid month format. Use YYYY-MM.",
+		})
+	}
+
+	count, err := h.FormService.CountSubmissionsByUserMonth(
+		c.Request().Context(), userID, year, month,
+	)
+	if err != nil {
+		return h.HandleError(c, err, "Failed to count submissions")
+	}
+
+	return c.JSON(http.StatusOK, response.APIResponse{
+		Success: true,
+		Data:    map[string]any{"count": count, "month": monthStr},
+	})
+}
+
+// parseYearMonth parses a "YYYY-MM" string into year and month integers.
+func parseYearMonth(s string) (year, month int, err error) {
+	const expectedParts = 2
+
+	parts := strings.SplitN(s, "-", expectedParts)
+
+	if len(parts) != expectedParts {
+		return 0, 0, fmt.Errorf("invalid month format: %s", s)
+	}
+
+	year, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid year: %w", err)
+	}
+
+	month, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid month: %w", err)
+	}
+
+	const minMonth = 1
+	const maxMonth = 12
+
+	if month < minMonth || month > maxMonth {
+		return 0, 0, fmt.Errorf("month out of range: %d", month)
+	}
+
+	return year, month, nil
 }
 
 // Start initializes the form API handler.

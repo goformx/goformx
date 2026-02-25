@@ -6,10 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	domainerrors "github.com/goformx/goforms/internal/domain/common/errors"
 	"github.com/goformx/goforms/internal/domain/common/events"
+	"github.com/goformx/goforms/internal/domain/common/plans"
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	mockevents "github.com/goformx/goforms/test/mocks/events"
@@ -43,9 +46,11 @@ func TestService_CreateForm_minimal(t *testing.T) {
 	)
 
 	// Set up mock expectations in the correct order
+	repo.EXPECT().CountFormsByUser(gomock.Any(), userID).Return(0, nil)
 	repo.EXPECT().CreateForm(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, f *model.Form) error {
 		require.Equal(t, userID, f.UserID)
 		require.True(t, f.Active)
+		require.Equal(t, plans.TierFree, f.PlanTier)
 
 		return nil
 	})
@@ -56,11 +61,106 @@ func TestService_CreateForm_minimal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
-	err := svc.CreateForm(ctx, form)
+	err := svc.CreateForm(ctx, form, plans.TierFree)
 	require.NoError(t, err)
 	require.Equal(t, userID, form.UserID)
 	require.NotEmpty(t, form.ID)
 	require.True(t, form.Active)
+	require.Equal(t, plans.TierFree, form.PlanTier)
+}
+
+func TestService_CreateForm_ExceedsFreeTierLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mockform.NewMockRepository(ctrl)
+	eventBus := mockevents.NewMockEventBus(ctrl)
+	logger := mocklogging.NewMockLogger(ctrl)
+
+	userID := "user123"
+	form := model.NewForm(userID, "Test Form", "Desc", model.JSON{
+		"type": "object",
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string"},
+		},
+	})
+
+	// User already has 3 forms (free tier max)
+	repo.EXPECT().CountFormsByUser(gomock.Any(), userID).Return(3, nil)
+
+	svc := domainform.NewService(repo, eventBus, logger)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := svc.CreateForm(ctx, form, plans.TierFree)
+	require.Error(t, err)
+
+	var domainErr *domainerrors.DomainError
+	require.ErrorAs(t, err, &domainErr)
+	assert.Equal(t, domainerrors.ErrCodeLimitExceeded, domainErr.Code)
+	assert.Equal(t, "pro", domainErr.Context["required_tier"])
+}
+
+func TestService_CreateForm_UnderProTierLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mockform.NewMockRepository(ctrl)
+	eventBus := mockevents.NewMockEventBus(ctrl)
+	logger := mocklogging.NewMockLogger(ctrl)
+
+	userID := "user123"
+	form := model.NewForm(userID, "Test Form", "Desc", model.JSON{
+		"type": "object",
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string"},
+		},
+	})
+
+	// User has 10 forms, pro tier allows 25
+	repo.EXPECT().CountFormsByUser(gomock.Any(), userID).Return(10, nil)
+	repo.EXPECT().CreateForm(gomock.Any(), gomock.Any()).Return(nil)
+	eventBus.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
+
+	svc := domainform.NewService(repo, eventBus, logger)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := svc.CreateForm(ctx, form, plans.TierPro)
+	require.NoError(t, err)
+	assert.Equal(t, plans.TierPro, form.PlanTier)
+}
+
+func TestService_CreateForm_EnterpriseTier_NoLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mockform.NewMockRepository(ctrl)
+	eventBus := mockevents.NewMockEventBus(ctrl)
+	logger := mocklogging.NewMockLogger(ctrl)
+
+	userID := "user123"
+	form := model.NewForm(userID, "Test Form", "Desc", model.JSON{
+		"type": "object",
+		"properties": map[string]any{
+			"name": map[string]any{"type": "string"},
+		},
+	})
+
+	// Enterprise tier skips counting — unlimited
+	repo.EXPECT().CreateForm(gomock.Any(), gomock.Any()).Return(nil)
+	eventBus.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
+
+	svc := domainform.NewService(repo, eventBus, logger)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := svc.CreateForm(ctx, form, plans.TierEnterprise)
+	require.NoError(t, err)
+	assert.Equal(t, plans.TierEnterprise, form.PlanTier)
 }
 
 func TestService_ListForms(t *testing.T) {
@@ -184,7 +284,7 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, form)
+		err := svc.UpdateForm(ctx, form, plans.TierFree)
 		require.NoError(t, err)
 	})
 
@@ -200,7 +300,7 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, invalidForm)
+		err := svc.UpdateForm(ctx, invalidForm, plans.TierFree)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "validate form")
 	})
@@ -213,7 +313,7 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, form)
+		err := svc.UpdateForm(ctx, form, plans.TierFree)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "update form in repository")
 	})
@@ -228,9 +328,80 @@ func TestService_UpdateForm(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 		defer cancel()
 
-		err := svc.UpdateForm(ctx, form)
+		err := svc.UpdateForm(ctx, form, plans.TierFree)
 		require.NoError(t, err) // Event bus errors are logged but don't fail the operation
 	})
+}
+
+func TestService_UpdateForm_WithGatedFeatureOnFreeTier_ReturnsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mockform.NewMockRepository(ctrl)
+	eventBus := mockevents.NewMockEventBus(ctrl)
+	logger := mocklogging.NewMockLogger(ctrl)
+
+	form := &model.Form{
+		ID:     "form123",
+		UserID: "user123",
+		Title:  "Test Form",
+		Status: "draft",
+		Active: true,
+		Schema: model.JSON{
+			"display": "form",
+			"components": []any{
+				map[string]any{"type": "file", "key": "upload"},
+			},
+		},
+	}
+
+	svc := domainform.NewService(repo, eventBus, logger)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := svc.UpdateForm(ctx, form, plans.TierFree)
+	require.Error(t, err)
+
+	var domainErr *domainerrors.DomainError
+	require.ErrorAs(t, err, &domainErr)
+	assert.Equal(t, domainerrors.ErrCodeFeatureNotAvailable, domainErr.Code)
+	assert.Equal(t, "file", domainErr.Context["feature"])
+	assert.Equal(t, plans.TierPro, domainErr.Context["required_tier"])
+}
+
+func TestService_UpdateForm_WithGatedFeatureOnProTier_Succeeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mockform.NewMockRepository(ctrl)
+	eventBus := mockevents.NewMockEventBus(ctrl)
+	logger := mocklogging.NewMockLogger(ctrl)
+
+	form := &model.Form{
+		ID:     "form123",
+		UserID: "user123",
+		Title:  "Test Form",
+		Status: "draft",
+		Active: true,
+		Schema: model.JSON{
+			"display": "form",
+			"components": []any{
+				map[string]any{"type": "file", "key": "upload"},
+			},
+		},
+	}
+
+	repo.EXPECT().UpdateForm(gomock.Any(), gomock.Any()).Return(nil)
+	eventBus.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
+
+	svc := domainform.NewService(repo, eventBus, logger)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := svc.UpdateForm(ctx, form, plans.TierPro)
+	require.NoError(t, err)
 }
 
 func TestService_DeleteForm(t *testing.T) {

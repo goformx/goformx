@@ -7,12 +7,13 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Cashier\Billable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, HasUuids, Notifiable, TwoFactorAuthenticatable;
+    use Billable, HasFactory, HasUuids, Notifiable, TwoFactorAuthenticatable;
 
     protected $keyType = 'string';
 
@@ -52,6 +53,48 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'plan_override' => 'string',
         ];
+    }
+
+    private const VALID_TIERS = ['free', 'pro', 'business', 'enterprise'];
+
+    /**
+     * Resolve the user's effective subscription tier.
+     *
+     * Priority: plan_override (admin-set) > active Stripe subscription > free default.
+     * The returned tier is included in HMAC assertion headers sent to the Go API.
+     */
+    public function planTier(): string
+    {
+        if ($this->plan_override && in_array($this->plan_override, self::VALID_TIERS, true)) {
+            return $this->plan_override;
+        }
+
+        $prices = config('services.stripe.prices');
+
+        if (empty($prices) || ! is_array($prices)) {
+            return 'free';
+        }
+
+        $businessPrices = array_filter([
+            $prices['business_monthly'] ?? null,
+            $prices['business_annual'] ?? null,
+        ]);
+
+        if ($businessPrices && $this->subscribedToPrice($businessPrices)) {
+            return 'business';
+        }
+
+        $proPrices = array_filter([
+            $prices['pro_monthly'] ?? null,
+            $prices['pro_annual'] ?? null,
+        ]);
+
+        if ($proPrices && $this->subscribedToPrice($proPrices)) {
+            return 'pro';
+        }
+
+        return 'free';
     }
 }

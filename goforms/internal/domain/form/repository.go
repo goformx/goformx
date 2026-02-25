@@ -37,4 +37,8 @@ type Repository interface {
 	) (*common.PaginationResult, error)
 	GetByFormAndUser(ctx context.Context, formID, userID string) (*model.FormSubmission, error)
 	GetSubmissionsByStatus(ctx context.Context, status model.SubmissionStatus) ([]*model.FormSubmission, error)
+
+	// Count operations for plan limit enforcement
+	CountFormsByUser(ctx context.Context, userID string) (int, error)
+	CountSubmissionsByUserMonth(ctx context.Context, userID string, year int, month int) (int, error)
 }

@@ -10,6 +10,10 @@ beforeEach(function () {
     config([
         'services.goforms.url' => 'http://localhost:8090',
         'services.goforms.secret' => 'test-secret',
+        'services.stripe.prices.pro_monthly' => 'price_pro_monthly',
+        'services.stripe.prices.pro_annual' => 'price_pro_annual',
+        'services.stripe.prices.business_monthly' => 'price_business_monthly',
+        'services.stripe.prices.business_annual' => 'price_business_annual',
     ]);
 });
 
@@ -48,7 +52,7 @@ it('uses ISO 8601 format for X-Timestamp', function () {
     expect($timestamp)->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/');
 });
 
-it('computes X-Signature as HMAC-SHA256 hex of user_id:timestamp', function () {
+it('computes X-Signature as HMAC-SHA256 hex of user_id:timestamp:plan_tier', function () {
     $capturedRequest = null;
     Http::fake(function ($request) use (&$capturedRequest) {
         $capturedRequest = $request;
@@ -63,8 +67,9 @@ it('computes X-Signature as HMAC-SHA256 hex of user_id:timestamp', function () {
     $userId = $capturedRequest->header('X-User-Id')[0] ?? '';
     $timestamp = $capturedRequest->header('X-Timestamp')[0] ?? '';
     $signature = $capturedRequest->header('X-Signature')[0] ?? '';
+    $planTier = $capturedRequest->header('X-Plan-Tier')[0] ?? '';
 
-    $expectedPayload = "{$userId}:{$timestamp}";
+    $expectedPayload = "{$userId}:{$timestamp}:{$planTier}";
     $expectedSignature = hash_hmac('sha256', $expectedPayload, 'test-secret', false);
 
     expect($signature)->toBe($expectedSignature)
@@ -215,4 +220,45 @@ it('getSubmission returns flat submission data from data key', function () {
     expect($submission)->toBeArray()
         ->and($submission['id'])->toBe('sub-1')
         ->and($submission['form_id'])->toBe('form-1');
+});
+
+it('includes X-Plan-Tier header in signed requests', function () {
+    Http::fake([
+        '*/api/forms' => Http::response(['data' => ['forms' => []]], 200),
+    ]);
+
+    $user = User::factory()->create();
+
+    $client = GoFormsClient::fromConfig()->withUser($user);
+    $client->listForms();
+
+    Http::assertSent(function ($request) {
+        return $request->hasHeader('X-Plan-Tier', 'free')
+            && $request->hasHeader('X-User-Id')
+            && $request->hasHeader('X-Timestamp')
+            && $request->hasHeader('X-Signature');
+    });
+});
+
+it('signs plan tier into HMAC payload', function () {
+    Http::fake([
+        '*/api/forms' => Http::response(['data' => ['forms' => []]], 200),
+    ]);
+
+    $user = User::factory()->create();
+
+    $client = GoFormsClient::fromConfig()->withUser($user);
+    $client->listForms();
+
+    Http::assertSent(function ($request) {
+        $userId = $request->header('X-User-Id')[0];
+        $timestamp = $request->header('X-Timestamp')[0];
+        $signature = $request->header('X-Signature')[0];
+        $planTier = $request->header('X-Plan-Tier')[0];
+
+        $expectedPayload = $userId.':'.$timestamp.':'.$planTier;
+        $expectedSignature = hash_hmac('sha256', $expectedPayload, 'test-secret');
+
+        return $signature === $expectedSignature;
+    });
 });

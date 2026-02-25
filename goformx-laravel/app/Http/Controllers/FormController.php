@@ -222,11 +222,13 @@ class FormController extends Controller
     /**
      * Map Go API errors to user-facing responses.
      *
-     * - 502/503, connection refused/timeout: "Form service temporarily unavailable"
-     * - 422: Inertia validation errors (redirect back with errors)
+     * - null response (connection refused, timeout): "Form service temporarily unavailable"
      * - 404: NotFoundHttpException
-     * - 401: Log, treat as 500 (misconfiguration)
-     * - 5xx: Log, generic message
+     * - 403: Redirect back with upgrade prompt (plan limit / feature gating)
+     * - 401: Log as misconfiguration, generic error message
+     * - 400/422: Parse Go validation errors into Inertia validation format
+     * - 5xx: Log, "Form service temporarily unavailable"
+     * - Other: Generic "An error occurred" message
      */
     private function handleGoError(RequestException $e, Request $request): RedirectResponse
     {
@@ -242,6 +244,16 @@ class FormController extends Controller
 
         if ($status === 404) {
             throw new NotFoundHttpException('Resource not found.');
+        }
+
+        if ($status === 403) {
+            $body = $e->response->json();
+            $requiredTier = $body['data']['required_tier'] ?? null;
+
+            return redirect()->back()
+                ->with('error', $body['message'] ?? 'Plan limit reached. Please upgrade.')
+                ->with('upgrade_tier', $requiredTier)
+                ->withInput();
         }
 
         if ($status === 401) {

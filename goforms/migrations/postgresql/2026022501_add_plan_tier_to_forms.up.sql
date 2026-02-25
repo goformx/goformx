@@ -1,0 +1,1 @@
+ALTER TABLE forms ADD COLUMN plan_tier VARCHAR(20) NOT NULL DEFAULT 'free';

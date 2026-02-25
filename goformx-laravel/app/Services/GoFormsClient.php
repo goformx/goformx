@@ -105,6 +105,20 @@ class GoFormsClient
         return $response->json('data', $response->json());
     }
 
+    public function getFormsCount(): int
+    {
+        $response = $this->get('/api/forms/usage/forms-count');
+
+        return $response->json('data.count', 0);
+    }
+
+    public function getSubmissionsCount(string $month): int
+    {
+        $response = $this->get('/api/forms/usage/submissions-count?'.http_build_query(['month' => $month]));
+
+        return $response->json('data.count', 0);
+    }
+
     private function get(string $url): Response
     {
         return $this->request()->get($url)->throw();
@@ -151,14 +165,16 @@ class GoFormsClient
     private function signRequest(string $userId, string $secret): array
     {
         $timestamp = now()->utc()->format('Y-m-d\TH:i:s\Z');
+        $planTier = $this->user->planTier();
 
-        $payload = $userId.':'.$timestamp;
+        $payload = $userId.':'.$timestamp.':'.$planTier;
         $signature = hash_hmac('sha256', $payload, $secret, false);
 
         return [
             'X-User-Id' => $userId,
             'X-Timestamp' => $timestamp,
             'X-Signature' => $signature,
+            'X-Plan-Tier' => $planTier,
         ];
     }
 

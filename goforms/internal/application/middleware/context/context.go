@@ -40,6 +40,8 @@ const (
 	SessionKey Key = "session"
 	// FormIDKey is the context key for form ID
 	FormIDKey Key = "form_id"
+	// PlanTierKey is the context key for the user's subscription plan tier
+	PlanTierKey Key = "plan_tier"
 )
 
 // Middleware provides context handling for HTTP requests
@@ -245,4 +247,21 @@ func SetFormID(c echo.Context, formID string) {
 // SetFormIDInContext sets the form ID in Go context
 func SetFormIDInContext(ctx context.Context, formID string) context.Context {
 	return context.WithValue(ctx, FormIDKey, formID)
+}
+
+// GetPlanTier retrieves the plan tier from Echo context.
+// Returns the tier and true if set, or empty string and false if missing.
+func GetPlanTier(c echo.Context) (string, bool) {
+	if c == nil {
+		return "", false
+	}
+
+	tier, ok := c.Get(string(PlanTierKey)).(string)
+
+	return tier, ok && tier != ""
+}
+
+// SetPlanTier sets the plan tier in Echo context
+func SetPlanTier(c echo.Context, tier string) {
+	c.Set(string(PlanTierKey), tier)
 }

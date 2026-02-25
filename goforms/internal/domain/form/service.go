@@ -12,7 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
+	domainerrors "github.com/goformx/goforms/internal/domain/common/errors"
 	"github.com/goformx/goforms/internal/domain/common/events"
+	"github.com/goformx/goforms/internal/domain/common/plans"
 	formevents "github.com/goformx/goforms/internal/domain/form/events"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -25,8 +27,8 @@ const (
 
 // Service defines the interface for form-related business logic
 type Service interface {
-	CreateForm(ctx context.Context, form *model.Form) error
-	UpdateForm(ctx context.Context, form *model.Form) error
+	CreateForm(ctx context.Context, form *model.Form, planTier string) error
+	UpdateForm(ctx context.Context, form *model.Form, planTier string) error
 	DeleteForm(ctx context.Context, formID string) error
 	GetForm(ctx context.Context, formID string) (*model.Form, error)
 	ListForms(ctx context.Context, userID string) ([]*model.Form, error)
@@ -35,6 +37,8 @@ type Service interface {
 	ListFormSubmissions(ctx context.Context, formID string) ([]*model.FormSubmission, error)
 	UpdateFormState(ctx context.Context, formID, state string) error
 	TrackFormAnalytics(ctx context.Context, formID, eventType string) error
+	CountFormsByUser(ctx context.Context, userID string) (int, error)
+	CountSubmissionsByUserMonth(ctx context.Context, userID string, year int, month int) (int, error)
 }
 
 // formService handles form-related business logic
@@ -53,11 +57,25 @@ func NewService(repository Repository, eventBus events.EventBus, logger logging.
 	}
 }
 
-// CreateForm creates a new form
-func (s *formService) CreateForm(ctx context.Context, form *model.Form) error {
+// CreateForm creates a new form after enforcing plan limits.
+func (s *formService) CreateForm(ctx context.Context, form *model.Form, planTier string) error {
 	if err := form.Validate(); err != nil {
 		return fmt.Errorf("form validation failed: %w", err)
 	}
+
+	// Enforce plan limits
+	if err := s.enforcePlanLimits(ctx, form.UserID, planTier); err != nil {
+		return err
+	}
+
+	// Validate schema features against plan tier
+	if form.Schema != nil {
+		if err := plans.ValidateSchemaFeatures(form.Schema, planTier); err != nil {
+			return err
+		}
+	}
+
+	form.PlanTier = planTier
 
 	// Set form ID if not already set
 	if form.ID == "" {
@@ -75,10 +93,42 @@ func (s *formService) CreateForm(ctx context.Context, form *model.Form) error {
 	return nil
 }
 
-// UpdateForm updates a form
-func (s *formService) UpdateForm(ctx context.Context, form *model.Form) error {
+// enforcePlanLimits checks whether the user has exceeded their plan's form limit.
+func (s *formService) enforcePlanLimits(ctx context.Context, userID, planTier string) error {
+	limits, err := plans.GetLimits(planTier)
+	if err != nil {
+		return fmt.Errorf("get plan limits: %w", err)
+	}
+
+	if limits.IsUnlimited() {
+		return nil
+	}
+
+	count, err := s.repository.CountFormsByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("count user forms: %w", err)
+	}
+
+	if count >= limits.MaxForms {
+		return domainerrors.NewLimitExceeded(
+			"forms", count, limits.MaxForms, plans.NextTier(planTier),
+		)
+	}
+
+	return nil
+}
+
+// UpdateForm updates a form, enforcing feature gating on schema changes.
+func (s *formService) UpdateForm(ctx context.Context, form *model.Form, planTier string) error {
 	if validateErr := form.Validate(); validateErr != nil {
 		return fmt.Errorf("validate form: %w", validateErr)
+	}
+
+	// Validate schema features against plan tier
+	if form.Schema != nil {
+		if err := plans.ValidateSchemaFeatures(form.Schema, planTier); err != nil {
+			return err
+		}
 	}
 
 	// Update the form
@@ -226,4 +276,29 @@ func (s *formService) TrackFormAnalytics(ctx context.Context, formID, eventType 
 	}
 
 	return nil
+}
+
+// CountFormsByUser returns the number of forms owned by a user.
+func (s *formService) CountFormsByUser(ctx context.Context, userID string) (int, error) {
+	count, err := s.repository.CountFormsByUser(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("count forms by user: %w", err)
+	}
+
+	return count, nil
+}
+
+// CountSubmissionsByUserMonth returns the number of submissions for a user in a given month.
+func (s *formService) CountSubmissionsByUserMonth(
+	ctx context.Context,
+	userID string,
+	year int,
+	month int,
+) (int, error) {
+	count, err := s.repository.CountSubmissionsByUserMonth(ctx, userID, year, month)
+	if err != nil {
+		return 0, fmt.Errorf("count submissions by user month: %w", err)
+	}
+
+	return count, nil
 }

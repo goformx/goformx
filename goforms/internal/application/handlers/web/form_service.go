@@ -27,7 +27,12 @@ func NewFormService(formService formdomain.Service, logger logging.Logger) *Form
 }
 
 // CreateForm creates a new form with the given request data
-func (s *FormService) CreateForm(ctx context.Context, userID string, req *FormCreateRequest) (*model.Form, error) {
+func (s *FormService) CreateForm(
+	ctx context.Context,
+	userID string,
+	req *FormCreateRequest,
+	planTier string,
+) (*model.Form, error) {
 	schema := model.JSON{
 		"type": "object",
 		"components": []any{
@@ -42,7 +47,7 @@ func (s *FormService) CreateForm(ctx context.Context, userID string, req *FormCr
 
 	form := model.NewForm(userID, req.Title, "", schema)
 
-	if err := s.formService.CreateForm(ctx, form); err != nil {
+	if err := s.formService.CreateForm(ctx, form, planTier); err != nil {
 		return nil, fmt.Errorf("create form: %w", err)
 	}
 
@@ -50,7 +55,12 @@ func (s *FormService) CreateForm(ctx context.Context, userID string, req *FormCr
 }
 
 // UpdateForm updates an existing form with the given request data
-func (s *FormService) UpdateForm(ctx context.Context, form *model.Form, req *FormUpdateRequest) error {
+func (s *FormService) UpdateForm(
+	ctx context.Context,
+	form *model.Form,
+	req *FormUpdateRequest,
+	planTier string,
+) error {
 	form.Title = req.Title
 	form.Description = req.Description
 	form.Status = req.Status
@@ -63,7 +73,7 @@ func (s *FormService) UpdateForm(ctx context.Context, form *model.Form, req *For
 		form.Schema = req.Schema
 	}
 
-	if err := s.formService.UpdateForm(ctx, form); err != nil {
+	if err := s.formService.UpdateForm(ctx, form, planTier); err != nil {
 		return fmt.Errorf("update form: %w", err)
 	}
 
