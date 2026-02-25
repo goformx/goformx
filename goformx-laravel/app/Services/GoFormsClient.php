@@ -151,14 +151,16 @@ class GoFormsClient
     private function signRequest(string $userId, string $secret): array
     {
         $timestamp = now()->utc()->format('Y-m-d\TH:i:s\Z');
+        $planTier = $this->user->planTier();
 
-        $payload = $userId.':'.$timestamp;
+        $payload = $userId.':'.$timestamp.':'.$planTier;
         $signature = hash_hmac('sha256', $payload, $secret, false);
 
         return [
             'X-User-Id' => $userId,
             'X-Timestamp' => $timestamp,
             'X-Signature' => $signature,
+            'X-Plan-Tier' => $planTier,
         ];
     }
 
