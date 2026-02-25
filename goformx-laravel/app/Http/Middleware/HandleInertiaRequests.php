@@ -46,7 +46,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
-            'goFormsPublicUrl' => rtrim(config('services.goforms.url', ''), '/'),
+            'goFormsPublicUrl' => rtrim(config('services.goforms.public_url', config('services.goforms.url', '')), '/'),
             'flash' => [
                 'error' => fn () => $request->session()->get('error'),
                 'success' => fn () => $request->session()->get('success'),
