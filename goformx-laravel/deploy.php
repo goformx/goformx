@@ -20,10 +20,10 @@ set('application', 'goformx-laravel');
 // public/build/ is pre-built by `npm run build` in the CI step.
 set('rsync_src', __DIR__);
 set('rsync', [
-    'flags'         => 'rzE',
-    'exclude-file'  => false,
-    'include-file'  => false,
-    'filter-file'   => false,
+    'flags' => 'rzE',
+    'exclude-file' => false,
+    'include-file' => false,
+    'filter-file' => false,
     'filter-perdir' => false,
     'exclude' => [
         '.git',
@@ -36,7 +36,7 @@ set('rsync', [
         'database/database.sqlite',
     ],
     'include' => ['public/build/'],
-    'filter'  => [],
+    'filter' => [],
     'options' => ['delete'],
     'timeout' => 120,
 ]);
@@ -68,10 +68,17 @@ task('artisan:storage:link', artisan('storage:link --force'));
 task('artisan:migrate', artisan('migrate --force'));
 task('artisan:optimize', artisan('optimize'));
 
+// Reload PHP-FPM after symlink so opcache picks up the new release
+task('php-fpm:reload', function () {
+    run('sudo /bin/systemctl reload php8.4-fpm');
+});
+
 // ── Task order ────────────────────────────────────────────────────────────────
 after('deploy:vendors', 'artisan:storage:link');
 after('artisan:storage:link', 'artisan:migrate');
 after('artisan:migrate', 'artisan:optimize');
+after('deploy:symlink', 'php-fpm:reload');
 
 after('rollback', 'artisan:optimize');
+after('rollback', 'php-fpm:reload');
 after('deploy:failed', 'deploy:unlock');
