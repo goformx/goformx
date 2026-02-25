@@ -9,8 +9,9 @@ The Laravel Boost guidelines are specifically curated by Laravel maintainers for
 
 This application is a Laravel application and its main Laravel ecosystems package & versions are below. You are an expert with them all. Ensure you abide by these specific packages & versions.
 
-- php - 8.4.1
+- php - 8.4.17
 - inertiajs/inertia-laravel (INERTIA) - v2
+- laravel/cashier (CASHIER) - v16
 - laravel/fortify (FORTIFY) - v1
 - laravel/framework (LARAVEL) - v12
 - laravel/prompts (PROMPTS) - v0
@@ -22,6 +23,12 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - laravel/sail (SAIL) - v1
 - pestphp/pest (PEST) - v4
 - phpunit/phpunit (PHPUNIT) - v12
+- @inertiajs/vue3 (INERTIA) - v2
+- tailwindcss (TAILWINDCSS) - v4
+- vue (VUE) - v3
+- @laravel/vite-plugin-wayfinder (WAYFINDER) - v0
+- eslint (ESLINT) - v9
+- prettier (PRETTIER) - v3
 
 ## Skills Activation
 
@@ -29,6 +36,8 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 - `wayfinder-development` — Activates whenever referencing backend routes in frontend components. Use when importing from @/actions or @/routes, calling Laravel routes from TypeScript, or working with Wayfinder route functions.
 - `pest-testing` — Tests applications using the Pest 4 PHP framework. Activates when writing tests, creating unit or feature tests, adding assertions, testing Livewire components, browser testing, debugging test failures, working with datasets or mocking; or when the user mentions test, spec, TDD, expects, assertion, coverage, or needs to verify functionality works.
+- `inertia-vue-development` — Develops Inertia.js v2 Vue client-side applications. Activates when creating Vue pages, forms, or navigation; using &lt;Link&gt;, &lt;Form&gt;, useForm, or router; working with deferred props, prefetching, or polling; or when user mentions Vue with Inertia, Vue pages, Vue forms, or Vue navigation.
+- `tailwindcss-development` — Styles applications using Tailwind CSS v4 utilities. Activates when adding styles, restyling components, working with gradients, spacing, layout, flex, grid, responsive design, dark mode, colors, typography, or borders; or when the user mentions CSS, styling, classes, Tailwind, restyle, hero section, cards, buttons, or any visual/UI changes.
 - `developing-with-fortify` — Laravel Fortify headless authentication backend development. Activate when implementing authentication features including login, registration, password reset, email verification, two-factor authentication (2FA/TOTP), profile updates, headless auth, authentication scaffolding, or auth guards in Laravel applications.
 
 ## Conventions
@@ -45,49 +54,6 @@ This project has domain-specific skills available. You MUST activate the relevan
 
 - Stick to existing directory structure; don't create new base folders without approval.
 - Do not change the application's dependencies without approval.
-
-## Development Environment (DDEV)
-
-This project runs inside **DDEV** (MariaDB 11.8, nginx-fpm, PHP 8.4). The Go API runs as a DDEV sidecar container.
-
-```bash
-ddev start                # Start DDEV (Laravel + Go sidecar + PostgreSQL)
-ddev composer dev         # Start Laravel server + queue + Pail logs + Vite
-ddev composer setup       # First-time setup: install deps, create .env, generate key
-ddev artisan test --compact                      # Run Pest tests
-ddev artisan test --compact --filter=TestName     # Single test
-ddev exec vendor/bin/pint --dirty --format agent  # PHP formatting
-ddev exec npm run lint    # ESLint
-ddev exec npm run build   # Production frontend build
-ddev ssh                  # Shell into web container
-```
-
-Go sidecar is accessible at `http://goforms:8090` inside DDEV, and `http://localhost:8091` from host.
-
-## GoFormX + Go Integration
-
-This app is the **frontend and identity layer**. Form domain (CRUD, schema, submissions) lives in a separate **Go service** (goforms). Laravel never touches form tables; it calls Go with signed assertions.
-
-### Architecture
-
-- **Laravel**: Auth (Fortify), sessions, Inertia/Vue UI, form builder. DB: users, sessions only.
-- **Go**: Form API (`/api/forms`), public embed/submit (`/forms/:id/...`). DB: forms, submissions, events.
-- **Auth to Go**: Laravel sends `X-User-Id`, `X-Timestamp`, `X-Signature` (HMAC-SHA256 of `user_id:timestamp`) on every request. Go verifies and uses `user_id` for ownership.
-
-### GoFormsClient
-
-- **Location**: `App\Services\GoFormsClient`
-- **Config**: `config('services.goforms.url')`, `config('services.goforms.secret')`. Env: `GOFORMS_API_URL`, `GOFORMS_SHARED_SECRET` (must match Go).
-- **Usage**: `GoFormsClient::fromConfig()->withUser(auth()->user())` then `listForms()`, `getForm($id)`, `createForm($data)`, `updateForm($id, $data)`, `deleteForm($id)`, `listSubmissions($formId)`, `getSubmission($formId, $sid)`.
-- **Signing**: All requests get signed headers; never call Go form APIs without the authenticated user.
-
-### Controllers and Errors
-
-- **FormController** is thin: auth user, call GoFormsClient, pass data to Inertia or redirect. Catch `RequestException` and map: 422 → validation, 404 → NotFoundHttpException, 5xx/connection → flash "Form service temporarily unavailable". For **list forms** only: if Go returns 401 or 404, render Forms/Index with empty list (log warning) so the page always loads.
-
-### Design Doc
-
-Full architecture and API surface: `docs/plans/2026-02-18-goformx-laravel-go-split-design.md`.
 
 ## Frontend Bundling
 
@@ -192,6 +158,7 @@ protected function isAccessible(User $user, ?string $path = null): bool
 - Inertia creates fully client-side rendered SPAs without modern SPA complexity, leveraging existing server-side patterns.
 - Components live in `resources/js/pages` (unless specified in `vite.config.js`). Use `Inertia::render()` for server-side routing instead of Blade views.
 - ALWAYS use `search-docs` tool for version-specific Inertia documentation and updated code examples.
+- IMPORTANT: Activate `inertia-vue-development` when working with Inertia Vue client-side patterns.
 
 === inertia-laravel/v2 rules ===
 
@@ -309,6 +276,21 @@ Wayfinder generates TypeScript functions for Laravel routes. Import from `@/acti
 - Do NOT delete tests without approval.
 - CRITICAL: ALWAYS use `search-docs` tool for version-specific Pest documentation and updated code examples.
 - IMPORTANT: Activate `pest-testing` every time you're working with a Pest or testing-related task.
+
+=== inertia-vue/core rules ===
+
+# Inertia + Vue
+
+Vue components must have a single root element.
+- IMPORTANT: Activate `inertia-vue-development` when working with Inertia Vue client-side patterns.
+
+=== tailwindcss/core rules ===
+
+# Tailwind CSS
+
+- Always use existing Tailwind conventions; check project patterns before adding new ones.
+- IMPORTANT: Always use `search-docs` tool for version-specific Tailwind CSS documentation and updated code examples. Never rely on training data.
+- IMPORTANT: Activate `tailwindcss-development` every time you're working with a Tailwind CSS or styling-related task.
 
 === laravel/fortify rules ===
 
