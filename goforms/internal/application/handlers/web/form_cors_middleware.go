@@ -39,7 +39,8 @@ func NewFormCORSMiddleware(formService formdomain.Service, corsConfig config.COR
 			}
 
 			allowedOrigins, allowedMethods, allowedHeaders := form.GetCorsConfig()
-			if !isOriginAllowed(origin, allowedOrigins) {
+			resolvedOrigins := resolveCORSList(allowedOrigins, corsConfig.AllowedOrigins, nil)
+			if !isOriginAllowed(origin, resolvedOrigins) {
 				return c.NoContent(constants.StatusForbidden)
 			}
 

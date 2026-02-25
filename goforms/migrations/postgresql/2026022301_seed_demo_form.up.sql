@@ -47,7 +47,7 @@ INSERT INTO forms (
     'draft',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP,
-    '[]',
+    '["https://goformx.com"]',
     '["GET", "POST", "OPTIONS"]',
     '["Content-Type", "Accept", "Origin"]'
 ) ON CONFLICT (uuid) DO NOTHING;
