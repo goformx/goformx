@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -16,12 +17,19 @@ type FileStorage struct {
 	logger    logging.Logger
 }
 
-// NewFileStorage creates a new file-based session storage
-func NewFileStorage(storeFile string, logger logging.Logger) *FileStorage {
+// NewFileStorage creates a new file-based session storage.
+// It ensures the parent directory exists so the process owner
+// (not Docker root) owns the directory tree.
+func NewFileStorage(storeFile string, logger logging.Logger) (*FileStorage, error) {
+	dir := filepath.Dir(storeFile)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return nil, fmt.Errorf("create session storage directory %s: %w", dir, err)
+	}
+
 	return &FileStorage{
 		storeFile: storeFile,
 		logger:    logger,
-	}
+	}, nil
 }
 
 // Load implements Storage.Load

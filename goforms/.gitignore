@@ -58,21 +58,7 @@ yarn-error.log*
 # =============================================
 # Storage & Data Files
 # =============================================
-# Storage directory structure (allow directories, ignore files)
-storage/*
-!storage/sessions/
-!storage/logs/
-!storage/uploads/
-!storage/cache/
-!storage/backups/
-
-# Storage file contents
-storage/sessions/*.json
-storage/logs/*.log
-storage/logs/*.txt
-storage/uploads/*
-storage/cache/*
-storage/backups/*
+storage/
 
 # =============================================
 # Development & Debug Files

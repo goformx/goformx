@@ -6,8 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"go.uber.org/fx"
@@ -22,13 +20,11 @@ func NewManager(
 	cfg *Config,
 	lc fx.Lifecycle,
 	accessManager *access.Manager,
-) *Manager {
-	// Create tmp directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(cfg.StoreFile), 0o750); err != nil {
-		logger.Error("failed to create session directory", "error", err)
+) (*Manager, error) {
+	storage, err := NewFileStorage(cfg.StoreFile, logger)
+	if err != nil {
+		return nil, fmt.Errorf("create session file storage: %w", err)
 	}
-
-	storage := NewFileStorage(cfg.StoreFile, logger)
 
 	sm := &Manager{
 		logger:        logger,
@@ -68,7 +64,7 @@ func NewManager(
 		},
 	})
 
-	return sm
+	return sm, nil
 }
 
 // initialize sets up the session store

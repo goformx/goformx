@@ -50,7 +50,7 @@ var Module = fx.Module("middleware",
 				lc fx.Lifecycle,
 				accessManager *access.Manager,
 				pathManager *constants.PathManager,
-			) *session.Manager {
+			) (*session.Manager, error) {
 				sessionConfig := &session.Config{
 					SessionConfig: &cfg.Session,
 					Config:        cfg,
