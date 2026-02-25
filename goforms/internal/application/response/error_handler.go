@@ -84,8 +84,10 @@ func (h *ErrorHandler) getStatusCode(code domainerrors.ErrorCode) int {
 		domainerrors.ErrCodeAuthentication: http.StatusUnauthorized,
 
 		// Authorization errors
-		domainerrors.ErrCodeForbidden:        http.StatusForbidden,
-		domainerrors.ErrCodeInsufficientRole: http.StatusForbidden,
+		domainerrors.ErrCodeForbidden:           http.StatusForbidden,
+		domainerrors.ErrCodeInsufficientRole:    http.StatusForbidden,
+		domainerrors.ErrCodeLimitExceeded:       http.StatusForbidden,
+		domainerrors.ErrCodeFeatureNotAvailable: http.StatusForbidden,
 
 		// Resource errors
 		domainerrors.ErrCodeNotFound:     http.StatusNotFound,

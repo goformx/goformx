@@ -10,11 +10,19 @@ var featureRequirements = map[string]string{
 	"signature": TierPro,
 }
 
+// Tier rank constants for comparison ordering.
+const (
+	tierRankFree       = 0
+	tierRankPro        = 1
+	tierRankBusiness   = 2
+	tierRankEnterprise = 3
+)
+
 var tierRank = map[string]int{
-	TierFree:       0,
-	TierPro:        1,
-	TierBusiness:   2,
-	TierEnterprise: 3,
+	TierFree:       tierRankFree,
+	TierPro:        tierRankPro,
+	TierBusiness:   tierRankBusiness,
+	TierEnterprise: tierRankEnterprise,
 }
 
 func hasTierAccess(userTier, requiredTier string) bool {
@@ -38,29 +46,56 @@ func validateComponents(components []any, planTier string) error {
 			continue
 		}
 
-		compType, _ := compMap["type"].(string)
-		if requiredTier, gated := featureRequirements[compType]; gated {
-			if !hasTierAccess(planTier, requiredTier) {
-				return errors.NewFeatureNotAvailable(compType, requiredTier)
-			}
+		if err := checkComponentFeature(compMap, planTier); err != nil {
+			return err
 		}
 
-		// Check nested components recursively
-		if nested, ok := compMap["components"].([]any); ok {
+		if err := validateNestedComponents(compMap, planTier); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func checkComponentFeature(compMap map[string]any, planTier string) error {
+	compType, _ := compMap["type"].(string)
+	if requiredTier, gated := featureRequirements[compType]; gated {
+		if !hasTierAccess(planTier, requiredTier) {
+			return errors.NewFeatureNotAvailable(compType, requiredTier)
+		}
+	}
+
+	return nil
+}
+
+func validateNestedComponents(compMap map[string]any, planTier string) error {
+	if nested, ok := compMap["components"].([]any); ok {
+		if err := validateComponents(nested, planTier); err != nil {
+			return err
+		}
+	}
+
+	if columns, ok := compMap["columns"].([]any); ok {
+		if err := validateColumnComponents(columns, planTier); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateColumnComponents(columns []any, planTier string) error {
+	for _, col := range columns {
+		colMap, ok := col.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		nested, hasNested := colMap["components"].([]any)
+		if hasNested {
 			if err := validateComponents(nested, planTier); err != nil {
 				return err
-			}
-		}
-
-		if columns, ok := compMap["columns"].([]any); ok {
-			for _, col := range columns {
-				if colMap, ok := col.(map[string]any); ok {
-					if nested, ok := colMap["components"].([]any); ok {
-						if err := validateComponents(nested, planTier); err != nil {
-							return err
-						}
-					}
-				}
 			}
 		}
 	}

@@ -50,7 +50,9 @@ var errorCategories = map[ErrorCode][]ErrorCategory{
 	ErrCodeInsufficientRole: {CategoryAuthentication, CategoryForbidden},
 
 	// Forbidden errors
-	ErrCodeForbidden: {CategoryForbidden},
+	ErrCodeForbidden:           {CategoryForbidden},
+	ErrCodeLimitExceeded:       {CategoryForbidden},
+	ErrCodeFeatureNotAvailable: {CategoryForbidden},
 
 	// Conflict errors
 	ErrCodeConflict:      {CategoryConflict},

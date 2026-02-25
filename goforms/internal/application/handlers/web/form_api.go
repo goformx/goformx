@@ -537,21 +537,21 @@ func (h *FormAPIHandler) handleSubmissionsCount(c echo.Context) error {
 }
 
 // parseYearMonth parses a "YYYY-MM" string into year and month integers.
-func parseYearMonth(s string) (int, int, error) {
-	parts := strings.SplitN(s, "-", 2)
-
+func parseYearMonth(s string) (year, month int, err error) {
 	const expectedParts = 2
+
+	parts := strings.SplitN(s, "-", expectedParts)
 
 	if len(parts) != expectedParts {
 		return 0, 0, fmt.Errorf("invalid month format: %s", s)
 	}
 
-	year, err := strconv.Atoi(parts[0])
+	year, err = strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid year: %w", err)
 	}
 
-	month, err := strconv.Atoi(parts[1])
+	month, err = strconv.Atoi(parts[1])
 	if err != nil {
 		return 0, 0, fmt.Errorf("invalid month: %w", err)
 	}

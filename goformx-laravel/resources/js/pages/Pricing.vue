@@ -15,8 +15,8 @@ import {
 } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { checkout } from '@/routes/billing';
 import { register } from '@/routes';
+import { checkout } from '@/routes/billing';
 import type { PlanTier } from '@/types/billing';
 
 const props = defineProps<{

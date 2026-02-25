@@ -56,5 +56,5 @@ func TestNextTier(t *testing.T) {
 	assert.Equal(t, "pro", plans.NextTier("free"))
 	assert.Equal(t, "business", plans.NextTier("pro"))
 	assert.Equal(t, "enterprise", plans.NextTier("business"))
-	assert.Equal(t, "", plans.NextTier("enterprise"))
+	assert.Empty(t, plans.NextTier("enterprise"))
 }

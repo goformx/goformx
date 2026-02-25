@@ -2,7 +2,6 @@
 import { Head, Link } from '@inertiajs/vue3';
 import { CreditCard } from 'lucide-vue-next';
 import { computed } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +11,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import AppLayout from '@/layouts/AppLayout.vue';
 import { pricing } from '@/routes';
 import { portal } from '@/routes/billing';
 import type { BreadcrumbItem } from '@/types';

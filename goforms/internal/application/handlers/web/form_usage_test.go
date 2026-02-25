@@ -1,4 +1,4 @@
-package web
+package web //nolint:testpackage // internal test for unexported handler methods
 
 import (
 	"encoding/json"
@@ -68,7 +68,7 @@ func TestHandleFormsCount_ReturnsCount(t *testing.T) {
 
 	data, ok := resp.Data.(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, float64(5), data["count"])
+	assert.InDelta(t, float64(5), data["count"], 0)
 }
 
 func TestHandleSubmissionsCount_ReturnsMonthlyCount(t *testing.T) {
@@ -99,7 +99,7 @@ func TestHandleSubmissionsCount_ReturnsMonthlyCount(t *testing.T) {
 
 	data, ok := resp.Data.(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, float64(expectedCount), data["count"])
+	assert.InDelta(t, float64(expectedCount), data["count"], 0)
 	assert.Equal(t, "2026-02", data["month"])
 }
 

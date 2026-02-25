@@ -8,11 +8,11 @@ const (
 	TierBusiness   = "business"
 	TierEnterprise = "enterprise"
 
-	freeForms              = 3
+	freeForms               = 3
 	freeSubmissionsPerMonth = 100
-	proForms               = 25
+	proForms                = 25
 	proSubmissionsPerMonth  = 2500
-	bizForms               = 100
+	bizForms                = 100
 	bizSubmissionsPerMonth  = 25000
 )
 

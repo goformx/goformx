@@ -97,7 +97,7 @@ func TestService_CreateForm_ExceedsFreeTierLimit(t *testing.T) {
 	require.Error(t, err)
 
 	var domainErr *domainerrors.DomainError
-	require.True(t, errors.As(err, &domainErr))
+	require.ErrorAs(t, err, &domainErr)
 	assert.Equal(t, domainerrors.ErrCodeLimitExceeded, domainErr.Code)
 	assert.Equal(t, "pro", domainErr.Context["required_tier"])
 }
