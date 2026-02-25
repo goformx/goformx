@@ -4,8 +4,9 @@ import goforms from '@goformx/formio';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { AlertCircle, CheckCircle2 } from 'lucide-vue-next';
 import { ref, computed, onMounted } from 'vue';
+import PublicHeader from '@/components/PublicHeader.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { dashboard, login, register } from '@/routes';
+import { register } from '@/routes';
 import { index as formsIndex } from '@/routes/forms';
 
 Formio.use(goforms);
@@ -158,35 +159,7 @@ onMounted(async () => {
             />
         </Head>
 
-        <header
-            class="w-full border-b border-border/50 bg-background/80 backdrop-blur-sm"
-        >
-            <nav
-                class="container flex items-center justify-end gap-4 px-4 py-4 sm:px-6"
-            >
-                <Link
-                    v-if="$page.props.auth?.user"
-                    :href="dashboard()"
-                    class="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    Dashboard
-                </Link>
-                <template v-else>
-                    <Link
-                        :href="login()"
-                        class="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                        Log in
-                    </Link>
-                    <Link
-                        :href="register()"
-                        class="rounded-md border border-border bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50"
-                    >
-                        Register
-                    </Link>
-                </template>
-            </nav>
-        </header>
+        <PublicHeader />
 
         <main class="relative flex-1 p-6">
             <div

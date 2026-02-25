@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { FileText, Zap, Shield, Code, Database, Globe } from 'lucide-vue-next';
 import { computed } from 'vue';
 import JsonLdScript from '@/components/JsonLdScript.vue';
+import PublicHeader from '@/components/PublicHeader.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -96,39 +97,12 @@ const features = [
                 name="twitter:image"
                 :content="seo.defaultOgImage"
             />
-            <JsonLdScript :data="jsonLd" />
         </Head>
+        <Teleport to="head">
+            <JsonLdScript :data="jsonLd" />
+        </Teleport>
 
-        <header
-            class="w-full border-b border-border/50 bg-background/80 backdrop-blur-sm"
-        >
-            <nav
-                class="container flex items-center justify-end gap-4 px-4 py-4 sm:px-6"
-            >
-                <Link
-                    v-if="$page.props.auth?.user"
-                    :href="dashboard()"
-                    class="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    Dashboard
-                </Link>
-                <template v-else>
-                    <Link
-                        :href="login()"
-                        class="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                        Log in
-                    </Link>
-                    <Link
-                        v-if="canRegister"
-                        :href="register()"
-                        class="rounded-md border border-border bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50"
-                    >
-                        Register
-                    </Link>
-                </template>
-            </nav>
-        </header>
+        <PublicHeader :can-register="canRegister" />
 
         <main class="flex-1">
             <!-- Hero -->

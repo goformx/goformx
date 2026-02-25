@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { dashboard, home, login, register } from '@/routes';
+import PublicHeader from '@/components/PublicHeader.vue';
+import { dashboard, home } from '@/routes';
 
 defineProps<{
     canRegister?: boolean;
@@ -11,36 +12,7 @@ defineProps<{
     <div class="flex min-h-screen flex-col bg-background text-foreground">
         <Head title="Demo – Not configured" />
 
-        <header
-            class="w-full border-b border-border/50 bg-background/80 backdrop-blur-sm"
-        >
-            <nav
-                class="container flex items-center justify-end gap-4 px-4 py-4 sm:px-6"
-            >
-                <Link
-                    v-if="$page.props.auth?.user"
-                    :href="dashboard()"
-                    class="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                >
-                    Dashboard
-                </Link>
-                <template v-else>
-                    <Link
-                        :href="login()"
-                        class="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                        Log in
-                    </Link>
-                    <Link
-                        v-if="canRegister"
-                        :href="register()"
-                        class="rounded-md border border-border bg-background px-4 py-2 text-sm font-medium shadow-sm transition-colors hover:bg-muted/50"
-                    >
-                        Register
-                    </Link>
-                </template>
-            </nav>
-        </header>
+        <PublicHeader :can-register="canRegister" />
 
         <main
             class="container flex flex-1 flex-col items-center justify-center px-4 py-16 text-center"
