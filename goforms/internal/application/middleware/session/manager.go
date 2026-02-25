@@ -41,23 +41,19 @@ func NewManager(
 	// Register lifecycle hooks
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			// Initialize session store
-			if err := sm.initialize(); err != nil {
-				return fmt.Errorf("failed to initialize session store: %w", err)
+			if initErr := sm.initialize(); initErr != nil {
+				return fmt.Errorf("failed to initialize session store: %w", initErr)
 			}
 
-			// Start cleanup routine
 			go sm.cleanupRoutine()
 
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
-			// Stop cleanup routine
 			close(sm.stopChan)
 
-			// Save sessions before shutdown
-			if err := sm.saveSessions(); err != nil {
-				sm.logger.Error("failed to save sessions during shutdown", "error", err)
+			if saveErr := sm.saveSessions(); saveErr != nil {
+				sm.logger.Error("failed to save sessions during shutdown", "error", saveErr)
 			}
 
 			return nil
