@@ -354,7 +354,7 @@ func (s *Store) CountSubmissionsByUserMonth(
 	var count int64
 	if err := s.db.GetDB().WithContext(ctx).
 		Model(&model.FormSubmission{}).
-		Joins("JOIN forms ON forms.uuid = form_submissions.form_id").
+		Joins("JOIN forms ON forms.uuid = form_submissions.form_id AND forms.deleted_at IS NULL").
 		Where(
 			"forms.user_id = ? AND form_submissions.created_at >= ? AND form_submissions.created_at < ?",
 			userID, startOfMonth, endOfMonth,

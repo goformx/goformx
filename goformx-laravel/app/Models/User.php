@@ -28,7 +28,6 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'plan_override',
     ];
 
     /**
@@ -58,13 +57,25 @@ class User extends Authenticatable
         ];
     }
 
+    private const VALID_TIERS = ['free', 'pro', 'business', 'enterprise'];
+
+    /**
+     * Resolve the user's effective subscription tier.
+     *
+     * Priority: plan_override (admin-set) > active Stripe subscription > free default.
+     * The returned tier is included in HMAC assertion headers sent to the Go API.
+     */
     public function planTier(): string
     {
-        if ($this->plan_override) {
+        if ($this->plan_override && in_array($this->plan_override, self::VALID_TIERS, true)) {
             return $this->plan_override;
         }
 
         $prices = config('services.stripe.prices');
+
+        if (empty($prices) || ! is_array($prices)) {
+            return 'free';
+        }
 
         $businessPrices = array_filter([
             $prices['business_monthly'] ?? null,

@@ -18,6 +18,7 @@ import (
 	"github.com/goformx/goforms/internal/application/middleware/security"
 	"github.com/goformx/goforms/internal/application/response"
 	"github.com/goformx/goforms/internal/application/validation"
+	domainerrors "github.com/goformx/goforms/internal/domain/common/errors"
 	formdomain "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/domain/user"
@@ -236,11 +237,23 @@ func (h *FormAPIHandler) handleCreateForm(c echo.Context) error {
 		return h.wrapError("handle create error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	planTier := ctxmw.GetPlanTier(c)
+	planTier, _ := ctxmw.GetPlanTier(c)
+	if planTier == "" {
+		planTier = "free"
+	}
 
 	form, err := h.FormServiceHandler.CreateForm(c.Request().Context(), userID, req, planTier)
 	if err != nil {
 		h.Logger.Error("failed to create form", "error", err)
+
+		var domainErr *domainerrors.DomainError
+		if errors.As(err, &domainErr) {
+			return c.JSON(domainErr.HTTPStatus(), response.APIResponse{
+				Success: false,
+				Message: domainErr.Message,
+				Data:    domainErr.Context,
+			})
+		}
 
 		return h.HandleError(c, err, "Failed to create form")
 	}
@@ -276,9 +289,21 @@ func (h *FormAPIHandler) handleUpdateForm(c echo.Context) error {
 		return h.wrapError("handle update error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	updatePlanTier := ctxmw.GetPlanTier(c)
+	updatePlanTier, _ := ctxmw.GetPlanTier(c)
+	if updatePlanTier == "" {
+		updatePlanTier = "free"
+	}
 	if updateErr := h.FormServiceHandler.UpdateForm(c.Request().Context(), form, req, updatePlanTier); updateErr != nil {
 		h.Logger.Error("failed to update form", "error", updateErr, "form_id", form.ID)
+
+		var domainErr *domainerrors.DomainError
+		if errors.As(updateErr, &domainErr) {
+			return c.JSON(domainErr.HTTPStatus(), response.APIResponse{
+				Success: false,
+				Message: domainErr.Message,
+				Data:    domainErr.Context,
+			})
+		}
 
 		return h.HandleError(c, updateErr, "Failed to update form")
 	}

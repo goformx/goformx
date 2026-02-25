@@ -26,7 +26,13 @@ var tierRank = map[string]int{
 }
 
 func hasTierAccess(userTier, requiredTier string) bool {
-	return tierRank[userTier] >= tierRank[requiredTier]
+	userRank, uOK := tierRank[userTier]
+	reqRank, rOK := tierRank[requiredTier]
+	if !uOK || !rOK {
+		return false
+	}
+
+	return userRank >= reqRank
 }
 
 // ValidateSchemaFeatures checks if a form schema uses any gated component types.

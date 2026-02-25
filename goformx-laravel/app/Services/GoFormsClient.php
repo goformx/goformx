@@ -114,7 +114,7 @@ class GoFormsClient
 
     public function getSubmissionsCount(string $month): int
     {
-        $response = $this->request()->get('/api/forms/usage/submissions-count', ['month' => $month])->throw();
+        $response = $this->get('/api/forms/usage/submissions-count?'.http_build_query(['month' => $month]));
 
         return $response->json('data.count', 0);
     }

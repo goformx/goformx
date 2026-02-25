@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/goformx/goforms/internal/application/middleware/context"
+	"github.com/goformx/goforms/internal/domain/common/plans"
 	appconfig "github.com/goformx/goforms/internal/infrastructure/config"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
 	"github.com/labstack/echo/v4"
@@ -54,6 +55,11 @@ func (m *Middleware) Verify() echo.MiddlewareFunc {
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			}
 
+			if strings.TrimSpace(c.Request().Header.Get(headerPlanTier)) == "" && m.logger != nil {
+				m.logger.Warn("X-Plan-Tier header missing, defaulting to free",
+					"user_id", userID, "path", c.Path())
+			}
+
 			context.SetUserID(c, userID)
 			context.SetPlanTier(c, planTier)
 
@@ -75,6 +81,8 @@ func verifyAssertionHeaders(
 	planTier = strings.TrimSpace(headers.Get(headerPlanTier))
 	if planTier == "" {
 		planTier = defaultPlanTier
+	} else if !plans.IsValidTier(planTier) {
+		return "", "", "invalid_plan_tier"
 	}
 
 	if userID == "" || timestamp == "" || signature == "" {

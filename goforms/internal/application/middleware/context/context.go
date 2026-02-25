@@ -249,18 +249,16 @@ func SetFormIDInContext(ctx context.Context, formID string) context.Context {
 	return context.WithValue(ctx, FormIDKey, formID)
 }
 
-// GetPlanTier retrieves the plan tier from Echo context, defaulting to "free"
-func GetPlanTier(c echo.Context) string {
+// GetPlanTier retrieves the plan tier from Echo context.
+// Returns the tier and true if set, or empty string and false if missing.
+func GetPlanTier(c echo.Context) (string, bool) {
 	if c == nil {
-		return "free"
+		return "", false
 	}
 
 	tier, ok := c.Get(string(PlanTierKey)).(string)
-	if !ok || tier == "" {
-		return "free"
-	}
 
-	return tier
+	return tier, ok && tier != ""
 }
 
 // SetPlanTier sets the plan tier in Echo context

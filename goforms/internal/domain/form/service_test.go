@@ -333,6 +333,77 @@ func TestService_UpdateForm(t *testing.T) {
 	})
 }
 
+func TestService_UpdateForm_WithGatedFeatureOnFreeTier_ReturnsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mockform.NewMockRepository(ctrl)
+	eventBus := mockevents.NewMockEventBus(ctrl)
+	logger := mocklogging.NewMockLogger(ctrl)
+
+	form := &model.Form{
+		ID:     "form123",
+		UserID: "user123",
+		Title:  "Test Form",
+		Status: "draft",
+		Active: true,
+		Schema: model.JSON{
+			"display": "form",
+			"components": []any{
+				map[string]any{"type": "file", "key": "upload"},
+			},
+		},
+	}
+
+	svc := domainform.NewService(repo, eventBus, logger)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := svc.UpdateForm(ctx, form, plans.TierFree)
+	require.Error(t, err)
+
+	var domainErr *domainerrors.DomainError
+	require.ErrorAs(t, err, &domainErr)
+	assert.Equal(t, domainerrors.ErrCodeFeatureNotAvailable, domainErr.Code)
+	assert.Equal(t, "file", domainErr.Context["feature"])
+	assert.Equal(t, plans.TierPro, domainErr.Context["required_tier"])
+}
+
+func TestService_UpdateForm_WithGatedFeatureOnProTier_Succeeds(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	repo := mockform.NewMockRepository(ctrl)
+	eventBus := mockevents.NewMockEventBus(ctrl)
+	logger := mocklogging.NewMockLogger(ctrl)
+
+	form := &model.Form{
+		ID:     "form123",
+		UserID: "user123",
+		Title:  "Test Form",
+		Status: "draft",
+		Active: true,
+		Schema: model.JSON{
+			"display": "form",
+			"components": []any{
+				map[string]any{"type": "file", "key": "upload"},
+			},
+		},
+	}
+
+	repo.EXPECT().UpdateForm(gomock.Any(), gomock.Any()).Return(nil)
+	eventBus.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
+
+	svc := domainform.NewService(repo, eventBus, logger)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	err := svc.UpdateForm(ctx, form, plans.TierPro)
+	require.NoError(t, err)
+}
+
 func TestService_DeleteForm(t *testing.T) {
 	formID := "form123"
 

@@ -204,7 +204,7 @@ func TestVerify_ValidSignatureWithPlanTier_SetsTierInContext(t *testing.T) {
 
 	var capturedTier string
 	e.GET("/test", func(c echo.Context) error {
-		capturedTier = context.GetPlanTier(c)
+		capturedTier, _ = context.GetPlanTier(c)
 		return c.String(http.StatusOK, "ok")
 	})
 
@@ -218,6 +218,84 @@ func TestVerify_ValidSignatureWithPlanTier_SetsTierInContext(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "pro", capturedTier)
+}
+
+func TestVerify_TamperedPlanTier_Returns401(t *testing.T) {
+	secret := "test-secret"
+	userID := "user-123"
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Sign with "free" but send "enterprise" in the header
+	payload := userID + ":" + timestamp + ":free"
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	cfg := &appconfig.Config{
+		Security: appconfig.SecurityConfig{
+			Assertion: appconfig.AssertionConfig{
+				Secret:               secret,
+				TimestampSkewSeconds: 60,
+			},
+		},
+	}
+	mw := assertion.NewMiddleware(cfg, nil)
+	e := echo.New()
+	e.Use(mw.Verify())
+	e.GET("/test", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req.Header.Set("X-User-Id", userID)
+	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Signature", signature)
+	req.Header.Set("X-Plan-Tier", "enterprise") // Tampered: signed as "free"
+
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "unauthorized")
+}
+
+func TestVerify_InvalidPlanTier_Returns401(t *testing.T) {
+	secret := "test-secret"
+	userID := "user-123"
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Sign with an invalid tier
+	payload := userID + ":" + timestamp + ":platinum"
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	cfg := &appconfig.Config{
+		Security: appconfig.SecurityConfig{
+			Assertion: appconfig.AssertionConfig{
+				Secret:               secret,
+				TimestampSkewSeconds: 60,
+			},
+		},
+	}
+	mw := assertion.NewMiddleware(cfg, nil)
+	e := echo.New()
+	e.Use(mw.Verify())
+	e.GET("/test", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req.Header.Set("X-User-Id", userID)
+	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Signature", signature)
+	req.Header.Set("X-Plan-Tier", "platinum")
+
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "unauthorized")
 }
 
 func TestVerify_MissingPlanTier_DefaultsToFree(t *testing.T) {
@@ -245,7 +323,7 @@ func TestVerify_MissingPlanTier_DefaultsToFree(t *testing.T) {
 
 	var capturedTier string
 	e.GET("/test", func(c echo.Context) error {
-		capturedTier = context.GetPlanTier(c)
+		capturedTier, _ = context.GetPlanTier(c)
 		return c.String(http.StatusOK, "ok")
 	})
 
