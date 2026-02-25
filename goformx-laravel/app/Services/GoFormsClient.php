@@ -105,6 +105,20 @@ class GoFormsClient
         return $response->json('data', $response->json());
     }
 
+    public function getFormsCount(): int
+    {
+        $response = $this->get('/api/forms/usage/forms-count');
+
+        return $response->json('data.count', 0);
+    }
+
+    public function getSubmissionsCount(string $month): int
+    {
+        $response = $this->request()->get('/api/forms/usage/submissions-count', ['month' => $month])->throw();
+
+        return $response->json('data.count', 0);
+    }
+
     private function get(string $url): Response
     {
         return $this->request()->get($url)->throw();
