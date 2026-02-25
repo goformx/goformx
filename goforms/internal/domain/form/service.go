@@ -12,7 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
+	domainerrors "github.com/goformx/goforms/internal/domain/common/errors"
 	"github.com/goformx/goforms/internal/domain/common/events"
+	"github.com/goformx/goforms/internal/domain/common/plans"
 	formevents "github.com/goformx/goforms/internal/domain/form/events"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -25,7 +27,7 @@ const (
 
 // Service defines the interface for form-related business logic
 type Service interface {
-	CreateForm(ctx context.Context, form *model.Form) error
+	CreateForm(ctx context.Context, form *model.Form, planTier string) error
 	UpdateForm(ctx context.Context, form *model.Form) error
 	DeleteForm(ctx context.Context, formID string) error
 	GetForm(ctx context.Context, formID string) (*model.Form, error)
@@ -53,11 +55,18 @@ func NewService(repository Repository, eventBus events.EventBus, logger logging.
 	}
 }
 
-// CreateForm creates a new form
-func (s *formService) CreateForm(ctx context.Context, form *model.Form) error {
+// CreateForm creates a new form after enforcing plan limits.
+func (s *formService) CreateForm(ctx context.Context, form *model.Form, planTier string) error {
 	if err := form.Validate(); err != nil {
 		return fmt.Errorf("form validation failed: %w", err)
 	}
+
+	// Enforce plan limits
+	if err := s.enforcePlanLimits(ctx, form.UserID, planTier); err != nil {
+		return err
+	}
+
+	form.PlanTier = planTier
 
 	// Set form ID if not already set
 	if form.ID == "" {
@@ -70,6 +79,31 @@ func (s *formService) CreateForm(ctx context.Context, form *model.Form) error {
 
 	if err := s.eventBus.Publish(ctx, formevents.NewFormCreatedEvent(form)); err != nil {
 		s.logger.Error("failed to publish form created event", "error", err)
+	}
+
+	return nil
+}
+
+// enforcePlanLimits checks whether the user has exceeded their plan's form limit.
+func (s *formService) enforcePlanLimits(ctx context.Context, userID, planTier string) error {
+	limits, err := plans.GetLimits(planTier)
+	if err != nil {
+		return fmt.Errorf("get plan limits: %w", err)
+	}
+
+	if limits.IsUnlimited() {
+		return nil
+	}
+
+	count, err := s.repository.CountFormsByUser(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("count user forms: %w", err)
+	}
+
+	if count >= limits.MaxForms {
+		return domainerrors.NewLimitExceeded(
+			"forms", count, limits.MaxForms, plans.NextTier(planTier),
+		)
 	}
 
 	return nil

@@ -13,6 +13,7 @@ import (
 	"github.com/goformx/goforms/internal/application/constants"
 	"github.com/goformx/goforms/internal/application/middleware/access"
 	"github.com/goformx/goforms/internal/application/middleware/assertion"
+	ctxmw "github.com/goformx/goforms/internal/application/middleware/context"
 	"github.com/goformx/goforms/internal/application/middleware/security"
 	"github.com/goformx/goforms/internal/application/response"
 	"github.com/goformx/goforms/internal/application/validation"
@@ -229,7 +230,9 @@ func (h *FormAPIHandler) handleCreateForm(c echo.Context) error {
 		return h.wrapError("handle create error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	form, err := h.FormServiceHandler.CreateForm(c.Request().Context(), userID, req)
+	planTier := ctxmw.GetPlanTier(c)
+
+	form, err := h.FormServiceHandler.CreateForm(c.Request().Context(), userID, req, planTier)
 	if err != nil {
 		h.Logger.Error("failed to create form", "error", err)
 

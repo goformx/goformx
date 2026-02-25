@@ -67,6 +67,7 @@ type Form struct {
 	DeletedAt   gorm.DeletedAt `gorm:"index"                                                      json:"-"`
 	Fields      []Field        `gorm:"foreignKey:FormID"                                          json:"fields"`
 	Status      string         `gorm:"size:20;not null;default:'draft'"                           json:"status"`
+	PlanTier    string         `gorm:"size:20;not null;default:'free'"                            json:"plan_tier"`
 
 	// CORS settings for form embedding
 	CorsOrigins JSON `gorm:"type:json" json:"cors_origins"`

@@ -27,7 +27,12 @@ func NewFormService(formService formdomain.Service, logger logging.Logger) *Form
 }
 
 // CreateForm creates a new form with the given request data
-func (s *FormService) CreateForm(ctx context.Context, userID string, req *FormCreateRequest) (*model.Form, error) {
+func (s *FormService) CreateForm(
+	ctx context.Context,
+	userID string,
+	req *FormCreateRequest,
+	planTier string,
+) (*model.Form, error) {
 	schema := model.JSON{
 		"type": "object",
 		"components": []any{
@@ -42,7 +47,7 @@ func (s *FormService) CreateForm(ctx context.Context, userID string, req *FormCr
 
 	form := model.NewForm(userID, req.Title, "", schema)
 
-	if err := s.formService.CreateForm(ctx, form); err != nil {
+	if err := s.formService.CreateForm(ctx, form, planTier); err != nil {
 		return nil, fmt.Errorf("create form: %w", err)
 	}
 
