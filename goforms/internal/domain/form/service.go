@@ -37,6 +37,8 @@ type Service interface {
 	ListFormSubmissions(ctx context.Context, formID string) ([]*model.FormSubmission, error)
 	UpdateFormState(ctx context.Context, formID, state string) error
 	TrackFormAnalytics(ctx context.Context, formID, eventType string) error
+	CountFormsByUser(ctx context.Context, userID string) (int, error)
+	CountSubmissionsByUserMonth(ctx context.Context, userID string, year int, month int) (int, error)
 }
 
 // formService handles form-related business logic
@@ -260,4 +262,29 @@ func (s *formService) TrackFormAnalytics(ctx context.Context, formID, eventType 
 	}
 
 	return nil
+}
+
+// CountFormsByUser returns the number of forms owned by a user.
+func (s *formService) CountFormsByUser(ctx context.Context, userID string) (int, error) {
+	count, err := s.repository.CountFormsByUser(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("count forms by user: %w", err)
+	}
+
+	return count, nil
+}
+
+// CountSubmissionsByUserMonth returns the number of submissions for a user in a given month.
+func (s *formService) CountSubmissionsByUserMonth(
+	ctx context.Context,
+	userID string,
+	year int,
+	month int,
+) (int, error) {
+	count, err := s.repository.CountSubmissionsByUserMonth(ctx, userID, year, month)
+	if err != nil {
+		return 0, fmt.Errorf("count submissions by user month: %w", err)
+	}
+
+	return count, nil
 }

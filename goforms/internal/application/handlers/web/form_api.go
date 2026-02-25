@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -83,6 +84,11 @@ func (h *FormAPIHandler) RegisterLaravelRoutes(e *echo.Echo) {
 
 	formsLaravel.GET("", h.handleListForms)
 	formsLaravel.POST("", h.handleCreateForm)
+
+	// Usage endpoints — registered before /:id to avoid parameter conflict
+	formsLaravel.GET("/usage/forms-count", h.handleFormsCount)
+	formsLaravel.GET("/usage/submissions-count", h.handleSubmissionsCount)
+
 	formsLaravel.GET("/:id", h.handleGetForm)
 	formsLaravel.PUT("/:id", h.handleUpdateForm)
 	formsLaravel.DELETE("/:id", h.handleDeleteForm)
@@ -479,6 +485,84 @@ func (h *FormAPIHandler) handleFormSubmit(c echo.Context) error {
 	}
 
 	return nil
+}
+
+// GET /api/forms/usage/forms-count — returns the user's total form count
+func (h *FormAPIHandler) handleFormsCount(c echo.Context) error {
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		return h.HandleForbidden(c, "User not authenticated")
+	}
+
+	count, err := h.FormService.CountFormsByUser(c.Request().Context(), userID)
+	if err != nil {
+		return h.HandleError(c, err, "Failed to count forms")
+	}
+
+	return c.JSON(http.StatusOK, response.APIResponse{
+		Success: true,
+		Data:    map[string]any{"count": count},
+	})
+}
+
+// GET /api/forms/usage/submissions-count?month=YYYY-MM — returns the user's monthly submission count
+func (h *FormAPIHandler) handleSubmissionsCount(c echo.Context) error {
+	userID, ok := c.Get("user_id").(string)
+	if !ok {
+		return h.HandleForbidden(c, "User not authenticated")
+	}
+
+	monthStr := c.QueryParam("month")
+
+	year, month, err := parseYearMonth(monthStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, response.APIResponse{
+			Success: false,
+			Message: "Invalid month format. Use YYYY-MM.",
+		})
+	}
+
+	count, err := h.FormService.CountSubmissionsByUserMonth(
+		c.Request().Context(), userID, year, month,
+	)
+	if err != nil {
+		return h.HandleError(c, err, "Failed to count submissions")
+	}
+
+	return c.JSON(http.StatusOK, response.APIResponse{
+		Success: true,
+		Data:    map[string]any{"count": count, "month": monthStr},
+	})
+}
+
+// parseYearMonth parses a "YYYY-MM" string into year and month integers.
+func parseYearMonth(s string) (int, int, error) {
+	parts := strings.SplitN(s, "-", 2)
+
+	const expectedParts = 2
+
+	if len(parts) != expectedParts {
+		return 0, 0, fmt.Errorf("invalid month format: %s", s)
+	}
+
+	year, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid year: %w", err)
+	}
+
+	month, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid month: %w", err)
+	}
+
+	const minMonth = 1
+	const maxMonth = 12
+
+	if month < minMonth || month > maxMonth {
+		return 0, 0, fmt.Errorf("month out of range: %d", month)
+	}
+
+	return year, month, nil
 }
 
 // Start initializes the form API handler.
