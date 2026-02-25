@@ -244,6 +244,16 @@ class FormController extends Controller
             throw new NotFoundHttpException('Resource not found.');
         }
 
+        if ($status === 403) {
+            $body = $e->response->json();
+            $requiredTier = $body['data']['required_tier'] ?? null;
+
+            return redirect()->back()
+                ->with('error', $body['message'] ?? 'Plan limit reached. Please upgrade.')
+                ->with('upgrade_tier', $requiredTier)
+                ->withInput();
+        }
+
         if ($status === 401) {
             Log::error('GoForms API returned 401 (auth misconfiguration)', [
                 'path' => $request->path(),

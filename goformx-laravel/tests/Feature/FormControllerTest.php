@@ -459,3 +459,49 @@ test('embed returns 404 when form does not exist', function () {
 
     $response->assertStatus(404);
 });
+
+it('shows upgrade prompt when form creation hits plan limit', function () {
+    Http::fake([
+        '*/api/forms' => Http::response([
+            'success' => false,
+            'error' => 'limit_exceeded',
+            'message' => 'Free plan allows 3 forms. Upgrade to Pro for up to 25.',
+            'data' => [
+                'limit_type' => 'max_forms',
+                'current' => 3,
+                'limit' => 3,
+                'required_tier' => 'pro',
+            ],
+        ], 403),
+    ]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('forms.store'), ['title' => 'New Form'])
+        ->assertRedirect()
+        ->assertSessionHas('error')
+        ->assertSessionHas('upgrade_tier', 'pro');
+});
+
+it('shows upgrade prompt when feature is not available', function () {
+    Http::fake([
+        '*/api/forms/*' => Http::response([
+            'success' => false,
+            'error' => 'feature_not_available',
+            'message' => 'Feature file requires pro plan or higher',
+            'data' => [
+                'feature' => 'file',
+                'required_tier' => 'pro',
+            ],
+        ], 403),
+    ]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->put(route('forms.update', 'some-id'), ['title' => 'Form', 'schema' => []])
+        ->assertRedirect()
+        ->assertSessionHas('error')
+        ->assertSessionHas('upgrade_tier', 'pro');
+});
