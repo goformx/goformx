@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
+import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 import { dashboard, home } from '@/routes';
 
@@ -44,5 +45,6 @@ defineProps<{
                 </Link>
             </div>
         </main>
+        <PublicFooter />
     </div>
 </template>

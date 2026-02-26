@@ -2,6 +2,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Check } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -314,5 +315,6 @@ function handleSubscribe(plan: PlanTier) {
                 </div>
             </section>
         </main>
+        <PublicFooter />
     </div>
 </template>

@@ -4,6 +4,7 @@ import goforms from '@goformx/formio';
 import { Head, usePage } from '@inertiajs/vue3';
 import { AlertCircle, CheckCircle2 } from 'lucide-vue-next';
 import { ref, computed, onMounted } from 'vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 Formio.use(goforms);
@@ -192,5 +193,6 @@ onMounted(async () => {
                 <div id="form-fill-container" class="min-h-[200px]" />
             </div>
         </div>
+        <PublicFooter />
     </div>
 </template>

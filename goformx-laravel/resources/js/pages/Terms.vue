@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';
+import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 </script>
 
@@ -13,5 +14,6 @@ import PublicHeader from '@/components/PublicHeader.vue';
                 <p class="mt-4 text-muted-foreground">Coming soon.</p>
             </div>
         </main>
+        <PublicFooter />
     </div>
 </template>

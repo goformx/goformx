@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { FileText, Zap, Shield, Code, Database, Globe } from 'lucide-vue-next';
 import { computed } from 'vue';
 import JsonLdScript from '@/components/JsonLdScript.vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -273,6 +274,7 @@ const features = [
                 </div>
             </section>
         </main>
+        <PublicFooter />
     </div>
 </template>
 
