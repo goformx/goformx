@@ -6,6 +6,7 @@ use App\Http\Controllers\FormController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\PublicFormController;
+use App\Http\Controllers\TermsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -49,6 +50,7 @@ Route::get('sitemap.xml', function (): Response {
 Route::get('demo', DemoController::class)->name('demo');
 Route::get('pricing', PricingController::class)->name('pricing');
 Route::get('privacy', PrivacyController::class)->name('privacy');
+Route::get('terms', TermsController::class)->name('terms');
 
 Route::get('/', function () {
     return Inertia::render('Home', [
