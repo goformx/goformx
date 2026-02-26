@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { FileText, Zap, Shield, Code, Database, Globe } from 'lucide-vue-next';
 import { computed } from 'vue';
 import JsonLdScript from '@/components/JsonLdScript.vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -164,20 +165,6 @@ const features = [
                             >
                                 <Link :href="demo().url">Try the demo</Link>
                             </Button>
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                class="border-border/50 bg-background/50 backdrop-blur hover:bg-background/80"
-                                as-child
-                            >
-                                <a
-                                    href="https://github.com/goformx/goformx"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    View on GitHub
-                                </a>
-                            </Button>
                         </div>
                     </div>
                 </div>
@@ -273,6 +260,7 @@ const features = [
                 </div>
             </section>
         </main>
+        <PublicFooter />
     </div>
 </template>
 

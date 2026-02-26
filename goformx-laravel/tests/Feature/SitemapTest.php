@@ -65,3 +65,16 @@ test('sitemap normalizes trailing slash on app URL', function () {
     expect($body)->toContain('<loc>https://example.com/</loc>');
     expect($body)->not->toContain('<loc>https://example.com//');
 });
+
+test('sitemap contains pricing, privacy, and terms URLs', function () {
+    $appUrl = 'https://example.com';
+    config(['app.url' => $appUrl]);
+
+    $response = $this->get(route('sitemap'));
+
+    $response->assertOk();
+    $body = $response->getContent();
+    expect($body)->toContain('<loc>'.$appUrl.'/pricing</loc>');
+    expect($body)->toContain('<loc>'.$appUrl.'/privacy</loc>');
+    expect($body)->toContain('<loc>'.$appUrl.'/terms</loc>');
+});

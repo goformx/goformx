@@ -4,7 +4,9 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\DemoController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\PricingController;
+use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\PublicFormController;
+use App\Http\Controllers\TermsController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -20,14 +22,18 @@ Route::get('robots.txt', function (): Response {
     ]);
 })->name('robots');
 
-// Sitemap lists only public marketing pages; user-generated form URLs are excluded
+// Sitemap lists public marketing pages; user-generated form URLs and authenticated routes are excluded
 Route::get('sitemap.xml', function (): Response {
     $appUrl = rtrim((string) config('app.url'), '/');
-    $lastmod = '2026-02-23T00:00:00+00:00';
+    // Update this date whenever public page content changes
+    $lastmod = '2026-02-26T00:00:00+00:00';
 
     $urls = [
         ['loc' => $appUrl.'/', 'lastmod' => $lastmod],
         ['loc' => $appUrl.'/demo', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/pricing', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/privacy', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/terms', 'lastmod' => $lastmod],
     ];
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
@@ -47,6 +53,8 @@ Route::get('sitemap.xml', function (): Response {
 
 Route::get('demo', DemoController::class)->name('demo');
 Route::get('pricing', PricingController::class)->name('pricing');
+Route::get('privacy', PrivacyController::class)->name('privacy');
+Route::get('terms', TermsController::class)->name('terms');
 
 Route::get('/', function () {
     return Inertia::render('Home', [

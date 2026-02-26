@@ -4,6 +4,7 @@ import goforms from '@goformx/formio';
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { AlertCircle, CheckCircle2 } from 'lucide-vue-next';
 import { ref, computed, onMounted } from 'vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { register } from '@/routes';
@@ -227,5 +228,6 @@ onMounted(async () => {
                 </p>
             </div>
         </main>
+        <PublicFooter />
     </div>
 </template>

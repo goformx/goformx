@@ -2,6 +2,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Check } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -171,7 +172,9 @@ function handleSubscribe(plan: PlanTier) {
                     >
                         Simple, transparent pricing
                     </h1>
-                    <p class="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
+                    <p
+                        class="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground"
+                    >
                         Start free. Upgrade as you grow. No hidden fees.
                     </p>
 
@@ -179,17 +182,27 @@ function handleSubscribe(plan: PlanTier) {
                     <div class="mt-8 flex items-center justify-center gap-3">
                         <Label
                             class="cursor-pointer text-sm"
-                            :class="!isAnnual ? 'text-foreground' : 'text-muted-foreground'"
+                            :class="
+                                !isAnnual
+                                    ? 'text-foreground'
+                                    : 'text-muted-foreground'
+                            "
                         >
                             Monthly
                         </Label>
                         <Switch v-model="isAnnual" />
                         <Label
                             class="cursor-pointer text-sm"
-                            :class="isAnnual ? 'text-foreground' : 'text-muted-foreground'"
+                            :class="
+                                isAnnual
+                                    ? 'text-foreground'
+                                    : 'text-muted-foreground'
+                            "
                         >
                             Annual
-                            <Badge variant="secondary" class="ml-1">Save 17%</Badge>
+                            <Badge variant="secondary" class="ml-1"
+                                >Save 17%</Badge
+                            >
                         </Label>
                     </div>
                 </div>
@@ -225,12 +238,16 @@ function handleSubscribe(plan: PlanTier) {
                                         Popular
                                     </Badge>
                                 </div>
-                                <CardDescription>{{ plan.description }}</CardDescription>
+                                <CardDescription>{{
+                                    plan.description
+                                }}</CardDescription>
                             </CardHeader>
 
                             <CardContent class="flex-1">
                                 <div class="mb-6">
-                                    <span class="text-4xl font-bold">{{ displayPrice(plan) }}</span>
+                                    <span class="text-4xl font-bold">{{
+                                        displayPrice(plan)
+                                    }}</span>
                                     <span
                                         v-if="pricePeriod(plan)"
                                         class="text-sm text-muted-foreground"
@@ -278,21 +295,33 @@ function handleSubscribe(plan: PlanTier) {
                                         class="w-full"
                                         as-child
                                     >
-                                        <Link :href="register()">{{ plan.cta }}</Link>
+                                        <Link :href="register()">{{
+                                            plan.cta
+                                        }}</Link>
                                     </Button>
                                 </template>
-                                <template v-else-if="plan.tier === 'enterprise'">
+                                <template
+                                    v-else-if="plan.tier === 'enterprise'"
+                                >
                                     <Button
                                         variant="secondary"
                                         class="w-full"
                                         as-child
                                     >
-                                        <a href="mailto:support@goformx.com">{{ plan.cta }}</a>
+                                        <a href="mailto:support@goformx.com">{{
+                                            plan.cta
+                                        }}</a>
                                     </Button>
                                 </template>
-                                <template v-else-if="isAuthenticated && priceId(plan)">
+                                <template
+                                    v-else-if="isAuthenticated && priceId(plan)"
+                                >
                                     <Button
-                                        :variant="plan.highlighted ? 'brand' : 'default'"
+                                        :variant="
+                                            plan.highlighted
+                                                ? 'brand'
+                                                : 'default'
+                                        "
                                         class="w-full"
                                         @click="handleSubscribe(plan)"
                                     >
@@ -301,11 +330,17 @@ function handleSubscribe(plan: PlanTier) {
                                 </template>
                                 <template v-else>
                                     <Button
-                                        :variant="plan.highlighted ? 'brand' : 'default'"
+                                        :variant="
+                                            plan.highlighted
+                                                ? 'brand'
+                                                : 'default'
+                                        "
                                         class="w-full"
                                         as-child
                                     >
-                                        <Link :href="register()">{{ plan.cta }}</Link>
+                                        <Link :href="register()">{{
+                                            plan.cta
+                                        }}</Link>
                                     </Button>
                                 </template>
                             </CardFooter>
@@ -314,5 +349,6 @@ function handleSubscribe(plan: PlanTier) {
                 </div>
             </section>
         </main>
+        <PublicFooter />
     </div>
 </template>

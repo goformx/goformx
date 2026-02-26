@@ -24,9 +24,7 @@ const props = defineProps<{
     prices: Record<string, string | null>;
 }>();
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Billing', href: '/billing' },
-];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'Billing', href: '/billing' }];
 
 const tierLabels: Record<string, string> = {
     free: 'Free',
@@ -56,12 +54,20 @@ const statusLabel = computed(() => {
         canceled: 'Canceled',
         incomplete: 'Incomplete',
     };
-    return labels[props.subscription.stripe_status] ?? props.subscription.stripe_status;
+    return (
+        labels[props.subscription.stripe_status] ??
+        props.subscription.stripe_status
+    );
 });
 
-const statusVariant = computed<'default' | 'secondary' | 'destructive' | 'outline'>(() => {
+const statusVariant = computed<
+    'default' | 'secondary' | 'destructive' | 'outline'
+>(() => {
     if (!props.subscription?.stripe_status) return 'secondary';
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+    const variants: Record<
+        string,
+        'default' | 'secondary' | 'destructive' | 'outline'
+    > = {
         active: 'default',
         trialing: 'secondary',
         past_due: 'destructive',
@@ -93,11 +99,21 @@ function usagePercent(current: number, max: number): number {
                         <div class="flex items-center gap-3">
                             <CreditCard class="h-5 w-5 text-muted-foreground" />
                             <div>
-                                <CardTitle>{{ tierLabels[currentTier] ?? currentTier }} Plan</CardTitle>
-                                <CardDescription>Your current subscription plan</CardDescription>
+                                <CardTitle
+                                    >{{
+                                        tierLabels[currentTier] ?? currentTier
+                                    }}
+                                    Plan</CardTitle
+                                >
+                                <CardDescription
+                                    >Your current subscription
+                                    plan</CardDescription
+                                >
                             </div>
                         </div>
-                        <Badge :variant="statusVariant">{{ statusLabel }}</Badge>
+                        <Badge :variant="statusVariant">{{
+                            statusLabel
+                        }}</Badge>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -105,11 +121,7 @@ function usagePercent(current: number, max: number): number {
                         <Button variant="outline" as-child>
                             <Link :href="pricing()">Change Plan</Link>
                         </Button>
-                        <Button
-                            v-if="subscription"
-                            variant="outline"
-                            as-child
-                        >
+                        <Button v-if="subscription" variant="outline" as-child>
                             <Link :href="portal()">Manage Billing</Link>
                         </Button>
                     </div>
@@ -124,18 +136,24 @@ function usagePercent(current: number, max: number): number {
                         <CardTitle class="text-base">Forms</CardTitle>
                         <CardDescription>
                             <template v-if="isUnlimited">
-                                {{ formatNumber(usage.forms) }} created (unlimited)
+                                {{ formatNumber(usage.forms) }} created
+                                (unlimited)
                             </template>
                             <template v-else>
-                                {{ formatNumber(usage.forms) }} of {{ formatNumber(limits.forms) }} used
+                                {{ formatNumber(usage.forms) }} of
+                                {{ formatNumber(limits.forms) }} used
                             </template>
                         </CardDescription>
                     </CardHeader>
                     <CardContent v-if="!isUnlimited">
-                        <div class="h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                            class="h-2 w-full overflow-hidden rounded-full bg-muted"
+                        >
                             <div
                                 class="h-full rounded-full bg-[hsl(var(--brand))] transition-all"
-                                :style="{ width: `${usagePercent(usage.forms, limits.forms)}%` }"
+                                :style="{
+                                    width: `${usagePercent(usage.forms, limits.forms)}%`,
+                                }"
                             />
                         </div>
                     </CardContent>
@@ -147,18 +165,25 @@ function usagePercent(current: number, max: number): number {
                         <CardTitle class="text-base">Submissions</CardTitle>
                         <CardDescription>
                             <template v-if="isUnlimited">
-                                {{ formatNumber(usage.submissions) }} this month (unlimited)
+                                {{ formatNumber(usage.submissions) }} this month
+                                (unlimited)
                             </template>
                             <template v-else>
-                                {{ formatNumber(usage.submissions) }} of {{ formatNumber(limits.submissions) }} this month
+                                {{ formatNumber(usage.submissions) }} of
+                                {{ formatNumber(limits.submissions) }} this
+                                month
                             </template>
                         </CardDescription>
                     </CardHeader>
                     <CardContent v-if="!isUnlimited">
-                        <div class="h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                            class="h-2 w-full overflow-hidden rounded-full bg-muted"
+                        >
                             <div
                                 class="h-full rounded-full bg-[hsl(var(--brand))] transition-all"
-                                :style="{ width: `${usagePercent(usage.submissions, limits.submissions)}%` }"
+                                :style="{
+                                    width: `${usagePercent(usage.submissions, limits.submissions)}%`,
+                                }"
                             />
                         </div>
                     </CardContent>

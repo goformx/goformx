@@ -461,7 +461,10 @@ const breadcrumbs: BreadcrumbItem[] = [
                 <template #settings-panel>
                     <FieldSettingsPanel
                         :selected-field="selectedFieldData"
-                        @update:field="(field: FormComponent) => updateField(field.key, field)"
+                        @update:field="
+                            (field: FormComponent) =>
+                                updateField(field.key, field)
+                        "
                         @duplicate="(key) => duplicateField(key)"
                         @delete="(key) => deleteField(key)"
                         @close="() => selectField(null)"
