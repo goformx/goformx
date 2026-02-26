@@ -34,6 +34,19 @@ func NewViperConfig() *ViperConfig {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
 
+	// Bind APP_* environment variables to app.* config keys
+	_ = v.BindEnv("app.name", "APP_NAME")
+	_ = v.BindEnv("app.environment", "APP_ENVIRONMENT")
+	_ = v.BindEnv("app.debug", "APP_DEBUG")
+	_ = v.BindEnv("app.log_level", "APP_LOG_LEVEL")
+	_ = v.BindEnv("app.scheme", "APP_SCHEME")
+	_ = v.BindEnv("app.host", "APP_HOST")
+	_ = v.BindEnv("app.port", "APP_PORT")
+	_ = v.BindEnv("app.read_timeout", "APP_READ_TIMEOUT")
+	_ = v.BindEnv("app.write_timeout", "APP_WRITE_TIMEOUT")
+	_ = v.BindEnv("app.idle_timeout", "APP_IDLE_TIMEOUT")
+	_ = v.BindEnv("app.request_timeout", "APP_REQUEST_TIMEOUT")
+
 	// Bind DB_* environment variables to database.* config keys
 	// This allows users to use the common DB_ prefix convention
 	_ = v.BindEnv("database.host", "DB_HOST")
@@ -50,6 +63,11 @@ func NewViperConfig() *ViperConfig {
 	_ = v.BindEnv("security.cors.allowed_headers", "CORS_ALLOWED_HEADERS")
 	_ = v.BindEnv("security.cors.allow_credentials", "CORS_ALLOW_CREDENTIALS")
 	_ = v.BindEnv("security.cors.max_age", "CORS_MAX_AGE")
+
+	// Bind session and security env vars
+	_ = v.BindEnv("session.secret", "SESSION_SECRET")
+	_ = v.BindEnv("security.csrf.secret", "SECURITY_CSRF_SECRET")
+	_ = v.BindEnv("security.secure_cookie", "SECURITY_SECURE_COOKIE")
 
 	// Bind GOFORMS_SHARED_SECRET for Laravel-Go assertion verification
 	_ = v.BindEnv("security.assertion.secret", "GOFORMS_SHARED_SECRET")
@@ -412,7 +430,7 @@ func setDatabaseDefaults(v *viper.Viper) {
 	v.SetDefault("database.port", DefaultDBPort)
 	v.SetDefault("database.name", "goforms")
 	v.SetDefault("database.username", "goforms")
-	v.SetDefault("database.password", "goforms")
+	v.SetDefault("database.password", "")
 	v.SetDefault("database.ssl_mode", "disable")
 	v.SetDefault("database.max_open_conns", DefaultMaxOpenConns)
 	v.SetDefault("database.max_idle_conns", DefaultMaxIdleConns)
@@ -423,7 +441,7 @@ func setDatabaseDefaults(v *viper.Viper) {
 // setCSRFDefaults sets CSRF default values
 func setCSRFDefaults(v *viper.Viper) {
 	v.SetDefault("security.csrf.enabled", true)
-	v.SetDefault("security.csrf.secret", "csrf-secret")
+	v.SetDefault("security.csrf.secret", "")
 	v.SetDefault("security.csrf.token_name", "_token")
 	v.SetDefault("security.csrf.header_name", "X-Csrf-Token")
 	v.SetDefault("security.csrf.token_length", DefaultCSRFTokenLength)
@@ -522,7 +540,7 @@ func setSecurityDefaults(v *viper.Viper) {
 // setSessionDefaults sets session default values
 func setSessionDefaults(v *viper.Viper) {
 	v.SetDefault("session.type", "cookie")
-	v.SetDefault("session.secret", "session-secret")
+	v.SetDefault("session.secret", "")
 	v.SetDefault("session.max_age", DefaultSessionMaxAge)
 	v.SetDefault("session.path", "/")
 	v.SetDefault("session.secure", false)

@@ -4,7 +4,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"go.uber.org/fx"
 
@@ -152,27 +151,8 @@ type Application struct {
 }
 
 // Start starts the application
-func (a *Application) Start(ctx context.Context) error {
-	a.logger.Info("Starting application...")
-
-	// Get the Echo instance
-	e := a.server.Echo()
-
-	// Register all handlers
-	var handlers []web.Handler
-
-	fx.Populate(&handlers)
-
-	for _, handler := range handlers {
-		handler.Register(e)
-	}
-
-	// Start the server
-	if err := a.server.Start(ctx); err != nil {
-		return fmt.Errorf("start server: %w", err)
-	}
-
-	a.logger.Info("Application started successfully")
+func (a *Application) Start(_ context.Context) error {
+	a.logger.Info("application initialized")
 
 	return nil
 }
