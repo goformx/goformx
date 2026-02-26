@@ -4,6 +4,7 @@ use App\Http\Controllers\BillingController;
 use App\Http\Controllers\DemoController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\PricingController;
+use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\PublicFormController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -47,6 +48,7 @@ Route::get('sitemap.xml', function (): Response {
 
 Route::get('demo', DemoController::class)->name('demo');
 Route::get('pricing', PricingController::class)->name('pricing');
+Route::get('privacy', PrivacyController::class)->name('privacy');
 
 Route::get('/', function () {
     return Inertia::render('Home', [
