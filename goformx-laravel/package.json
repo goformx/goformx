@@ -35,7 +35,7 @@
         "@formio/js": "^5.1.1",
         "@goformx/formio": "^0.1.4",
         "@inertiajs/vue3": "^2.3.7",
-        "@vueuse/core": "^12.8.2",
+        "@vueuse/core": "^14.2.1",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "laravel-vite-plugin": "^2.0.0",
