@@ -83,3 +83,14 @@ func TestValidateSchemaFeatures_NoComponents_Succeeds(t *testing.T) {
 	err := plans.ValidateSchemaFeatures(schema, "free")
 	assert.NoError(t, err)
 }
+
+func TestValidateSchemaFeatures_GrowthAllowsProFeatures(t *testing.T) {
+	schema := map[string]any{
+		"components": []any{
+			map[string]any{"type": "file", "key": "upload"},
+			map[string]any{"type": "signature", "key": "sig"},
+		},
+	}
+	err := plans.ValidateSchemaFeatures(schema, "growth")
+	assert.NoError(t, err)
+}

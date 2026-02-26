@@ -68,15 +68,15 @@ func (h *FormBaseHandler) RequireFormOwnership(c echo.Context, form *model.Form)
 	}
 
 	if form.UserID != userID {
-		h.Logger.Error("ownership verification failed",
+		h.Logger.Warn("ownership verification failed",
 			"resource_user_id", form.UserID,
 			"request_user_id", userID)
 
-		if handleErr := h.HandleForbidden(c, "You don't have permission to access this resource"); handleErr != nil {
-			h.Logger.Error("failed to handle forbidden", "error", handleErr)
+		if handleErr := h.HandleNotFound(c, "Form not found"); handleErr != nil {
+			h.Logger.Error("failed to handle not found", "error", handleErr)
 		}
 
-		return echo.NewHTTPError(constants.StatusForbidden, "You don't have permission to access this resource")
+		return echo.NewHTTPError(constants.StatusNotFound, "Form not found")
 	}
 
 	return nil

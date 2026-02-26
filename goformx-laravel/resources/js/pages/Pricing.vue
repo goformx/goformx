@@ -52,18 +52,18 @@ const plans = computed<PlanTier[]>(() => [
         name: 'Pro',
         tier: 'pro',
         description: 'For professionals and small teams.',
-        monthlyPrice: 19,
-        annualPrice: 190,
+        monthlyPrice: 9,
+        annualPrice: 90,
         monthlyPriceId: props.prices.pro_monthly ?? null,
         annualPriceId: props.prices.pro_annual ?? null,
-        limits: { forms: 25, submissions: '2,500' },
+        limits: { forms: 10, submissions: '1,000' },
         features: [
-            'Up to 25 forms',
-            '2,500 submissions/month',
+            'Up to 10 forms',
+            '1,000 submissions/month',
             'File uploads',
             'Signature fields',
             'Custom CORS origins',
-            'Priority support',
+            'Basic analytics',
         ],
         highlighted: true,
         cta: 'Subscribe',
@@ -73,18 +73,40 @@ const plans = computed<PlanTier[]>(() => [
         name: 'Business',
         tier: 'business',
         description: 'For growing businesses.',
-        monthlyPrice: 49,
-        annualPrice: 490,
+        monthlyPrice: 29,
+        annualPrice: 290,
         monthlyPriceId: props.prices.business_monthly ?? null,
         annualPriceId: props.prices.business_annual ?? null,
-        limits: { forms: 100, submissions: '25,000' },
+        limits: { forms: 50, submissions: '10,000' },
         features: [
-            'Up to 100 forms',
-            '25,000 submissions/month',
+            'Up to 50 forms',
+            '10,000 submissions/month',
             'Everything in Pro',
             'Webhooks',
-            'Analytics dashboard',
+            'Full analytics',
             'Team collaboration',
+            'Priority support',
+        ],
+        cta: 'Subscribe',
+        ctaVariant: 'default',
+    },
+    {
+        name: 'Growth',
+        tier: 'growth',
+        description: 'For scaling teams and agencies.',
+        monthlyPrice: 59,
+        annualPrice: 590,
+        monthlyPriceId: props.prices.growth_monthly ?? null,
+        annualPriceId: props.prices.growth_annual ?? null,
+        limits: { forms: 150, submissions: '50,000' },
+        features: [
+            'Up to 150 forms',
+            '50,000 submissions/month',
+            'Everything in Business',
+            'Advanced integrations',
+            'Audit logs',
+            'Custom branding',
+            'Multi-team roles',
         ],
         cta: 'Subscribe',
         ctaVariant: 'default',
@@ -101,7 +123,7 @@ const plans = computed<PlanTier[]>(() => [
         features: [
             'Unlimited forms',
             'Unlimited submissions',
-            'Everything in Business',
+            'Everything in Growth',
             'SSO / SAML',
             'Dedicated support',
             'Custom SLA',
@@ -161,10 +183,7 @@ function handleSubscribe(plan: PlanTier) {
                         >
                             Monthly
                         </Label>
-                        <Switch
-                            :checked="isAnnual"
-                            @update:checked="isAnnual = $event"
-                        />
+                        <Switch v-model="isAnnual" />
                         <Label
                             class="cursor-pointer text-sm"
                             :class="isAnnual ? 'text-foreground' : 'text-muted-foreground'"
@@ -179,7 +198,7 @@ function handleSubscribe(plan: PlanTier) {
             <!-- Pricing cards -->
             <section class="pb-24">
                 <div class="container">
-                    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
                         <Card
                             v-for="plan in plans"
                             :key="plan.tier"

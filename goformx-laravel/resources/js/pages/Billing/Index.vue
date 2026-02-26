@@ -32,13 +32,15 @@ const tierLabels: Record<string, string> = {
     free: 'Free',
     pro: 'Pro',
     business: 'Business',
+    growth: 'Growth',
     enterprise: 'Enterprise',
 };
 
 const tierLimits: Record<string, { forms: number; submissions: number }> = {
     free: { forms: 3, submissions: 100 },
-    pro: { forms: 25, submissions: 2500 },
-    business: { forms: 100, submissions: 25000 },
+    pro: { forms: 10, submissions: 1000 },
+    business: { forms: 50, submissions: 10000 },
+    growth: { forms: 150, submissions: 50000 },
     enterprise: { forms: -1, submissions: -1 },
 };
 

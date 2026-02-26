@@ -18,7 +18,7 @@ class UpdateFormRequest extends FormRequest
             'title' => ['required', 'string'],
             'description' => ['nullable', 'string'],
             'status' => ['nullable', 'string', 'in:draft,published,archived'],
-            'cors_origins' => ['nullable', 'string'],
+            'cors_origins' => ['nullable', 'string', 'regex:/^(https?:\/\/[a-zA-Z0-9._-]+(:[0-9]+)?)(,\s*https?:\/\/[a-zA-Z0-9._-]+(:[0-9]+)?)*$/'],
             'schema' => ['nullable', 'array'],
         ];
     }

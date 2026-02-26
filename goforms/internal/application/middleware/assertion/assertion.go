@@ -48,7 +48,8 @@ func (m *Middleware) Verify() echo.MiddlewareFunc {
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			userID, planTier, failReason := verifyAssertionHeaders(c.Request().Header, cfg)
+			userID, planTier, failReason := verifyAssertionHeaders(
+				c.Request().Header, cfg, c.Request().Method, c.Request().URL.Path)
 			if failReason != "" {
 				m.logFailure(c, failReason)
 
@@ -73,6 +74,7 @@ func (m *Middleware) Verify() echo.MiddlewareFunc {
 func verifyAssertionHeaders(
 	headers http.Header,
 	cfg appconfig.AssertionConfig,
+	method, path string,
 ) (userID, planTier, failureReason string) {
 	userID = strings.TrimSpace(headers.Get(headerUserID))
 	timestamp := strings.TrimSpace(headers.Get(headerTimestamp))
@@ -99,11 +101,15 @@ func verifyAssertionHeaders(
 	}
 
 	skew := time.Duration(cfg.TimestampSkewSeconds) * time.Second
-	if time.Since(ts) > skew {
+	elapsed := time.Since(ts)
+	if elapsed > skew {
 		return "", "", "timestamp_too_old"
 	}
+	if elapsed < -skew {
+		return "", "", "timestamp_too_new"
+	}
 
-	payload := userID + ":" + timestamp + ":" + planTier
+	payload := method + ":" + path + ":" + userID + ":" + timestamp + ":" + planTier
 	expected := computeHMAC(cfg.Secret, payload)
 
 	sigBytes, err := hex.DecodeString(signature)

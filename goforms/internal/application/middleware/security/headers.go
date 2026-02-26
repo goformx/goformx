@@ -17,7 +17,6 @@ func SetupSecurityHeaders() echo.MiddlewareFunc {
 				c.Response().Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 			} else {
 				c.Response().Header().Set("Referrer-Policy", securityConfig.SecurityHeaders.ReferrerPolicy)
-				c.Response().Header().Set("Strict-Transport-Security", securityConfig.SecurityHeaders.StrictTransportSecurity)
 				c.Response().Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 			}
 

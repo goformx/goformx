@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -237,8 +238,9 @@ func (h *FormAPIHandler) handleCreateForm(c echo.Context) error {
 		return h.wrapError("handle create error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	planTier, _ := ctxmw.GetPlanTier(c)
-	if planTier == "" {
+	planTier, ok := ctxmw.GetPlanTier(c)
+	if !ok || planTier == "" {
+		h.Logger.Warn("plan tier missing from context, defaulting to free", "path", c.Path())
 		planTier = "free"
 	}
 
@@ -289,8 +291,9 @@ func (h *FormAPIHandler) handleUpdateForm(c echo.Context) error {
 		return h.wrapError("handle update error", h.ErrorHandler.HandleSchemaError(c, err))
 	}
 
-	updatePlanTier, _ := ctxmw.GetPlanTier(c)
-	if updatePlanTier == "" {
+	updatePlanTier, ok := ctxmw.GetPlanTier(c)
+	if !ok || updatePlanTier == "" {
+		h.Logger.Warn("plan tier missing from context, defaulting to free", "path", c.Path())
 		updatePlanTier = "free"
 	}
 	if updateErr := h.FormServiceHandler.UpdateForm(c.Request().Context(), form, req, updatePlanTier); updateErr != nil {
@@ -418,8 +421,35 @@ func (h *FormAPIHandler) handleFormEmbed(c echo.Context) error {
 	schemaURL := "/forms/" + formID + "/schema"
 	submitURL := "/forms/" + formID + "/submit"
 
+	// Build frame-ancestors and target origin from the form's CORS origins
+	corsOrigins, _, _ := form.GetCorsConfig()
+	targetOrigin := "'none'"
+	frameAncestors := "'none'"
+	if len(corsOrigins) > 0 {
+		targetOrigin = escapeHTML(corsOrigins[0])
+
+		var safeOrigins []string
+		for _, o := range corsOrigins {
+			if sanitized := sanitizeCSPOrigin(o); sanitized != "" {
+				safeOrigins = append(safeOrigins, sanitized)
+			}
+		}
+
+		if len(safeOrigins) > 0 {
+			frameAncestors = strings.Join(safeOrigins, " ")
+		}
+	}
+
+	csp := "default-src 'none'; " +
+		"script-src https://cdn.form.io 'unsafe-inline'; " +
+		"style-src https://cdn.form.io 'unsafe-inline'; " +
+		"connect-src 'self'; " +
+		"font-src https://cdn.form.io; " +
+		"img-src 'self' data:; " +
+		"frame-ancestors " + frameAncestors
+
 	html := `<!DOCTYPE html>
-<html>
+<html data-cors-origin="` + targetOrigin + `">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -434,13 +464,14 @@ func (h *FormAPIHandler) handleFormEmbed(c echo.Context) error {
       var schemaUrl = '` + schemaURL + `';
       var submitUrl = '` + submitURL + `';
       var container = document.getElementById('formio');
+      var targetOrigin = document.documentElement.dataset.corsOrigin || '*';
       Formio.createForm(container, schemaUrl, {
         submit: submitUrl,
         noSubmit: false
       }).then(function(form) {
         form.on('submit', function(submission) {
           if (submission && submission.submission) {
-            window.parent.postMessage({ type: 'goformx:submitted', submission: submission.submission }, '*');
+            window.parent.postMessage({ type: 'goformx:submitted', submission: submission.submission }, targetOrigin);
           }
         });
       }).catch(function(err) {
@@ -452,6 +483,9 @@ func (h *FormAPIHandler) handleFormEmbed(c echo.Context) error {
 </body>
 </html>`
 
+	// Strip X-Frame-Options to allow embedding; CSP frame-ancestors handles framing control
+	c.Response().Header().Del("X-Frame-Options")
+	c.Response().Header().Set("Content-Security-Policy", csp)
 	c.Response().Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	return c.HTML(http.StatusOK, html)
@@ -466,6 +500,19 @@ func escapeHTML(s string) string {
 		`"`, "&quot;",
 		"'", "&#39;",
 	).Replace(s)
+}
+
+// validCSPOriginPattern matches safe scheme://host[:port] patterns for CSP directives.
+var validCSPOriginPattern = regexp.MustCompile(`^https?://[a-zA-Z0-9._:\-]+$`)
+
+// sanitizeCSPOrigin returns the origin if it matches a safe pattern, or empty string otherwise.
+// This prevents CSP header injection via malicious CORS origins stored in the database.
+func sanitizeCSPOrigin(origin string) string {
+	if validCSPOriginPattern.MatchString(origin) {
+		return origin
+	}
+
+	return ""
 }
 
 // POST /api/v1/forms/:id/submit

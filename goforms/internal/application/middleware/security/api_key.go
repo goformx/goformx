@@ -1,6 +1,7 @@
 package security
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -39,8 +40,13 @@ func (a *APIKeyAuth) Setup() echo.MiddlewareFunc {
 	}
 
 	if len(apiKeyConfig.Keys) == 0 {
-		a.logger.Warn("API key authentication enabled but no keys configured")
-		return noopMiddleware()
+		a.logger.Error("API key authentication enabled but no keys configured - rejecting all requests")
+
+		return func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				return echo.NewHTTPError(http.StatusInternalServerError, "API key authentication misconfigured")
+			}
+		}
 	}
 
 	// Normalize header name (default to X-API-Key)
@@ -145,16 +151,6 @@ func (a *APIKeyAuth) validateAPIKey(apiKey string, validKeys []string) bool {
 }
 
 // subtleConstantTimeCompare performs constant-time string comparison
-// This is a basic implementation - in production, consider using crypto/subtle
 func subtleConstantTimeCompare(a, b string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	result := 0
-	for i := range len(a) {
-		result |= int(a[i]) ^ int(b[i])
-	}
-
-	return result == 0
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

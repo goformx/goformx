@@ -14,6 +14,8 @@ beforeEach(function () {
         'services.stripe.prices.pro_annual' => 'price_pro_annual',
         'services.stripe.prices.business_monthly' => 'price_business_monthly',
         'services.stripe.prices.business_annual' => 'price_business_annual',
+        'services.stripe.prices.growth_monthly' => 'price_growth_monthly',
+        'services.stripe.prices.growth_annual' => 'price_growth_annual',
     ]);
 });
 
@@ -52,7 +54,7 @@ it('uses ISO 8601 format for X-Timestamp', function () {
     expect($timestamp)->toMatch('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/');
 });
 
-it('computes X-Signature as HMAC-SHA256 hex of user_id:timestamp:plan_tier', function () {
+it('computes X-Signature as HMAC-SHA256 hex of method:path:user_id:timestamp:plan_tier', function () {
     $capturedRequest = null;
     Http::fake(function ($request) use (&$capturedRequest) {
         $capturedRequest = $request;
@@ -69,7 +71,7 @@ it('computes X-Signature as HMAC-SHA256 hex of user_id:timestamp:plan_tier', fun
     $signature = $capturedRequest->header('X-Signature')[0] ?? '';
     $planTier = $capturedRequest->header('X-Plan-Tier')[0] ?? '';
 
-    $expectedPayload = "{$userId}:{$timestamp}:{$planTier}";
+    $expectedPayload = "GET:/api/forms:{$userId}:{$timestamp}:{$planTier}";
     $expectedSignature = hash_hmac('sha256', $expectedPayload, 'test-secret', false);
 
     expect($signature)->toBe($expectedSignature)
@@ -256,7 +258,30 @@ it('signs plan tier into HMAC payload', function () {
         $signature = $request->header('X-Signature')[0];
         $planTier = $request->header('X-Plan-Tier')[0];
 
-        $expectedPayload = $userId.':'.$timestamp.':'.$planTier;
+        $expectedPayload = 'GET:/api/forms:'.$userId.':'.$timestamp.':'.$planTier;
+        $expectedSignature = hash_hmac('sha256', $expectedPayload, 'test-secret');
+
+        return $signature === $expectedSignature;
+    });
+});
+
+it('signs only the path portion when URL contains query parameters', function () {
+    Http::fake([
+        '*/api/forms/usage/submissions-count*' => Http::response(['data' => ['count' => 5]], 200),
+    ]);
+
+    $user = User::factory()->create();
+    $client = GoFormsClient::fromConfig()->withUser($user);
+    $client->getSubmissionsCount('2026-02');
+
+    Http::assertSent(function ($request) {
+        $userId = $request->header('X-User-Id')[0];
+        $timestamp = $request->header('X-Timestamp')[0];
+        $signature = $request->header('X-Signature')[0];
+        $planTier = $request->header('X-Plan-Tier')[0];
+
+        // HMAC payload must use path only (no query string) to match Go's c.Request().URL.Path
+        $expectedPayload = 'GET:/api/forms/usage/submissions-count:'.$userId.':'.$timestamp.':'.$planTier;
         $expectedSignature = hash_hmac('sha256', $expectedPayload, 'test-secret');
 
         return $signature === $expectedSignature;

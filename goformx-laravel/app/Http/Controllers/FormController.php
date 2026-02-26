@@ -31,7 +31,7 @@ class FormController extends Controller
             if ($status !== null && in_array($status, [401, 404], true)) {
                 Log::warning('GoForms API error on list forms; showing empty list', [
                     'status' => $status,
-                    'body' => $response->body(),
+                    'body' => \Illuminate\Support\Str::limit($response->body(), 500),
                 ]);
 
                 return Inertia::render('Forms/Index', ['forms' => []]);
@@ -170,7 +170,7 @@ class FormController extends Controller
             if ($status !== null && in_array($status, [401, 404], true)) {
                 Log::warning('GoForms API error on create form; redirecting back', [
                     'status' => $status,
-                    'body' => $e->response->body(),
+                    'body' => \Illuminate\Support\Str::limit($e->response->body(), 500),
                 ]);
 
                 return redirect()->route('forms.index')
@@ -259,7 +259,7 @@ class FormController extends Controller
         if ($status === 401) {
             Log::error('GoForms API returned 401 (auth misconfiguration)', [
                 'path' => $request->path(),
-                'body' => $e->response->body(),
+                'body' => \Illuminate\Support\Str::limit($e->response->body(), 500),
             ]);
 
             return redirect()->back()
@@ -273,12 +273,17 @@ class FormController extends Controller
         }
 
         if ($status >= 500) {
-            Log::error('GoForms API server error', ['status' => $status, 'body' => $e->response->body()]);
+            Log::error('GoForms API server error', ['status' => $status, 'body' => \Illuminate\Support\Str::limit($e->response->body(), 500)]);
 
             return redirect()->back()
                 ->with('error', 'Form service temporarily unavailable.')
                 ->withInput();
         }
+
+        Log::warning('GoForms API returned unhandled status', [
+            'status' => $status,
+            'path' => $request->path(),
+        ]);
 
         return redirect()->back()
             ->with('error', 'An error occurred. Please try again.')

@@ -6,14 +6,17 @@ const (
 	TierFree       = "free"
 	TierPro        = "pro"
 	TierBusiness   = "business"
+	TierGrowth     = "growth"
 	TierEnterprise = "enterprise"
 
-	freeForms               = 3
-	freeSubmissionsPerMonth = 100
-	proForms                = 25
-	proSubmissionsPerMonth  = 2500
-	bizForms                = 100
-	bizSubmissionsPerMonth  = 25000
+	freeForms                 = 3
+	freeSubmissionsPerMonth   = 100
+	proForms                  = 10
+	proSubmissionsPerMonth    = 1000
+	bizForms                  = 50
+	bizSubmissionsPerMonth    = 10000
+	growthForms               = 150
+	growthSubmissionsPerMonth = 50000
 )
 
 // Limits defines the usage limits for a subscription plan tier.
@@ -31,10 +34,11 @@ var tierLimits = map[string]Limits{
 	TierFree:       {MaxForms: freeForms, MaxSubmissionsPerMonth: freeSubmissionsPerMonth},
 	TierPro:        {MaxForms: proForms, MaxSubmissionsPerMonth: proSubmissionsPerMonth},
 	TierBusiness:   {MaxForms: bizForms, MaxSubmissionsPerMonth: bizSubmissionsPerMonth},
+	TierGrowth:     {MaxForms: growthForms, MaxSubmissionsPerMonth: growthSubmissionsPerMonth},
 	TierEnterprise: {MaxForms: 0, MaxSubmissionsPerMonth: 0},
 }
 
-var tierOrder = []string{TierFree, TierPro, TierBusiness, TierEnterprise}
+var tierOrder = []string{TierFree, TierPro, TierBusiness, TierGrowth, TierEnterprise}
 
 // GetLimits returns the usage limits for the given plan tier.
 func GetLimits(tier string) (Limits, error) {

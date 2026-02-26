@@ -38,6 +38,7 @@ func createValidConfig() *config.Config {
 			RateLimit:       config.RateLimitConfig{Enabled: false, RPS: 1, Burst: 1, Window: 1},
 			SecurityHeaders: config.SecurityHeadersConfig{Enabled: false},
 			CookieSecurity:  config.CookieSecurityConfig{Secure: true, HTTPOnly: true, SameSite: "Lax"},
+			Assertion:       config.AssertionConfig{Secret: "test-assertion-secret-that-is-long-enough-1234567890", TimestampSkewSeconds: 60},
 		},
 		Session: config.SessionConfig{
 			Type:   "cookie",
@@ -120,6 +121,24 @@ func TestConfig_Validate(t *testing.T) {
 					CORS: config.CORSConfig{Enabled: false},
 				},
 			},
+			expectError: true,
+		},
+		{
+			name: "empty assertion secret",
+			config: func() *config.Config {
+				cfg := createValidConfig()
+				cfg.Security.Assertion.Secret = ""
+				return cfg
+			}(),
+			expectError: true,
+		},
+		{
+			name: "too short assertion secret",
+			config: func() *config.Config {
+				cfg := createValidConfig()
+				cfg.Security.Assertion.Secret = "short"
+				return cfg
+			}(),
 			expectError: true,
 		},
 		{

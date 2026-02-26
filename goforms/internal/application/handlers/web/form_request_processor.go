@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/labstack/echo/v4"
 
+	"github.com/goformx/goforms/internal/application/constants"
 	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -116,7 +118,8 @@ func (p *FormRequestProcessorImpl) ProcessSubmissionRequest(c echo.Context) (mod
 		"method", c.Request().Method)
 
 	var submissionData model.JSON
-	if err := json.NewDecoder(c.Request().Body).Decode(&submissionData); err != nil {
+	limitedBody := io.LimitReader(c.Request().Body, constants.MaxFormSchemaSize)
+	if err := json.NewDecoder(limitedBody).Decode(&submissionData); err != nil {
 		logger.Debug("failed to decode submission data", "error", err)
 
 		return nil, fmt.Errorf("failed to decode submission data: %w", err)
@@ -183,6 +186,11 @@ func (p *FormRequestProcessorImpl) validateUpdateRequest(req *FormUpdateRequest)
 		}
 	}
 
+	// Validate CORS origin format
+	if err := validateCORSOrigins(req.CorsOrigins); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -193,5 +201,24 @@ func (p *FormRequestProcessorImpl) validateSchema(schema model.JSON) error {
 	}
 
 	// Schema is already a map[string]any, no need for type assertion
+	return nil
+}
+
+// validateCORSOrigins validates that CORS origins are well-formed URLs
+func validateCORSOrigins(origins string) error {
+	if origins == "" {
+		return nil
+	}
+
+	for _, origin := range strings.Split(origins, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "*" {
+			return errors.New("wildcard CORS origin is not allowed")
+		}
+		if !strings.HasPrefix(origin, "http://") && !strings.HasPrefix(origin, "https://") {
+			return fmt.Errorf("CORS origin must start with http:// or https://: %s", origin)
+		}
+	}
+
 	return nil
 }

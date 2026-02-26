@@ -15,13 +15,15 @@ const (
 	tierRankFree       = 0
 	tierRankPro        = 1
 	tierRankBusiness   = 2
-	tierRankEnterprise = 3
+	tierRankGrowth     = 3
+	tierRankEnterprise = 4
 )
 
 var tierRank = map[string]int{
 	TierFree:       tierRankFree,
 	TierPro:        tierRankPro,
 	TierBusiness:   tierRankBusiness,
+	TierGrowth:     tierRankGrowth,
 	TierEnterprise: tierRankEnterprise,
 }
 

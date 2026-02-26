@@ -23,6 +23,7 @@ class BillingController extends Controller
 
         $formsCount = 0;
         $submissionsCount = 0;
+        $usageUnavailable = false;
 
         try {
             $formsCount = $client->getFormsCount();
@@ -32,6 +33,7 @@ class BillingController extends Controller
                 'status' => $e->response?->status(),
                 'error' => $e->getMessage(),
             ]);
+            $usageUnavailable = true;
         }
 
         return Inertia::render('Billing/Index', [
@@ -41,14 +43,17 @@ class BillingController extends Controller
                 'forms' => $formsCount,
                 'submissions' => $submissionsCount,
             ],
+            'usageUnavailable' => $usageUnavailable,
             'prices' => config('services.stripe.prices'),
         ]);
     }
 
     public function checkout(Request $request): RedirectResponse
     {
+        $allowedPrices = array_filter(array_values(config('services.stripe.prices', [])));
+
         $request->validate([
-            'price_id' => ['required', 'string'],
+            'price_id' => ['required', 'string', \Illuminate\Validation\Rule::in($allowedPrices)],
         ]);
 
         try {
@@ -69,8 +74,8 @@ class BillingController extends Controller
 
             return redirect()->route('billing.index')
                 ->with('error', 'Payment service temporarily unavailable. Please try again.');
-        } catch (\Exception $e) {
-            Log::error('Stripe checkout unexpected error', ['error' => $e->getMessage()]);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe checkout error', ['type' => get_class($e), 'error' => $e->getMessage()]);
 
             return redirect()->route('billing.index')
                 ->with('error', 'Unable to start checkout. Please try again.');
@@ -81,8 +86,8 @@ class BillingController extends Controller
     {
         try {
             return $request->user()->redirectToBillingPortal(route('billing.index'));
-        } catch (\Exception $e) {
-            Log::error('Stripe billing portal error', ['error' => $e->getMessage()]);
+        } catch (\Stripe\Exception\ApiErrorException $e) {
+            Log::error('Stripe billing portal error', ['type' => get_class($e), 'error' => $e->getMessage()]);
 
             return redirect()->route('billing.index')
                 ->with('error', 'Unable to open billing portal. Please try again.');
