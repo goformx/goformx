@@ -7,7 +7,7 @@ import '../css/app.css';
 import { Toaster } from './components/ui/sonner';
 import { initializeTheme } from './composables/useAppearance';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'GoFormX';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

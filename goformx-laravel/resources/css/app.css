@@ -1,3 +1,7 @@
+@import 'bootstrap/dist/css/bootstrap.min.css' layer(formio);
+@import 'bootstrap-icons/font/bootstrap-icons.css' layer(formio);
+@import '@formio/js/dist/formio.full.css' layer(formio);
+
 @import 'tailwindcss';
 
 @import 'tw-animate-css';
