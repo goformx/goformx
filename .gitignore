@@ -24,3 +24,5 @@ Thumbs.db
 
 .playwright-mcp/
 
+# Screenshots
+*.png
