@@ -183,10 +183,7 @@ function handleSubscribe(plan: PlanTier) {
                         >
                             Monthly
                         </Label>
-                        <Switch
-                            :checked="isAnnual"
-                            @update:checked="isAnnual = $event"
-                        />
+                        <Switch v-model="isAnnual" />
                         <Label
                             class="cursor-pointer text-sm"
                             :class="isAnnual ? 'text-foreground' : 'text-muted-foreground'"
