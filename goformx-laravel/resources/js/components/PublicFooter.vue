@@ -24,6 +24,15 @@ import { Link } from '@inertiajs/vue3';
                 >
                     Terms of Service
                 </Link>
+                <span class="text-muted-foreground/40">|</span>
+                <a
+                    href="https://github.com/goformx/goformx"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                    GitHub
+                </a>
             </nav>
         </div>
     </footer>

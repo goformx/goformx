@@ -165,20 +165,6 @@ const features = [
                             >
                                 <Link :href="demo().url">Try the demo</Link>
                             </Button>
-                            <Button
-                                size="lg"
-                                variant="outline"
-                                class="border-border/50 bg-background/50 backdrop-blur hover:bg-background/80"
-                                as-child
-                            >
-                                <a
-                                    href="https://github.com/goformx/goformx"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    View on GitHub
-                                </a>
-                            </Button>
                         </div>
                     </div>
                 </div>
