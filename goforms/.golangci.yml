@@ -87,6 +87,20 @@ linters:
               desc: Use github.com/google/uuid instead, satori's package is not maintained
             - pkg: github.com/gofrs/uuid$
               desc: Use github.com/gofrs/uuid/v5 or later, it was not a go module before v5
+        deprecated:
+          deny:
+            - pkg: io/ioutil
+              desc: 'io/ioutil is deprecated since Go 1.16; use io and os packages instead'
+        weak_crypto:
+          deny:
+            - pkg: crypto/md5
+              desc: MD5 is cryptographically broken; use crypto/sha256 or crypto/sha512
+            - pkg: crypto/sha1
+              desc: SHA-1 is cryptographically weak; use crypto/sha256 or crypto/sha512
+            - pkg: crypto/des
+              desc: DES/3DES is insecure; use crypto/aes
+            - pkg: crypto/rc4
+              desc: RC4 is insecure; use crypto/aes
         type_aliases:
           files:
             - '!internal/logger/*'
@@ -269,6 +283,14 @@ linters:
       forbid:
         - pattern: '^os\.Getenv$'
           msg: 'Use infrastructure/config package instead of direct os.Getenv calls. The config package automatically loads .env files and provides type-safe configuration via struct tags.'
+        - pattern: '^fmt\.Print'
+          msg: 'Use infrastructure/logging package instead of fmt.Print*. Unstructured output can leak sensitive data.'
+        - pattern: '^log\.(Print|Fatal|Panic)'
+          msg: 'Use infrastructure/logging package instead of stdlib log. Unstructured logs can leak sensitive data and lack context fields.'
+        - pattern: 'http\.DefaultClient'
+          msg: 'Do not use http.DefaultClient; create a client with explicit timeouts.'
+        - pattern: '^panic\('
+          msg: 'Do not panic in library code; return errors instead.'
   exclusions:
     generated: lax
     presets:
@@ -302,6 +324,10 @@ linters:
       - linters:
           - forbidigo
         path: infrastructure/config/.*\.go
+      - linters:
+          - forbidigo
+        path: .*/adapters/echo_logger\.go
+        text: panic
       - linters:
           - testpackage
         path: internal/(config|logger)/.*_test\.go

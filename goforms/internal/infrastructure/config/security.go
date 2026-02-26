@@ -211,6 +211,11 @@ func (s *SecurityConfig) Validate() error {
 		}
 	}
 
+	// Validate assertion configuration
+	if err := s.validateAssertion(); err != nil {
+		errs = append(errs, fmt.Sprintf("Assertion: %v", err))
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("security validation errors: %s", strings.Join(errs, "; "))
 	}
@@ -318,6 +323,19 @@ func (s *SecurityConfig) validateAPIKey() error {
 	// Validate header name
 	if s.APIKey.HeaderName == "" {
 		return errors.New("API key header name cannot be empty")
+	}
+
+	return nil
+}
+
+// validateAssertion validates assertion auth configuration
+func (s *SecurityConfig) validateAssertion() error {
+	if s.Assertion.Secret == "" {
+		return errors.New("assertion secret is required")
+	}
+
+	if len(s.Assertion.Secret) < MinSecretLength {
+		return fmt.Errorf("assertion secret must be at least %d characters", MinSecretLength)
 	}
 
 	return nil

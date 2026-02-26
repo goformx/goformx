@@ -418,8 +418,25 @@ func (h *FormAPIHandler) handleFormEmbed(c echo.Context) error {
 	schemaURL := "/forms/" + formID + "/schema"
 	submitURL := "/forms/" + formID + "/submit"
 
+	// Build frame-ancestors and target origin from the form's CORS origins
+	corsOrigins, _, _ := form.GetCorsConfig()
+	targetOrigin := "'none'"
+	frameAncestors := "'none'"
+	if len(corsOrigins) > 0 {
+		targetOrigin = escapeHTML(corsOrigins[0])
+		frameAncestors = strings.Join(corsOrigins, " ")
+	}
+
+	csp := "default-src 'none'; " +
+		"script-src https://cdn.form.io 'unsafe-inline'; " +
+		"style-src https://cdn.form.io 'unsafe-inline'; " +
+		"connect-src 'self'; " +
+		"font-src https://cdn.form.io; " +
+		"img-src 'self' data:; " +
+		"frame-ancestors " + frameAncestors
+
 	html := `<!DOCTYPE html>
-<html>
+<html data-cors-origin="` + targetOrigin + `">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -434,13 +451,14 @@ func (h *FormAPIHandler) handleFormEmbed(c echo.Context) error {
       var schemaUrl = '` + schemaURL + `';
       var submitUrl = '` + submitURL + `';
       var container = document.getElementById('formio');
+      var targetOrigin = document.documentElement.dataset.corsOrigin || '*';
       Formio.createForm(container, schemaUrl, {
         submit: submitUrl,
         noSubmit: false
       }).then(function(form) {
         form.on('submit', function(submission) {
           if (submission && submission.submission) {
-            window.parent.postMessage({ type: 'goformx:submitted', submission: submission.submission }, '*');
+            window.parent.postMessage({ type: 'goformx:submitted', submission: submission.submission }, targetOrigin);
           }
         });
       }).catch(function(err) {
@@ -452,6 +470,9 @@ func (h *FormAPIHandler) handleFormEmbed(c echo.Context) error {
 </body>
 </html>`
 
+	// Strip X-Frame-Options to allow embedding; CSP frame-ancestors handles framing control
+	c.Response().Header().Del("X-Frame-Options")
+	c.Response().Header().Set("Content-Security-Policy", csp)
 	c.Response().Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	return c.HTML(http.StatusOK, html)

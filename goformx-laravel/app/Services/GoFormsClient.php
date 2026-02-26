@@ -121,7 +121,7 @@ class GoFormsClient
 
     private function get(string $url): Response
     {
-        return $this->request()->get($url)->throw();
+        return $this->signedRequest('GET', $url)->get($url)->throw();
     }
 
     /**
@@ -129,7 +129,7 @@ class GoFormsClient
      */
     private function post(string $url, array $data = []): Response
     {
-        return $this->request()->post($url, $data)->throw();
+        return $this->signedRequest('POST', $url)->post($url, $data)->throw();
     }
 
     /**
@@ -137,15 +137,15 @@ class GoFormsClient
      */
     private function put(string $url, array $data = []): Response
     {
-        return $this->request()->put($url, $data)->throw();
+        return $this->signedRequest('PUT', $url)->put($url, $data)->throw();
     }
 
     private function delete(string $url): Response
     {
-        return $this->request()->delete($url)->throw();
+        return $this->signedRequest('DELETE', $url)->delete($url)->throw();
     }
 
-    private function request(): PendingRequest
+    private function signedRequest(string $method, string $url): PendingRequest
     {
         if ($this->user === null) {
             throw new \RuntimeException('GoFormsClient requires an authenticated user. Call withUser() first.');
@@ -156,18 +156,18 @@ class GoFormsClient
         }
 
         return Http::baseUrl(rtrim($this->baseUrl, '/'))
-            ->withHeaders($this->signRequest($this->user->getKey(), $this->secret));
+            ->withHeaders($this->signRequest(strtoupper($method), $url, $this->user->getKey(), $this->secret));
     }
 
     /**
      * @return array<string, string>
      */
-    private function signRequest(string $userId, string $secret): array
+    private function signRequest(string $method, string $path, string $userId, string $secret): array
     {
         $timestamp = now()->utc()->format('Y-m-d\TH:i:s\Z');
         $planTier = $this->user->planTier();
 
-        $payload = $userId.':'.$timestamp.':'.$planTier;
+        $payload = $method.':'.$path.':'.$userId.':'.$timestamp.':'.$planTier;
         $signature = hash_hmac('sha256', $payload, $secret, false);
 
         return [

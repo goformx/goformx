@@ -47,8 +47,10 @@ class BillingController extends Controller
 
     public function checkout(Request $request): RedirectResponse
     {
+        $allowedPrices = array_filter(array_values(config('services.stripe.prices', [])));
+
         $request->validate([
-            'price_id' => ['required', 'string'],
+            'price_id' => ['required', 'string', \Illuminate\Validation\Rule::in($allowedPrices)],
         ]);
 
         try {

@@ -440,7 +440,7 @@ func setCSRFDefaults(v *viper.Viper) {
 // setCORSDefaults sets CORS default values
 func setCORSDefaults(v *viper.Viper) {
 	v.SetDefault("security.cors.enabled", true)
-	v.SetDefault("security.cors.allowed_origins", []string{"*"})
+	v.SetDefault("security.cors.allowed_origins", []string{})
 	v.SetDefault("security.cors.allowed_methods", []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"})
 	allowedHeaders := []string{"Content-Type", "Authorization", "X-Csrf-Token", "X-Requested-With", "X-API-Key"}
 	v.SetDefault("security.cors.allowed_headers", allowedHeaders)
@@ -498,7 +498,7 @@ func setSecurityDefaults(v *viper.Viper) {
 	setCORSDefaults(v)
 	setAssertionDefaults(v)
 	setAPIKeyDefaults(v)
-	v.SetDefault("security.rate_limit.enabled", false)
+	v.SetDefault("security.rate_limit.enabled", true)
 	v.SetDefault("security.rate_limit.rps", DefaultRateLimitRPS)
 	v.SetDefault("security.rate_limit.burst", DefaultRateLimitBurst)
 	v.SetDefault("security.rate_limit.window", "1m")

@@ -82,6 +82,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('billing/portal', [BillingController::class, 'portal'])->name('billing.portal');
 });
 
-Route::get('forms/{id}', [PublicFormController::class, 'show'])->name('forms.fill');
+Route::get('forms/{id}', [PublicFormController::class, 'show'])->middleware('throttle:60,1')->name('forms.fill');
 
 require __DIR__.'/settings.php';

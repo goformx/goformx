@@ -1,6 +1,7 @@
 package security
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -145,16 +146,6 @@ func (a *APIKeyAuth) validateAPIKey(apiKey string, validKeys []string) bool {
 }
 
 // subtleConstantTimeCompare performs constant-time string comparison
-// This is a basic implementation - in production, consider using crypto/subtle
 func subtleConstantTimeCompare(a, b string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	result := 0
-	for i := range len(a) {
-		result |= int(a[i]) ^ int(b[i])
-	}
-
-	return result == 0
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

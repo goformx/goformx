@@ -17,14 +17,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func signPayload(secret, method, path, userID, timestamp, planTier string) string {
+	payload := method + ":" + path + ":" + userID + ":" + timestamp + ":" + planTier
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
 func TestVerify_ValidSignature_Passes(t *testing.T) {
 	secret := "test-secret-key"
 	userID := "user-123"
 	timestamp := time.Now().Format(time.RFC3339)
-	payload := userID + ":" + timestamp + ":free"
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, "free")
 
 	cfg := &appconfig.Config{
 		Security: appconfig.SecurityConfig{
@@ -89,10 +94,7 @@ func TestVerify_MissingHeaders_Returns401(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-456"
 	timestamp := time.Now().Format(time.RFC3339)
-	payload := userID + ":" + timestamp + ":free"
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, "free")
 
 	cfg := &appconfig.Config{
 		Security: appconfig.SecurityConfig{
@@ -147,10 +149,41 @@ func TestVerify_StaleTimestamp_Returns401(t *testing.T) {
 	userID := "user-789"
 	staleTime := time.Now().Add(-2 * time.Minute)
 	timestamp := staleTime.Format(time.RFC3339)
-	payload := userID + ":" + timestamp + ":free"
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, "free")
+
+	cfg := &appconfig.Config{
+		Security: appconfig.SecurityConfig{
+			Assertion: appconfig.AssertionConfig{
+				Secret:               secret,
+				TimestampSkewSeconds: 60,
+			},
+		},
+	}
+	mw := assertion.NewMiddleware(cfg, nil)
+	e := echo.New()
+	e.Use(mw.Verify())
+	e.GET("/test", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req.Header.Set("X-User-Id", userID)
+	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Signature", signature)
+
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "unauthorized")
+}
+
+func TestVerify_FutureTimestamp_Returns401(t *testing.T) {
+	secret := "test-secret"
+	userID := "user-future"
+	futureTime := time.Now().Add(2 * time.Minute)
+	timestamp := futureTime.Format(time.RFC3339)
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, "free")
 
 	cfg := &appconfig.Config{
 		Security: appconfig.SecurityConfig{
@@ -184,11 +217,7 @@ func TestVerify_ValidSignatureWithPlanTier_SetsTierInContext(t *testing.T) {
 	userID := "user-123"
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	planTier := "pro"
-
-	payload := userID + ":" + timestamp + ":" + planTier
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, planTier)
 
 	cfg := &appconfig.Config{
 		Security: appconfig.SecurityConfig{
@@ -226,10 +255,7 @@ func TestVerify_TamperedPlanTier_Returns401(t *testing.T) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	// Sign with "free" but send "enterprise" in the header
-	payload := userID + ":" + timestamp + ":free"
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, "free")
 
 	cfg := &appconfig.Config{
 		Security: appconfig.SecurityConfig{
@@ -265,10 +291,7 @@ func TestVerify_InvalidPlanTier_Returns401(t *testing.T) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	// Sign with an invalid tier
-	payload := userID + ":" + timestamp + ":platinum"
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, "platinum")
 
 	cfg := &appconfig.Config{
 		Security: appconfig.SecurityConfig{
@@ -304,10 +327,7 @@ func TestVerify_MissingPlanTier_DefaultsToFree(t *testing.T) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	// Sign with "free" as the default tier
-	payload := userID + ":" + timestamp + ":free"
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(payload))
-	signature := hex.EncodeToString(mac.Sum(nil))
+	signature := signPayload(secret, "GET", "/test", userID, timestamp, "free")
 
 	cfg := &appconfig.Config{
 		Security: appconfig.SecurityConfig{
@@ -337,4 +357,74 @@ func TestVerify_MissingPlanTier_DefaultsToFree(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "free", capturedTier)
+}
+
+func TestVerify_WrongMethod_Returns401(t *testing.T) {
+	secret := "test-secret"
+	userID := "user-123"
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Sign for POST but send as GET
+	signature := signPayload(secret, "POST", "/test", userID, timestamp, "free")
+
+	cfg := &appconfig.Config{
+		Security: appconfig.SecurityConfig{
+			Assertion: appconfig.AssertionConfig{
+				Secret:               secret,
+				TimestampSkewSeconds: 60,
+			},
+		},
+	}
+	mw := assertion.NewMiddleware(cfg, nil)
+	e := echo.New()
+	e.Use(mw.Verify())
+	e.GET("/test", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req.Header.Set("X-User-Id", userID)
+	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Signature", signature)
+
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "unauthorized")
+}
+
+func TestVerify_WrongPath_Returns401(t *testing.T) {
+	secret := "test-secret"
+	userID := "user-123"
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	// Sign for /other but request /test
+	signature := signPayload(secret, "GET", "/other", userID, timestamp, "free")
+
+	cfg := &appconfig.Config{
+		Security: appconfig.SecurityConfig{
+			Assertion: appconfig.AssertionConfig{
+				Secret:               secret,
+				TimestampSkewSeconds: 60,
+			},
+		},
+	}
+	mw := assertion.NewMiddleware(cfg, nil)
+	e := echo.New()
+	e.Use(mw.Verify())
+	e.GET("/test", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
+	req.Header.Set("X-User-Id", userID)
+	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Signature", signature)
+
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "unauthorized")
 }
