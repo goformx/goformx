@@ -147,3 +147,9 @@ it('reports no slots when founding cap is reached', function () {
     expect(User::foundingMemberSlotsRemaining())->toBe(0);
     expect(User::canGrantFoundingMembership())->toBeFalse();
 });
+
+it('falls through to free when plan_override is unrecognized', function () {
+    $user = User::factory()->create(['plan_override' => 'invalid_tier']);
+
+    expect($user->planTier())->toBe('free');
+});

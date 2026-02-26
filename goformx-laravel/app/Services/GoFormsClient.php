@@ -155,8 +155,11 @@ class GoFormsClient
             throw new \RuntimeException('GoFormsClient requires GOFORMS_SHARED_SECRET to be set in .env (must match the Go service).');
         }
 
+        // Sign only the path portion — Go verifies against c.Request().URL.Path (no query string)
+        $path = parse_url($url, PHP_URL_PATH) ?: $url;
+
         return Http::baseUrl(rtrim($this->baseUrl, '/'))
-            ->withHeaders($this->signRequest(strtoupper($method), $url, $this->user->getKey(), $this->secret));
+            ->withHeaders($this->signRequest(strtoupper($method), $path, $this->user->getKey(), $this->secret));
     }
 
     /**

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Billable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
@@ -77,11 +78,20 @@ class User extends Authenticatable implements MustVerifyEmail
             if (in_array($this->plan_override, self::VALID_TIERS, true)) {
                 return $this->plan_override;
             }
+
+            Log::warning('User has unrecognized plan_override, falling through to subscription check', [
+                'user_id' => $this->getKey(),
+                'plan_override' => $this->plan_override,
+            ]);
         }
 
         $prices = config('services.stripe.prices');
 
         if (empty($prices) || ! is_array($prices)) {
+            Log::error('Stripe price configuration missing - all users will resolve as free tier', [
+                'user_id' => $this->getKey(),
+            ]);
+
             return 'free';
         }
 

@@ -280,6 +280,11 @@ class FormController extends Controller
                 ->withInput();
         }
 
+        Log::warning('GoForms API returned unhandled status', [
+            'status' => $status,
+            'path' => $request->path(),
+        ]);
+
         return redirect()->back()
             ->with('error', 'An error occurred. Please try again.')
             ->withInput();

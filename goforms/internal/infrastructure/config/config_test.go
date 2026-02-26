@@ -124,6 +124,24 @@ func TestConfig_Validate(t *testing.T) {
 			expectError: true,
 		},
 		{
+			name: "empty assertion secret",
+			config: func() *config.Config {
+				cfg := createValidConfig()
+				cfg.Security.Assertion.Secret = ""
+				return cfg
+			}(),
+			expectError: true,
+		},
+		{
+			name: "too short assertion secret",
+			config: func() *config.Config {
+				cfg := createValidConfig()
+				cfg.Security.Assertion.Secret = "short"
+				return cfg
+			}(),
+			expectError: true,
+		},
+		{
 			name: "session config without secret",
 			config: &config.Config{
 				App: config.AppConfig{
