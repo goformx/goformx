@@ -22,14 +22,16 @@ Route::get('robots.txt', function (): Response {
     ]);
 })->name('robots');
 
-// Sitemap lists only public marketing pages; user-generated form URLs are excluded
+// Sitemap lists public marketing pages; user-generated form URLs and authenticated routes are excluded
 Route::get('sitemap.xml', function (): Response {
     $appUrl = rtrim((string) config('app.url'), '/');
-    $lastmod = '2026-02-23T00:00:00+00:00';
+    // Update this date whenever public page content changes
+    $lastmod = '2026-02-26T00:00:00+00:00';
 
     $urls = [
         ['loc' => $appUrl.'/', 'lastmod' => $lastmod],
         ['loc' => $appUrl.'/demo', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/pricing', 'lastmod' => $lastmod],
         ['loc' => $appUrl.'/privacy', 'lastmod' => $lastmod],
         ['loc' => $appUrl.'/terms', 'lastmod' => $lastmod],
     ];

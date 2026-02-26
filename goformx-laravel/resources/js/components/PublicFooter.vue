@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { privacy, terms } from '@/routes';
 </script>
 
 <template>
@@ -13,14 +14,14 @@ import { Link } from '@inertiajs/vue3';
             </p>
             <nav class="flex items-center gap-4">
                 <Link
-                    href="/privacy"
+                    :href="privacy().url"
                     class="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                     Privacy Policy
                 </Link>
                 <span class="text-muted-foreground/40">|</span>
                 <Link
-                    href="/terms"
+                    :href="terms().url"
                     class="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                     Terms of Service

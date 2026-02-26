@@ -3,6 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
 import PublicFooter from '@/components/PublicFooter.vue';
 import PublicHeader from '@/components/PublicHeader.vue';
+import { terms } from '@/routes';
 
 const page = usePage();
 const seo = computed(() => page.props.seo);
@@ -68,7 +69,7 @@ const tocItems = [
         <PublicHeader />
 
         <main class="flex-1">
-            <div class="container py-12 lg:py-16">
+            <div class="container px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
                 <!-- Page header -->
                 <div class="mb-10">
                     <h1
@@ -81,9 +82,29 @@ const tocItems = [
                     </p>
                 </div>
 
+                <!-- Mobile TOC -->
+                <nav
+                    class="mb-8 rounded-lg border border-border/50 p-4 lg:hidden"
+                    aria-label="Table of contents"
+                >
+                    <p class="mb-3 text-sm font-medium">On this page</p>
+                    <ul
+                        class="grid grid-cols-1 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-2"
+                    >
+                        <li v-for="item in tocItems" :key="item.id">
+                            <a
+                                :href="`#${item.id}`"
+                                class="text-muted-foreground hover:text-foreground"
+                            >
+                                {{ item.label }}
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+
                 <div class="lg:grid lg:grid-cols-[220px_1fr] lg:gap-12">
-                    <!-- Sticky TOC sidebar (hidden on mobile) -->
-                    <nav class="hidden lg:block" aria-label="Table of contents">
+                    <!-- Sticky TOC sidebar (desktop only) -->
+                    <nav class="max-lg:hidden" aria-label="Table of contents">
                         <div class="sticky top-8">
                             <ul class="space-y-2 text-sm">
                                 <li v-for="item in tocItems" :key="item.id">
@@ -845,7 +866,7 @@ const tocItems = [
                     <p class="text-sm text-muted-foreground">
                         See also our
                         <Link
-                            href="/terms"
+                            :href="terms().url"
                             class="text-foreground underline underline-offset-4 hover:text-foreground/80"
                             >Terms of Service</Link
                         >.
