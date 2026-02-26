@@ -30,6 +30,8 @@ Route::get('sitemap.xml', function (): Response {
     $urls = [
         ['loc' => $appUrl.'/', 'lastmod' => $lastmod],
         ['loc' => $appUrl.'/demo', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/privacy', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/terms', 'lastmod' => $lastmod],
     ];
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
