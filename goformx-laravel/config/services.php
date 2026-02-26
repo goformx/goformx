@@ -49,7 +49,11 @@ return [
             'pro_annual' => env('STRIPE_PRO_ANNUAL_PRICE_ID'),
             'business_monthly' => env('STRIPE_BUSINESS_MONTHLY_PRICE_ID'),
             'business_annual' => env('STRIPE_BUSINESS_ANNUAL_PRICE_ID'),
+            'growth_monthly' => env('STRIPE_GROWTH_MONTHLY_PRICE_ID'),
+            'growth_annual' => env('STRIPE_GROWTH_ANNUAL_PRICE_ID'),
         ],
     ],
+
+    'founding_member_cap' => (int) env('FOUNDING_MEMBER_CAP', 100),
 
 ];

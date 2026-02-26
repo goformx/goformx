@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -10,7 +10,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Cashier\Billable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use Billable, HasFactory, HasUuids, Notifiable, TwoFactorAuthenticatable;
@@ -57,24 +57,41 @@ class User extends Authenticatable
         ];
     }
 
-    private const VALID_TIERS = ['free', 'pro', 'business', 'enterprise'];
+    private const VALID_TIERS = ['free', 'pro', 'business', 'growth', 'enterprise'];
 
     /**
      * Resolve the user's effective subscription tier.
      *
      * Priority: plan_override (admin-set) > active Stripe subscription > free default.
      * The returned tier is included in HMAC assertion headers sent to the Go API.
+     *
+     * Note: 'founding' override maps to 'business' — Go never sees the 'founding' string.
      */
     public function planTier(): string
     {
-        if ($this->plan_override && in_array($this->plan_override, self::VALID_TIERS, true)) {
-            return $this->plan_override;
+        if ($this->plan_override) {
+            if ($this->plan_override === 'founding') {
+                return 'business';
+            }
+
+            if (in_array($this->plan_override, self::VALID_TIERS, true)) {
+                return $this->plan_override;
+            }
         }
 
         $prices = config('services.stripe.prices');
 
         if (empty($prices) || ! is_array($prices)) {
             return 'free';
+        }
+
+        $growthPrices = array_filter([
+            $prices['growth_monthly'] ?? null,
+            $prices['growth_annual'] ?? null,
+        ]);
+
+        if ($growthPrices && $this->subscribedToPrice($growthPrices)) {
+            return 'growth';
         }
 
         $businessPrices = array_filter([
@@ -96,5 +113,18 @@ class User extends Authenticatable
         }
 
         return 'free';
+    }
+
+    public static function foundingMemberSlotsRemaining(): int
+    {
+        $cap = (int) config('services.founding_member_cap', 100);
+        $used = static::query()->where('plan_override', 'founding')->count();
+
+        return max(0, $cap - $used);
+    }
+
+    public static function canGrantFoundingMembership(): bool
+    {
+        return static::foundingMemberSlotsRemaining() > 0;
     }
 }

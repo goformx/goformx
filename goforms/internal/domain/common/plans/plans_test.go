@@ -15,8 +15,9 @@ func TestGetLimits_KnownTiers(t *testing.T) {
 		maxSubmissions int
 	}{
 		{"free", 3, 100},
-		{"pro", 25, 2500},
-		{"business", 100, 25000},
+		{"pro", 10, 1000},
+		{"business", 50, 10000},
+		{"growth", 150, 50000},
 		{"enterprise", 0, 0},
 	}
 
@@ -47,6 +48,7 @@ func TestIsValidTier(t *testing.T) {
 	assert.True(t, plans.IsValidTier("free"))
 	assert.True(t, plans.IsValidTier("pro"))
 	assert.True(t, plans.IsValidTier("business"))
+	assert.True(t, plans.IsValidTier("growth"))
 	assert.True(t, plans.IsValidTier("enterprise"))
 	assert.False(t, plans.IsValidTier("unknown"))
 	assert.False(t, plans.IsValidTier(""))
@@ -55,6 +57,7 @@ func TestIsValidTier(t *testing.T) {
 func TestNextTier(t *testing.T) {
 	assert.Equal(t, "pro", plans.NextTier("free"))
 	assert.Equal(t, "business", plans.NextTier("pro"))
-	assert.Equal(t, "enterprise", plans.NextTier("business"))
+	assert.Equal(t, "growth", plans.NextTier("business"))
+	assert.Equal(t, "enterprise", plans.NextTier("growth"))
 	assert.Empty(t, plans.NextTier("enterprise"))
 }

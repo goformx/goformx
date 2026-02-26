@@ -12,6 +12,8 @@ beforeEach(function () {
         'services.stripe.prices.pro_annual' => 'price_pro_annual',
         'services.stripe.prices.business_monthly' => 'price_business_monthly',
         'services.stripe.prices.business_annual' => 'price_business_annual',
+        'services.stripe.prices.growth_monthly' => 'price_growth_monthly',
+        'services.stripe.prices.growth_annual' => 'price_growth_annual',
     ]);
 });
 
@@ -76,5 +78,41 @@ it('enterprise override takes priority over subscription', function () {
 
     Http::assertSent(function ($request) {
         return $request->hasHeader('X-Plan-Tier', 'enterprise');
+    });
+});
+
+it('growth subscriber has correct plan tier in assertion headers', function () {
+    Http::fake([
+        '*/api/forms' => Http::response(['data' => ['forms' => []]], 200),
+    ]);
+
+    $user = User::factory()->create();
+    $user->subscriptions()->create([
+        'type' => 'default',
+        'stripe_id' => 'sub_growth',
+        'stripe_status' => 'active',
+        'stripe_price' => 'price_growth_monthly',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('forms.index'));
+
+    Http::assertSent(function ($request) {
+        return $request->hasHeader('X-Plan-Tier', 'growth');
+    });
+});
+
+it('founding member sends business tier in assertion headers', function () {
+    Http::fake([
+        '*/api/forms' => Http::response(['data' => ['forms' => []]], 200),
+    ]);
+
+    $user = User::factory()->create(['plan_override' => 'founding']);
+
+    $this->actingAs($user)
+        ->get(route('forms.index'));
+
+    Http::assertSent(function ($request) {
+        return $request->hasHeader('X-Plan-Tier', 'business');
     });
 });
