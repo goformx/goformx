@@ -13,7 +13,14 @@ test.describe('Form submission', () => {
         await page.getByRole('button', { name: /New form/i }).click();
         await page.waitForURL(/\/forms\/.*\/edit/);
         const url = page.url();
-        formId = url.match(/\/forms\/([^/]+)\/edit/)?.[1] ?? '';
+        const match = url.match(/\/forms\/([^/]+)\/edit/);
+        if (!match?.[1]) {
+            throw new Error(
+                `Failed to extract form ID from URL: ${url}. ` +
+                `Expected URL to match /forms/{id}/edit pattern.`,
+            );
+        }
+        formId = match[1];
         await context.close();
     });
 

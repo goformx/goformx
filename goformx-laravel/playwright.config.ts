@@ -5,14 +5,14 @@ export default defineConfig({
     globalSetup: './e2e/global-setup.ts',
     fullyParallel: false,
     workers: 1,
-    retries: 0,
+    retries: process.env.CI ? 1 : 0,
     reporter: 'html',
     use: {
         baseURL: 'https://goformx-laravel.ddev.site',
         ignoreHTTPSErrors: true,
         testIdAttribute: 'data-test',
         screenshot: 'only-on-failure',
-        trace: 'on-first-retry',
+        trace: 'retain-on-failure',
     },
     projects: [
         {

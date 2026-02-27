@@ -37,12 +37,10 @@ Formio.use(goforms);  // Registers 'goforms' framework templates
 
 ### CSS Requirements
 
-The goforms templates use Tailwind CSS variables and utilities. Because Tailwind v4's `@source` scanning may not fully resolve symlinked packages, explicit CSS overrides are needed in `app.css` for the builder sidebar components:
+The goforms templates use Tailwind CSS variables and utilities. Styling Form.io elements uses a two-pronged approach:
 
-```css
-/* Form.io sidebar components need explicit styling */
-#form-schema-builder .formcomponent { ... }
-```
+1. **CSS overrides** (`formio-overrides.css` in `layer(formio)`): Structural/non-color properties (padding, border-radius, font-size) and dialog styling
+2. **JavaScript CSSOM** (`useFormBuilder.ts`): Color properties (border, background-color, color) on sidebar buttons, drop zones, and submit buttons — needed because Bootstrap uses `!important` on those same properties within the formio layer
 
 See `docs/solutions/2026-02-27-formio-builder-sidebar-visibility.md` for detailed troubleshooting.
 

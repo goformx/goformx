@@ -41,7 +41,9 @@ import {
     formatShortcut,
 } from '@/composables/useKeyboardShortcuts';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { Logger } from '@/lib/logger';
 import { dashboard } from '@/routes';
+import { index as formsIndex, submissions, embed, update, preview } from '@/routes/forms';
 import { type BreadcrumbItem } from '@/types';
 
 interface Form {
@@ -61,6 +63,9 @@ interface Props {
 const props = defineProps<Props>();
 
 const formId = props.form.id ?? props.form.ID ?? '';
+if (!formId) {
+    toast.error('Unable to load form: no form ID was provided.');
+}
 
 const detailsForm = useForm({
     title: props.form.title ?? '',
@@ -92,6 +97,7 @@ const {
     getSchema,
     selectedField,
     selectField,
+    findComponent,
     duplicateField,
     deleteField,
     updateField,
@@ -105,11 +111,10 @@ const {
     formId: String(formId),
     schema: initialSchema.value,
     autoSave: false,
-    onSchemaChange: () => {},
     onSave: async (schema: FormSchema) => {
         await new Promise<void>((resolve, reject) => {
             router.put(
-                `/forms/${formId}`,
+                update.url(formId),
                 {
                     schema: schema as unknown,
                     title: detailsForm.title,
@@ -120,7 +125,10 @@ const {
                 {
                     preserveScroll: true,
                     onSuccess: () => resolve(),
-                    onError: () => reject(new Error('Failed to save form')),
+                    onError: (errors) => {
+                        const errorMessages = Object.values(errors).join('. ');
+                        reject(new Error(errorMessages || 'Failed to save form'));
+                    },
                 },
             );
         });
@@ -130,18 +138,7 @@ const {
 const selectedFieldData = computed<FormComponent | null>(() => {
     if (!selectedField.value) return null;
     const schema = getSchema();
-    const findField = (components: unknown[]): FormComponent | null => {
-        for (const comp of components) {
-            const component = comp as FormComponent;
-            if (component.key === selectedField.value) return component;
-            if (component.components) {
-                const found = findField(component.components as unknown[]);
-                if (found) return found;
-            }
-        }
-        return null;
-    };
-    return findField(schema.components);
+    return findComponent(schema.components, selectedField.value);
 });
 
 const shortcuts = [
@@ -154,7 +151,7 @@ const shortcuts = [
     {
         key: 'p',
         meta: true,
-        handler: () => router.visit(`/forms/${formId}/preview`),
+        handler: () => router.visit(preview.url(formId)),
         description: 'Preview form',
     },
     { key: 'z', meta: true, handler: () => undo(), description: 'Undo' },
@@ -214,10 +211,6 @@ async function handleSave() {
     }
 }
 
-function viewSchema() {
-    showSchemaModal.value = true;
-}
-
 watch(
     builderError,
     (error) => {
@@ -230,7 +223,11 @@ watch(showInPlacePreview, async (isPreview) => {
     if (isPreview) {
         await nextTick();
         const container = document.getElementById('edit-inplace-preview');
-        if (!container) return;
+        if (!container) {
+            toast.error('Preview container could not be found. Please try again.');
+            Logger.error('Preview container #edit-inplace-preview not found after nextTick');
+            return;
+        }
         const schema = getSchema();
         if (!schema?.components?.length) {
             toast.info('Add fields in the builder to preview.');
@@ -247,8 +244,8 @@ watch(showInPlacePreview, async (isPreview) => {
                 },
             );
         } catch (err) {
-            console.error('Preview failed:', err);
-            toast.error('Failed to load preview');
+            Logger.error('Failed to create Form.io preview:', err);
+            toast.error('Failed to load preview. Try switching back to the builder and trying again.');
         }
     } else {
         if (inPlacePreviewInstance?.destroy) {
@@ -267,7 +264,7 @@ onBeforeUnmount(() => {
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard().url },
-    { title: 'Forms', href: '/forms' },
+    { title: 'Forms', href: formsIndex().url },
     { title: props.form.title ?? 'Edit Form', href: `/forms/${formId}` },
 ];
 </script>
@@ -339,7 +336,7 @@ const breadcrumbs: BreadcrumbItem[] = [
                         size="icon"
                         class="h-7 w-7"
                         title="View Schema"
-                        @click="viewSchema"
+                        @click="showSchemaModal = true"
                     >
                         <Code class="h-3.5 w-3.5" />
                     </Button>
@@ -354,13 +351,13 @@ const breadcrumbs: BreadcrumbItem[] = [
                     </Button>
                     <Separator orientation="vertical" class="mx-0.5 h-5" />
                     <Button variant="outline" size="sm" class="h-7" as-child>
-                        <Link :href="`/forms/${formId}/submissions`">
+                        <Link :href="submissions.url(formId)">
                             <ListChecks class="mr-1.5 h-3.5 w-3.5" />
                             Submissions
                         </Link>
                     </Button>
                     <Button variant="outline" size="sm" class="h-7" as-child>
-                        <Link :href="`/forms/${formId}/embed`">Embed</Link>
+                        <Link :href="embed.url(formId)">Embed</Link>
                     </Button>
                     <Button
                         size="sm"
@@ -380,7 +377,7 @@ const breadcrumbs: BreadcrumbItem[] = [
                 class="rounded-lg border bg-background p-6 shadow-sm"
             >
                 <p class="mb-4 text-sm text-muted-foreground">
-                    In-place preview (read-only). Use “Builder” to edit.
+                    In-place preview (read-only). Use "Builder" to edit.
                 </p>
                 <div id="edit-inplace-preview" class="min-h-[400px]" />
             </div>

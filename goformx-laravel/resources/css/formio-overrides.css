@@ -1,8 +1,11 @@
 /* Overrides for Form.io builder component styling.
    Imported into layer(formio) after Bootstrap so that our !important
    declarations win by source order within the same cascade layer.
-   Note: border, background-color, and color properties require JS
-   (element.style.setProperty) to override Bootstrap — see useFormBuilder.ts. */
+   Note: Sidebar button border, background-color, and color properties
+   require JS (element.style.setProperty) because Bootstrap uses !important
+   on those same properties within this layer — see useFormBuilder.ts.
+   Dialog styling works via CSS because Form.io's dialog elements use
+   different selectors that don't conflict with Bootstrap's !important rules. */
 
 /* Drop zone — non-color properties work via CSS */
 #form-schema-builder .drag-and-drop-alert {

@@ -1,7 +1,7 @@
 # Form.io Builder Sidebar Component Visibility Fix
 
-**Date**: 2026-02-27  
-**Problem**: Form builder sidebar showing headers (Basic, Layout) but no draggable field components  
+**Date**: 2026-02-27
+**Problem**: Form builder sidebar showing headers (Basic, Layout) but no draggable field components
 **Affected**: goformx-laravel form builder page (`/forms/:id/edit`)
 
 ## Symptoms
@@ -24,7 +24,7 @@ cat node_modules/@goformx/formio/lib/mjs/templates/goforms/builderSidebarGroup/f
 # Shows: class="card form-builder-panel accordion-item"
 # Shows: class="btn btn-outline-primary btn-sm formcomponent"
 
-# Local source (Tailwind classes)  
+# Local source (Tailwind classes)
 cat goformx-formio/lib/mjs/templates/goforms/builderSidebarGroup/form.ejs.js
 # Shows: class="border-b border-border form-builder-panel"
 # Shows: class="inline-flex items-center ... formcomponent"
@@ -43,16 +43,13 @@ However, this wasn't sufficient because:
 - Tailwind may not follow symlinks correctly
 - The classes are embedded in JavaScript string templates, not in actual markup files
 
-### 3. CSS Specificity Conflicts
+### 3. CSS Cascade Layer Conflicts
 
-Bootstrap CSS was imported in a lower-specificity layer:
-```css
-@import 'bootstrap/dist/css/bootstrap.min.css' layer(formio);
-```
-
-But Tailwind's base styles and resets had higher specificity, causing Bootstrap's display properties to be overridden.
+Bootstrap CSS is in `layer(formio)`, making it lower-priority than Tailwind's unlayered styles by design. However, this also means Bootstrap's `!important` rules (which Form.io depends on for display toggling) are beaten by unlayered `!important` — creating a conflict where Tailwind resets override Bootstrap's intended display states.
 
 ## Solution
+
+The fix uses a two-pronged approach: CSS for non-color structural properties, and JavaScript CSSOM for color properties that conflict with Bootstrap's layered `!important` rules.
 
 ### Step 1: Link Local Package
 
@@ -66,54 +63,48 @@ npm link @goformx/formio
 
 This creates a symlink so changes to local templates are reflected immediately.
 
-### Step 2: Add CSS Overrides
+### Step 2: CSS Overrides for Non-Color Properties
 
-In `goformx-laravel/resources/css/app.css`, add explicit styles for the component buttons:
+In `goformx-laravel/resources/css/formio-overrides.css` (imported into `layer(formio)`), add structural overrides that don't conflict with Bootstrap's `!important` color rules:
 
 ```css
-/* Force visibility of ALL form builder sidebar content */
-#form-schema-builder .formcomponent,
-#form-schema-builder span[ref="sidebar-component"] {
+/* Drop zone — non-color properties work via CSS */
+#form-schema-builder .drag-and-drop-alert {
+    border-radius: 0.75rem !important;
+    padding: 3rem 2rem !important;
+    text-align: center !important;
+    font-size: 0.875rem !important;
+}
+
+/* Builder submit button — non-color properties work via CSS */
+#form-schema-builder .formio-builder-form .btn-primary {
     display: inline-flex !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
-    border-radius: 0.375rem;
-    border: 1px solid hsl(var(--primary));
-    color: hsl(var(--primary));
-    background: transparent;
-    cursor: grab;
-    transition: background-color 0.15s, color 0.15s;
-}
-
-#form-schema-builder .formcomponent:hover,
-#form-schema-builder span[ref="sidebar-component"]:hover {
-    background: hsl(var(--primary));
-    color: hsl(var(--primary-foreground));
-}
-
-/* Expanded group content */
-#form-schema-builder div[ref="sidebar-group"]:not(.hidden) {
-    display: block !important;
-}
-
-/* Collapsed group stays hidden */
-#form-schema-builder div[ref="sidebar-group"].hidden,
-#form-schema-builder .hidden {
-    display: none !important;
+    padding: 0.5rem 1rem !important;
+    font-size: 0.875rem !important;
+    border-radius: 0.375rem !important;
 }
 ```
 
-### Step 3: Add Tailwind Source Scanning (Optional)
+### Step 3: JavaScript CSSOM for Color Properties
+
+In `goformx-laravel/resources/js/composables/useFormBuilder.ts`, use `element.style.setProperty(prop, value, 'important')` to apply color properties. Inline `!important` wins the cascade over stylesheet `!important` regardless of layers:
+
+```typescript
+// Sidebar buttons — color properties that conflict with Bootstrap
+btn.style.setProperty('border', '1px solid var(--border)', 'important');
+btn.style.setProperty('color', 'var(--foreground)', 'important');
+btn.style.setProperty('background-color', 'var(--background)', 'important');
+```
+
+A `MutationObserver` re-applies these styles whenever Form.io mutates the DOM (e.g., toggling sidebar groups).
+
+### Step 4: Add Tailwind Source Scanning (Optional)
 
 ```css
 @source '../../node_modules/@goformx/formio/lib/**/*.js';
 ```
 
-This tells Tailwind v4 to scan the goformx/formio templates for utility classes, though the CSS overrides above are more reliable.
+This tells Tailwind v4 to scan the goformx/formio templates for utility classes, though the CSS/JS overrides above are more reliable.
 
 ## Debugging Techniques Used
 
@@ -165,17 +156,19 @@ Confirmed templates were registered but helped identify the CSS visibility issue
    - Reading `plugin.templates[frameworkName]` to get template definitions
    - Setting `Formio.Templates.current` to the active templates
 
-5. **Bootstrap CSS in layers** can still cause conflicts. The `layer(formio)` approach gives lower specificity, but explicit `!important` overrides may still be needed.
+5. **Bootstrap CSS in layers** can still cause conflicts. The `layer(formio)` approach gives lower specificity, but inline `!important` via JavaScript CSSOM is needed for color properties that Bootstrap also sets with `!important`.
 
 ## Files Modified
 
-- `goformx-laravel/resources/css/app.css` - CSS overrides and `@source` directive
-- `goformx-laravel/resources/js/pages/Forms/Edit.vue` - Collapsible header, layout adjustments
-- `goformx-laravel/resources/js/components/form-builder/BuilderLayout.vue` - Height calculations
+- `goformx-laravel/resources/css/app.css` — CSS layout rules and `@source` directive
+- `goformx-laravel/resources/css/formio-overrides.css` — CSS structural overrides in formio layer (dialog styling, non-color properties)
+- `goformx-laravel/resources/js/composables/useFormBuilder.ts` — JavaScript CSSOM workaround for color properties, MutationObserver
+- `goformx-laravel/resources/js/pages/Forms/Edit.vue` — Collapsible header, layout adjustments
+- `goformx-laravel/resources/js/components/form-builder/BuilderLayout.vue` — Height calculations
 
 ## Future Improvements
 
-1. **Publish updated @goformx/formio** - Release a new npm version with Tailwind templates so `npm link` isn't required in production
-2. **Remove Bootstrap imports** - Once all Form.io templates use Tailwind, remove Bootstrap CSS entirely
-3. **Add Tailwind safelist** - If `@source` scanning remains unreliable, add a safelist for goforms template classes
-4. **Convert remaining templates** - Ensure all Form.io templates (not just builder sidebar) use Tailwind classes
+1. **Publish updated @goformx/formio** — Release a new npm version with Tailwind templates so `npm link` isn't required in production
+2. **Remove Bootstrap imports** — Once all Form.io templates use Tailwind, remove Bootstrap CSS entirely
+3. **Add Tailwind safelist** — If `@source` scanning remains unreliable, add a safelist for goforms template classes
+4. **Convert remaining templates** — Ensure all Form.io templates (not just builder sidebar) use Tailwind classes

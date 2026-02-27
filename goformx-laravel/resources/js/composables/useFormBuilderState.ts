@@ -100,6 +100,7 @@ export function useFormBuilderState(
         history.value.push(JSON.parse(JSON.stringify(schema)) as FormSchema);
         if (history.value.length > MAX_HISTORY_SIZE) {
             history.value.shift();
+            // historyIndex stays the same: the removed entry was before the current position
         } else {
             historyIndex.value++;
         }

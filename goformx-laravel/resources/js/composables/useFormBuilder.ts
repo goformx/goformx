@@ -33,6 +33,7 @@ export interface UseFormBuilderReturn {
     setSchema: (newSchema: FormSchema) => void;
     selectedField: Ref<string | null>;
     selectField: (fieldKey: string | null) => void;
+    findComponent: (components: unknown[], key: string) => FormComponent | null;
     duplicateField: (fieldKey: string) => void;
     deleteField: (fieldKey: string) => void;
     updateField: (fieldKey: string, updates: Partial<FormComponent>) => void;
@@ -48,6 +49,13 @@ const defaultSchema: FormSchema = {
     display: 'form',
     components: [],
 };
+
+/** Apply a map of CSS properties as inline !important styles. */
+function applyStyles(el: HTMLElement, styles: Record<string, string>): void {
+    for (const [prop, value] of Object.entries(styles)) {
+        el.style.setProperty(prop, value, 'important');
+    }
+}
 
 export function useFormBuilder(
     options: FormBuilderOptions,
@@ -69,7 +77,6 @@ export function useFormBuilder(
         markDirty,
     } = useFormBuilderState(options.formId);
 
-    // 1a: Expanded builder instance type with form setter, on/off for events
     let builderInstance: {
         schema: FormSchema;
         form: FormSchema;
@@ -88,6 +95,23 @@ export function useFormBuilder(
     let mouseLeaveHandler: ((e: Event) => void) | null = null;
     let observedContainer: HTMLElement | null = null;
 
+    // Base styles for sidebar buttons — shared between styleFormioElements and hover handlers
+    const sidebarBtnBaseStyles: Record<string, string> = {
+        'display': 'inline-flex',
+        'align-items': 'center',
+        'gap': '0.375rem',
+        'padding': '0.375rem 0.75rem',
+        'margin': '0',
+        'font-size': '0.8125rem',
+        'font-weight': '500',
+        'line-height': '1.25',
+        'border-radius': '0.375rem',
+        'border': '1px solid var(--border)',
+        'color': 'var(--foreground)',
+        'background-color': 'var(--background)',
+        'cursor': 'grab',
+    };
+
     /**
      * Apply inline !important styles to Form.io elements via element.style.setProperty().
      * Bootstrap's stylesheet rules use !important within the formio cascade layer,
@@ -96,51 +120,49 @@ export function useFormBuilder(
      */
     function styleFormioElements(root: HTMLElement) {
         root.querySelectorAll<HTMLElement>('.gfx-sidebar-btn').forEach((btn) => {
-            btn.style.setProperty('display', 'inline-flex', 'important');
-            btn.style.setProperty('align-items', 'center', 'important');
-            btn.style.setProperty('gap', '0.375rem', 'important');
-            btn.style.setProperty('padding', '0.375rem 0.75rem', 'important');
-            btn.style.setProperty('margin', '0', 'important');
-            btn.style.setProperty('font-size', '0.8125rem', 'important');
-            btn.style.setProperty('font-weight', '500', 'important');
-            btn.style.setProperty('line-height', '1.25', 'important');
-            btn.style.setProperty('border-radius', '0.375rem', 'important');
-            btn.style.setProperty('border', '1px solid var(--border)', 'important');
-            btn.style.setProperty('color', 'var(--foreground)', 'important');
-            btn.style.setProperty('background-color', 'var(--background)', 'important');
-            btn.style.setProperty('cursor', 'grab', 'important');
+            applyStyles(btn, sidebarBtnBaseStyles);
         });
 
         root.querySelectorAll<HTMLElement>('.drag-and-drop-alert').forEach((zone) => {
-            zone.style.setProperty('border', '2px dashed var(--border)', 'important');
-            zone.style.setProperty('color', 'var(--muted-foreground)', 'important');
-            zone.style.setProperty('background', 'var(--muted)', 'important');
+            applyStyles(zone, {
+                'border': '2px dashed var(--border)',
+                'color': 'var(--muted-foreground)',
+                'background': 'var(--muted)',
+            });
         });
 
+        // Color properties only — layout properties for .btn-primary are handled by formio-overrides.css
         root.querySelectorAll<HTMLElement>('.btn-primary').forEach((btn) => {
-            btn.style.setProperty('border', '1px solid var(--primary)', 'important');
-            btn.style.setProperty('color', 'var(--primary-foreground)', 'important');
-            btn.style.setProperty('background-color', 'var(--primary)', 'important');
+            applyStyles(btn, {
+                'border': '1px solid var(--primary)',
+                'color': 'var(--primary-foreground)',
+                'background-color': 'var(--primary)',
+            });
         });
     }
 
     /**
      * Watch for Form.io DOM mutations and re-apply custom styles.
-     * Also adds hover effects via event delegation since CSS :hover
-     * is overridden by the JS-applied inline styles.
+     * Also adds hover effects via event listeners on the container (capture phase)
+     * since CSS :hover is overridden by the JS-applied inline styles.
+     * Note: mouseenter doesn't bubble, so capture phase (true) is required.
      */
     function observeSidebar(container: HTMLElement) {
         observedContainer = container;
 
         mouseEnterHandler = (e: Event) => {
-            const btn = (e.target as HTMLElement).closest?.('.gfx-sidebar-btn') as HTMLElement | null;
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            const btn = target.closest('.gfx-sidebar-btn') as HTMLElement | null;
             if (btn) {
-                btn.style.setProperty('border-color', 'var(--foreground)', 'important');
+                btn.style.setProperty('border', '1px solid var(--foreground)', 'important');
                 btn.style.setProperty('background-color', 'var(--accent)', 'important');
             }
         };
         mouseLeaveHandler = (e: Event) => {
-            const btn = (e.target as HTMLElement).closest?.('.gfx-sidebar-btn') as HTMLElement | null;
+            const target = e.target;
+            if (!(target instanceof Element)) return;
+            const btn = target.closest('.gfx-sidebar-btn') as HTMLElement | null;
             if (btn) {
                 btn.style.setProperty('border', '1px solid var(--border)', 'important');
                 btn.style.setProperty('background-color', 'var(--background)', 'important');
@@ -150,10 +172,19 @@ export function useFormBuilder(
         container.addEventListener('mouseenter', mouseEnterHandler, true);
         container.addEventListener('mouseleave', mouseLeaveHandler, true);
 
+        let isApplyingStyles = false;
         sidebarObserver = new MutationObserver(() => {
+            if (isApplyingStyles) return;
             if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
             styleDebounceTimer = setTimeout(() => {
-                styleFormioElements(container);
+                try {
+                    isApplyingStyles = true;
+                    styleFormioElements(container);
+                } catch (err) {
+                    Logger.error('Failed to re-apply Form.io sidebar styles:', err);
+                } finally {
+                    isApplyingStyles = false;
+                }
             }, 16);
         });
         sidebarObserver.observe(container, { childList: true, subtree: true });
@@ -178,7 +209,6 @@ export function useFormBuilder(
                 schema.value = options.schema;
             }
 
-            // 1b: Removed editForm override — restores native Form.io edit dialogs
             builderInstance = (await Formio.builder(container, schema.value, {
                 builder: {
                     basic: {
@@ -235,59 +265,57 @@ export function useFormBuilder(
             // (in the formio CSS layer), but inline !important beats layered !important
             // per CSS Cascade Level 5, so the mirror stays visible and blocks
             // elementFromPoint() from finding the actual drop target.
-            const bi = builderInstance as { dragula?: {
+            const instance = builderInstance!;
+            const bi = instance as typeof instance & { dragula?: {
                 on: (event: string, callback: (...args: unknown[]) => void) => void;
             } };
             if (bi.dragula) {
                 bi.dragula.on('cloned', (mirror: unknown) => {
-                    const el = mirror as HTMLElement;
-                    if (el.classList.contains('gfx-sidebar-btn')) {
-                        el.style.removeProperty('display');
+                    if (!(mirror instanceof HTMLElement)) return;
+                    if (mirror.classList.contains('gfx-sidebar-btn')) {
+                        mirror.style.removeProperty('display');
                     }
                 });
             }
 
-            // 1c: Rewrite builder event listeners
-            if (builderInstance) {
-                builderInstance.on(
-                    'change',
-                    (newSchema: unknown, flags: unknown) => {
-                        // Ignore programmatic changes (from setSchema/builder.form assignment)
-                        if (flags || isSettingSchema) return;
-                        const s = newSchema as FormSchema;
-                        schema.value = s;
-                        pushHistory(s);
-                        markDirty();
-                        options.onSchemaChange?.(s);
-                    },
-                );
+            instance.on(
+                'change',
+                (newSchema: unknown, flags: unknown) => {
+                    // Ignore programmatic changes (from setSchema/builder.form assignment)
+                    if (flags || isSettingSchema) return;
+                    const s = newSchema as FormSchema;
+                    schema.value = s;
+                    pushHistory(s);
+                    markDirty();
+                    options.onSchemaChange?.(s);
+                },
+            );
 
-                builderInstance.on('editComponent', (component: unknown) => {
-                    const comp = component as FormComponent;
-                    if (comp.key) {
-                        selectField(comp.key);
-                    }
-                });
+            instance.on('editComponent', (component: unknown) => {
+                const comp = component as FormComponent;
+                if (comp.key) {
+                    selectField(comp.key);
+                }
+            });
 
-                builderInstance.on('saveComponent', () => {
-                    // Re-select to refresh sidebar data after native dialog save
-                    if (selectedField.value) {
-                        selectField(selectedField.value);
-                    }
-                });
+            instance.on('saveComponent', () => {
+                // Re-select to refresh sidebar data after native dialog save
+                if (selectedField.value) {
+                    selectField(selectedField.value);
+                }
+            });
 
-                builderInstance.on('removeComponent', (component: unknown) => {
-                    const comp = component as FormComponent;
-                    if (
-                        selectedField.value &&
-                        comp.key === selectedField.value
-                    ) {
-                        selectField(null);
-                    }
-                });
-            }
+            instance.on('removeComponent', (component: unknown) => {
+                const comp = component as FormComponent;
+                if (
+                    selectedField.value &&
+                    comp.key === selectedField.value
+                ) {
+                    selectField(null);
+                }
+            });
 
-            // 1i: Push initial schema to history as baseline for undo
+            // Push initial schema to history as baseline for undo
             pushHistory(schema.value);
 
             // Style sidebar buttons via JS to bypass Bootstrap layer !important
@@ -295,8 +323,9 @@ export function useFormBuilder(
 
             Logger.debug('Form.io builder initialized successfully');
         } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unknown error';
             Logger.error('Failed to initialize Form.io builder:', err);
-            error.value = 'Failed to initialize form builder';
+            error.value = `Failed to initialize form builder: ${message}`;
         } finally {
             isLoading.value = false;
         }
@@ -309,7 +338,6 @@ export function useFormBuilder(
         return schema.value;
     }
 
-    // 1d: Rewrite setSchema to sync to builder DOM
     function setSchema(newSchema: FormSchema) {
         schema.value = newSchema;
         if (builderInstance) {
@@ -354,14 +382,15 @@ export function useFormBuilder(
     });
 
     onUnmounted(() => {
+        // Destroy builder first to stop it from emitting mutations during teardown
+        if (builderInstance && typeof builderInstance.destroy === 'function') {
+            builderInstance.destroy();
+        }
         if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
         sidebarObserver?.disconnect();
         if (observedContainer) {
             if (mouseEnterHandler) observedContainer.removeEventListener('mouseenter', mouseEnterHandler, true);
             if (mouseLeaveHandler) observedContainer.removeEventListener('mouseleave', mouseLeaveHandler, true);
-        }
-        if (builderInstance && typeof builderInstance.destroy === 'function') {
-            builderInstance.destroy();
         }
         if (autoSaveTimeout) {
             clearTimeout(autoSaveTimeout);
@@ -377,15 +406,17 @@ export function useFormBuilder(
                 }
                 const delay = options.autoSaveDelay ?? 2000;
                 autoSaveTimeout = setTimeout(() => {
-                    void saveSchema();
+                    saveSchema().catch((err) => {
+                        Logger.error('Auto-save failed:', err);
+                    });
                 }, delay);
             },
             { deep: true },
         );
     }
 
-    // 1e: Removed the deep watch(schema) that caused undo/redo infinite loop.
-    // All callers that mutate schema now explicitly call pushHistory/markDirty/onSchemaChange.
+    // No deep watch on schema — callers explicitly call pushHistory/markDirty/onSchemaChange
+    // to avoid undo/redo infinite loops.
 
     function undo() {
         const previousSchema = undoHistory();
@@ -421,7 +452,6 @@ export function useFormBuilder(
         return null;
     }
 
-    // 1g: Generate unique key that doesn't collide with existing keys
     function generateUniqueKey(
         baseKey: string,
         existingComponents: FormComponent[],
@@ -448,7 +478,6 @@ export function useFormBuilder(
         return `${copyKey}_${counter}`;
     }
 
-    // 1f: Explicit history/dirty/callback calls in mutation functions
     function duplicateField(fieldKey: string) {
         const currentSchema = getSchema();
         const component = findComponent(currentSchema.components, fieldKey);
@@ -499,7 +528,6 @@ export function useFormBuilder(
         Logger.debug(`Deleted component: ${fieldKey}`);
     }
 
-    // 1h: Update a field's properties by key (used by FieldSettingsPanel)
     function updateField(
         fieldKey: string,
         updates: Partial<FormComponent>,
@@ -552,6 +580,7 @@ export function useFormBuilder(
         setSchema,
         selectedField,
         selectField,
+        findComponent,
         duplicateField,
         deleteField,
         updateField,

@@ -15,13 +15,20 @@ test.describe('Forms CRUD', () => {
     });
 
     test('delete form removes it from list', async ({ authenticatedPage: page }) => {
-        // The previous test created a form — navigate to it to get its ID
+        // Create a form first so this test is self-contained
         await page.goto('/forms');
-        const formLink = page.locator('a[href*="/forms/"][href*="/edit"]').first();
-        await expect(formLink).toBeVisible({ timeout: 10000 });
-        const href = await formLink.getAttribute('href');
-        const formId = href?.match(/\/forms\/([^/]+)\/edit/)?.[1];
-        expect(formId).toBeTruthy();
+        await page.getByRole('button', { name: /New form/i }).click();
+        await page.waitForURL(/\/forms\/.*\/edit/, { timeout: 15000 });
+
+        const url = page.url();
+        const match = url.match(/\/forms\/([^/]+)\/edit/);
+        if (!match?.[1]) {
+            throw new Error(
+                `Failed to extract form ID from URL: ${url}. ` +
+                `Expected URL to match /forms/{id}/edit pattern.`,
+            );
+        }
+        const formId = match[1];
 
         // Delete via API
         await page.evaluate(async (id) => {
