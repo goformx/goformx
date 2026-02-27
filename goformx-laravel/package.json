@@ -29,7 +29,7 @@
         "typescript": "^5.2.2",
         "typescript-eslint": "^8.23.0",
         "vite": "^7.0.4",
-        "vue-tsc": "^2.2.4"
+        "vue-tsc": "^3.2.5"
     },
     "dependencies": {
         "@formio/js": "^5.1.1",
