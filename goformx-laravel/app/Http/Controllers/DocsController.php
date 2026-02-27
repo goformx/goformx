@@ -10,6 +10,7 @@ use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\FrontMatter\FrontMatterExtension;
 use League\CommonMark\Extension\FrontMatter\Output\RenderedContentWithFrontMatter;
+use League\CommonMark\Extension\Table\TableExtension;
 use League\CommonMark\MarkdownConverter;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -75,6 +76,7 @@ class DocsController extends Controller
         $environment = new Environment([]);
         $environment->addExtension(new CommonMarkCoreExtension);
         $environment->addExtension(new FrontMatterExtension);
+        $environment->addExtension(new TableExtension);
 
         return new MarkdownConverter($environment);
     }

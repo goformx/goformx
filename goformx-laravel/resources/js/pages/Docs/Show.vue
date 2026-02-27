@@ -51,7 +51,7 @@ const nextPage = computed(() =>
 
         <div class="container flex flex-1 gap-0 px-4 py-8 sm:px-6 lg:gap-10">
             <!-- Desktop sidebar -->
-            <aside class="hidden w-56 shrink-0 lg:block">
+            <aside class="w-56 shrink-0 max-lg:hidden">
                 <nav class="sticky top-8 space-y-1">
                     <p
                         class="mb-3 flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase"
