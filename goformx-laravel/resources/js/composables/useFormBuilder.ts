@@ -228,6 +228,25 @@ export function useFormBuilder(
 
             builder.value = builderInstance;
 
+            // Fix: Strip inline styles from Dragula mirror so gu-hide can work.
+            // Sidebar buttons have JS-applied inline display:inline-flex!important
+            // (to beat Bootstrap layer). The mirror is a clone that inherits these
+            // inline styles. Dragula hides the mirror via .gu-hide{display:none!important}
+            // (in the formio CSS layer), but inline !important beats layered !important
+            // per CSS Cascade Level 5, so the mirror stays visible and blocks
+            // elementFromPoint() from finding the actual drop target.
+            const bi = builderInstance as { dragula?: {
+                on: (event: string, callback: (...args: unknown[]) => void) => void;
+            } };
+            if (bi.dragula) {
+                bi.dragula.on('cloned', (mirror: unknown) => {
+                    const el = mirror as HTMLElement;
+                    if (el.classList.contains('gfx-sidebar-btn')) {
+                        el.style.removeProperty('display');
+                    }
+                });
+            }
+
             // 1c: Rewrite builder event listeners
             if (builderInstance) {
                 builderInstance.on(

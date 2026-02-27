@@ -56,10 +56,6 @@ interface Form {
 
 interface Props {
     form: Form;
-    flash?: {
-        success?: string;
-        error?: string;
-    };
 }
 
 const props = defineProps<Props>();
@@ -221,19 +217,6 @@ async function handleSave() {
 function viewSchema() {
     showSchemaModal.value = true;
 }
-
-watch(
-    () => props.flash,
-    (flash, oldFlash) => {
-        if (flash?.success && flash.success !== oldFlash?.success) {
-            toast.success(flash.success);
-        }
-        if (flash?.error && flash.error !== oldFlash?.error) {
-            toast.error(flash.error);
-        }
-    },
-    { immediate: true },
-);
 
 watch(
     builderError,
