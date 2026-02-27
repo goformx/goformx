@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as billingIndex } from '@/routes/billing';
+import { show as docsShow } from '@/routes/docs';
 import { index as formsIndex } from '@/routes/forms';
 import { type NavItem } from '@/types';
 import AppLogo from './AppLogo.vue';
@@ -51,7 +52,7 @@ const footerNavItems: NavItem[] = [
     },
     {
         title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#vue',
+        href: docsShow(),
         icon: BookOpen,
     },
 ];
