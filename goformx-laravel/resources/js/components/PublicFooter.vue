@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
 import { privacy, terms } from '@/routes';
+import { show as docsShow } from '@/routes/docs';
 </script>
 
 <template>
@@ -25,6 +26,13 @@ import { privacy, terms } from '@/routes';
                     class="text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                     Terms of Service
+                </Link>
+                <span class="text-muted-foreground/40">|</span>
+                <Link
+                    :href="docsShow()"
+                    class="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                    Documentation
                 </Link>
                 <span class="text-muted-foreground/40">|</span>
                 <a

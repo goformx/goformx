@@ -3,6 +3,7 @@ import { Formio } from '@formio/js';
 import type { RequestPayload } from '@inertiajs/core';
 import { Head, useForm, router, Link } from '@inertiajs/vue3';
 import {
+    ChevronDown,
     Eye,
     ListChecks,
     Save,
@@ -11,6 +12,7 @@ import {
     Redo2,
     Keyboard,
     Pencil,
+    Settings2,
 } from 'lucide-vue-next';
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { toast } from 'vue-sonner';
@@ -18,6 +20,11 @@ import BuilderLayout from '@/components/form-builder/BuilderLayout.vue';
 import FieldSettingsPanel from '@/components/form-builder/FieldSettingsPanel.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
     Dialog,
     DialogContent,
@@ -34,7 +41,15 @@ import {
     formatShortcut,
 } from '@/composables/useKeyboardShortcuts';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { Logger } from '@/lib/logger';
 import { dashboard } from '@/routes';
+import {
+    index as formsIndex,
+    submissions,
+    embed,
+    update,
+    preview,
+} from '@/routes/forms';
 import { type BreadcrumbItem } from '@/types';
 
 interface Form {
@@ -49,15 +64,14 @@ interface Form {
 
 interface Props {
     form: Form;
-    flash?: {
-        success?: string;
-        error?: string;
-    };
 }
 
 const props = defineProps<Props>();
 
 const formId = props.form.id ?? props.form.ID ?? '';
+if (!formId) {
+    toast.error('Unable to load form: no form ID was provided.');
+}
 
 const detailsForm = useForm({
     title: props.form.title ?? '',
@@ -70,6 +84,7 @@ const showSchemaModal = ref(false);
 const showShortcutsModal = ref(false);
 const isSavingAll = ref(false);
 const showInPlacePreview = ref(false);
+const isSettingsOpen = ref(false);
 let inPlacePreviewInstance: { destroy?: () => void } | null = null;
 
 const initialSchema = computed((): FormSchema => {
@@ -88,6 +103,7 @@ const {
     getSchema,
     selectedField,
     selectField,
+    findComponent,
     duplicateField,
     deleteField,
     updateField,
@@ -101,11 +117,10 @@ const {
     formId: String(formId),
     schema: initialSchema.value,
     autoSave: false,
-    onSchemaChange: () => {},
     onSave: async (schema: FormSchema) => {
         await new Promise<void>((resolve, reject) => {
             router.put(
-                `/forms/${formId}`,
+                update.url(formId),
                 {
                     schema: schema as unknown,
                     title: detailsForm.title,
@@ -116,7 +131,12 @@ const {
                 {
                     preserveScroll: true,
                     onSuccess: () => resolve(),
-                    onError: () => reject(new Error('Failed to save form')),
+                    onError: (errors) => {
+                        const errorMessages = Object.values(errors).join('. ');
+                        reject(
+                            new Error(errorMessages || 'Failed to save form'),
+                        );
+                    },
                 },
             );
         });
@@ -126,18 +146,7 @@ const {
 const selectedFieldData = computed<FormComponent | null>(() => {
     if (!selectedField.value) return null;
     const schema = getSchema();
-    const findField = (components: unknown[]): FormComponent | null => {
-        for (const comp of components) {
-            const component = comp as FormComponent;
-            if (component.key === selectedField.value) return component;
-            if (component.components) {
-                const found = findField(component.components as unknown[]);
-                if (found) return found;
-            }
-        }
-        return null;
-    };
-    return findField(schema.components);
+    return findComponent(schema.components, selectedField.value);
 });
 
 const shortcuts = [
@@ -150,7 +159,7 @@ const shortcuts = [
     {
         key: 'p',
         meta: true,
-        handler: () => router.visit(`/forms/${formId}/preview`),
+        handler: () => router.visit(preview.url(formId)),
         description: 'Preview form',
     },
     { key: 'z', meta: true, handler: () => undo(), description: 'Undo' },
@@ -210,23 +219,6 @@ async function handleSave() {
     }
 }
 
-function viewSchema() {
-    showSchemaModal.value = true;
-}
-
-watch(
-    () => props.flash,
-    (flash, oldFlash) => {
-        if (flash?.success && flash.success !== oldFlash?.success) {
-            toast.success(flash.success);
-        }
-        if (flash?.error && flash.error !== oldFlash?.error) {
-            toast.error(flash.error);
-        }
-    },
-    { immediate: true },
-);
-
 watch(
     builderError,
     (error) => {
@@ -239,7 +231,15 @@ watch(showInPlacePreview, async (isPreview) => {
     if (isPreview) {
         await nextTick();
         const container = document.getElementById('edit-inplace-preview');
-        if (!container) return;
+        if (!container) {
+            toast.error(
+                'Preview container could not be found. Please try again.',
+            );
+            Logger.error(
+                'Preview container #edit-inplace-preview not found after nextTick',
+            );
+            return;
+        }
         const schema = getSchema();
         if (!schema?.components?.length) {
             toast.info('Add fields in the builder to preview.');
@@ -256,8 +256,10 @@ watch(showInPlacePreview, async (isPreview) => {
                 },
             );
         } catch (err) {
-            console.error('Preview failed:', err);
-            toast.error('Failed to load preview');
+            Logger.error('Failed to create Form.io preview:', err);
+            toast.error(
+                'Failed to load preview. Try switching back to the builder and trying again.',
+            );
         }
     } else {
         if (inPlacePreviewInstance?.destroy) {
@@ -276,7 +278,7 @@ onBeforeUnmount(() => {
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard().url },
-    { title: 'Forms', href: '/forms' },
+    { title: 'Forms', href: formsIndex().url },
     { title: props.form.title ?? 'Edit Form', href: `/forms/${formId}` },
 ];
 </script>
@@ -285,88 +287,103 @@ const breadcrumbs: BreadcrumbItem[] = [
     <Head :title="(form.title as string) ?? 'Edit Form'" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col gap-4 p-4">
-            <div class="flex items-center justify-end gap-2">
-                <Badge
-                    :variant="
-                        form.status === 'published' ? 'default' : 'secondary'
-                    "
-                >
-                    {{ form.status ?? 'draft' }}
-                </Badge>
-                <Separator orientation="vertical" class="h-6" />
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    :disabled="!canUndo"
-                    title="Undo (Cmd+Z)"
-                    @click="undo"
-                >
-                    <Undo2 class="h-4 w-4" />
-                </Button>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    :disabled="!canRedo"
-                    title="Redo (Cmd+Shift+Z)"
-                    @click="redo"
-                >
-                    <Redo2 class="h-4 w-4" />
-                </Button>
-                <Separator orientation="vertical" class="h-6" />
-                <Button
-                    variant="outline"
-                    size="sm"
-                    @click="showShortcutsModal = true"
-                >
-                    <Keyboard class="mr-2 h-4 w-4" />
-                    Shortcuts
-                </Button>
-                <Button variant="outline" size="sm" @click="viewSchema">
-                    <Code class="mr-2 h-4 w-4" />
-                    Schema
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    :class="!showInPlacePreview ? 'bg-muted' : ''"
-                    @click="showInPlacePreview = false"
-                >
-                    <Pencil class="mr-2 h-4 w-4" />
-                    Builder
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    :class="showInPlacePreview ? 'bg-muted' : ''"
-                    @click="showInPlacePreview = true"
-                >
-                    <Eye class="mr-2 h-4 w-4" />
-                    Preview
-                </Button>
-                <Button variant="outline" size="sm" as-child>
-                    <Link :href="`/forms/${formId}/preview`"
-                        >Shareable preview</Link
+        <div class="flex h-[calc(100vh-4.5rem)] flex-col overflow-hidden">
+            <div class="flex items-center justify-between border-b px-4 py-2">
+                <div class="flex items-center gap-1">
+                    <div class="flex items-center rounded-md border p-0.5">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-3"
+                            :class="!showInPlacePreview ? 'bg-muted' : ''"
+                            @click="showInPlacePreview = false"
+                        >
+                            <Pencil class="mr-1.5 h-3.5 w-3.5" />
+                            Builder
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-7 px-3"
+                            :class="showInPlacePreview ? 'bg-muted' : ''"
+                            @click="showInPlacePreview = true"
+                        >
+                            <Eye class="mr-1.5 h-3.5 w-3.5" />
+                            Preview
+                        </Button>
+                    </div>
+                    <Separator orientation="vertical" class="mx-1 h-5" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7"
+                        :disabled="!canUndo"
+                        title="Undo (Cmd+Z)"
+                        @click="undo"
                     >
-                </Button>
-                <Button variant="outline" size="sm" as-child>
-                    <Link :href="`/forms/${formId}/submissions`">
-                        <ListChecks class="mr-2 h-4 w-4" />
-                        Submissions
-                    </Link>
-                </Button>
-                <Button variant="outline" size="sm" as-child>
-                    <Link :href="`/forms/${formId}/embed`">Embed</Link>
-                </Button>
-                <Button
-                    size="sm"
-                    :disabled="isSavingAll || isBuilderLoading"
-                    @click="handleSave"
-                >
-                    <Save class="mr-2 h-4 w-4" />
-                    <span v-if="isSavingAll">Saving...</span>
-                    <span v-else>Save</span>
-                </Button>
+                        <Undo2 class="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7"
+                        :disabled="!canRedo"
+                        title="Redo (Cmd+Shift+Z)"
+                        @click="redo"
+                    >
+                        <Redo2 class="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <Badge
+                        :variant="
+                            form.status === 'published'
+                                ? 'default'
+                                : 'secondary'
+                        "
+                        class="text-xs"
+                    >
+                        {{ form.status ?? 'draft' }}
+                    </Badge>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7"
+                        title="View Schema"
+                        @click="showSchemaModal = true"
+                    >
+                        <Code class="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        class="h-7 w-7"
+                        title="Keyboard Shortcuts (Cmd+/)"
+                        @click="showShortcutsModal = true"
+                    >
+                        <Keyboard class="h-3.5 w-3.5" />
+                    </Button>
+                    <Separator orientation="vertical" class="mx-0.5 h-5" />
+                    <Button variant="outline" size="sm" class="h-7" as-child>
+                        <Link :href="submissions.url(formId)">
+                            <ListChecks class="mr-1.5 h-3.5 w-3.5" />
+                            Submissions
+                        </Link>
+                    </Button>
+                    <Button variant="outline" size="sm" class="h-7" as-child>
+                        <Link :href="embed.url(formId)">Embed</Link>
+                    </Button>
+                    <Button
+                        size="sm"
+                        class="h-7"
+                        :disabled="isSavingAll || isBuilderLoading"
+                        @click="handleSave"
+                    >
+                        <Save class="mr-1.5 h-3.5 w-3.5" />
+                        <span v-if="isSavingAll">Saving...</span>
+                        <span v-else>Save</span>
+                    </Button>
+                </div>
             </div>
 
             <div
@@ -374,77 +391,105 @@ const breadcrumbs: BreadcrumbItem[] = [
                 class="rounded-lg border bg-background p-6 shadow-sm"
             >
                 <p class="mb-4 text-sm text-muted-foreground">
-                    In-place preview (read-only). Use “Builder” to edit.
+                    In-place preview (read-only). Use "Builder" to edit.
                 </p>
                 <div id="edit-inplace-preview" class="min-h-[400px]" />
             </div>
 
             <BuilderLayout
                 v-show="!showInPlacePreview"
-                class="rounded-lg border bg-background shadow-sm"
+                class="flex-1 overflow-hidden"
                 :show-fields-panel="false"
+                :show-settings-panel="!!selectedField"
             >
                 <template #header>
-                    <div class="space-y-4 px-6 py-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <Label for="title" class="text-xs"
-                                    >Form Title</Label
-                                >
-                                <Input
-                                    id="title"
-                                    v-model="detailsForm.title"
-                                    type="text"
-                                    placeholder="Enter form title"
-                                    required
-                                />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="status" class="text-xs"
-                                    >Status</Label
-                                >
-                                <select
-                                    id="status"
-                                    v-model="detailsForm.status"
-                                    class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                >
-                                    <option value="draft">Draft</option>
-                                    <option value="published">Published</option>
-                                    <option value="archived">Archived</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="space-y-2">
-                            <Label for="description" class="text-xs"
-                                >Description</Label
-                            >
+                    <Collapsible
+                        v-model:open="isSettingsOpen"
+                        class="border-b px-4 py-2"
+                    >
+                        <div class="flex items-center gap-2">
                             <Input
-                                id="description"
-                                v-model="detailsForm.description"
+                                id="title"
+                                v-model="detailsForm.title"
                                 type="text"
-                                placeholder="Enter form description"
+                                placeholder="Form title"
+                                required
+                                class="h-8 max-w-xs border-transparent bg-transparent text-sm font-medium hover:border-input focus:border-input"
                             />
+                            <CollapsibleTrigger as-child>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    class="h-7 gap-1 text-xs text-muted-foreground"
+                                >
+                                    <Settings2 class="h-3.5 w-3.5" />
+                                    Settings
+                                    <ChevronDown
+                                        class="h-3 w-3 transition-transform"
+                                        :class="{
+                                            'rotate-180': isSettingsOpen,
+                                        }"
+                                    />
+                                </Button>
+                            </CollapsibleTrigger>
                         </div>
-                        <div class="space-y-2">
-                            <Label for="corsOrigins" class="text-xs"
-                                >Allowed Origins (CORS)</Label
-                            >
-                            <Input
-                                id="corsOrigins"
-                                v-model="detailsForm.cors_origins"
-                                type="text"
-                                placeholder="e.g. *, https://example.com"
-                            />
-                            <p class="text-xs text-muted-foreground">
-                                Required when publishing. Use * to allow all
-                                origins.
-                            </p>
-                        </div>
-                    </div>
+                        <CollapsibleContent class="mt-2 space-y-2 pb-1">
+                            <div class="grid grid-cols-3 gap-3">
+                                <div class="space-y-1">
+                                    <Label
+                                        for="status"
+                                        class="text-xs text-muted-foreground"
+                                        >Status</Label
+                                    >
+                                    <select
+                                        id="status"
+                                        v-model="detailsForm.status"
+                                        class="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
+                                    >
+                                        <option value="draft">Draft</option>
+                                        <option value="published">
+                                            Published
+                                        </option>
+                                        <option value="archived">
+                                            Archived
+                                        </option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <Label
+                                        for="description"
+                                        class="text-xs text-muted-foreground"
+                                        >Description</Label
+                                    >
+                                    <Input
+                                        id="description"
+                                        v-model="detailsForm.description"
+                                        type="text"
+                                        placeholder="Optional description"
+                                        class="h-8"
+                                    />
+                                </div>
+                                <div class="space-y-1">
+                                    <Label
+                                        for="corsOrigins"
+                                        class="text-xs text-muted-foreground"
+                                        >CORS Origins</Label
+                                    >
+                                    <Input
+                                        id="corsOrigins"
+                                        v-model="detailsForm.cors_origins"
+                                        type="text"
+                                        placeholder="e.g. *, https://example.com"
+                                        class="h-8"
+                                    />
+                                </div>
+                            </div>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </template>
 
                 <template #canvas>
-                    <div class="p-6">
+                    <div class="h-full p-4">
                         <div
                             v-if="isBuilderLoading"
                             class="flex items-center justify-center py-12"
@@ -455,7 +500,7 @@ const breadcrumbs: BreadcrumbItem[] = [
                         </div>
                         <div
                             id="form-schema-builder"
-                            class="min-h-[500px]"
+                            class="h-full min-h-[400px]"
                             :data-form-id="formId"
                         />
                     </div>

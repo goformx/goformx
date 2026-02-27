@@ -177,7 +177,8 @@ function toggleSettingsPanel() {
 
 <style scoped>
 .builder-layout {
-    height: calc(100vh - 4rem);
+    flex: 1;
+    min-height: 0;
 }
 
 @media (max-width: 768px) {
@@ -192,7 +193,7 @@ function toggleSettingsPanel() {
         max-height: 40vh;
         border-right: none;
         border-left: none;
-        border-bottom: 1px solid hsl(var(--border));
+        border-bottom: 1px solid var(--border);
     }
 
     .builder-canvas {

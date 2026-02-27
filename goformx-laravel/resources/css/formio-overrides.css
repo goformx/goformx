@@ -1,0 +1,162 @@
+/* Overrides for Form.io builder component styling.
+   Imported into layer(formio) after Bootstrap so that our !important
+   declarations win by source order within the same cascade layer.
+   Note: Sidebar button border, background-color, and color properties
+   require JS (element.style.setProperty) because Bootstrap uses !important
+   on those same properties within this layer — see useFormBuilder.ts.
+   Dialog styling works via CSS because Form.io's dialog elements use
+   different selectors that don't conflict with Bootstrap's !important rules. */
+
+/* Drop zone — non-color properties work via CSS */
+#form-schema-builder .drag-and-drop-alert {
+    border-radius: 0.75rem !important;
+    padding: 3rem 2rem !important;
+    text-align: center !important;
+    font-size: 0.875rem !important;
+}
+
+/* Builder submit button — non-color properties work via CSS */
+#form-schema-builder .formio-builder-form .btn-primary {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0.5rem 1rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    border-radius: 0.375rem !important;
+    cursor: pointer !important;
+}
+
+#form-schema-builder .formio-builder-form .btn-primary:hover {
+    opacity: 0.9 !important;
+}
+
+/* ── Component edit dialog ─────────────────────────────────────── */
+
+/* Center the dialog overlay container */
+.formio-dialog.component-settings {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+}
+
+/* Semi-transparent backdrop */
+.formio-dialog.component-settings .formio-dialog-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background-color: color-mix(
+        in srgb,
+        var(--foreground) 50%,
+        transparent
+    ) !important;
+}
+
+/* Dialog content panel */
+.formio-dialog.component-settings .formio-dialog-content {
+    position: relative !important;
+    max-width: 64rem !important;
+    width: 100% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 0.75rem !important;
+    padding: 1.5rem !important;
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25) !important;
+}
+
+/* Close button */
+.formio-dialog.component-settings .formio-dialog-close {
+    position: absolute !important;
+    top: 0.75rem !important;
+    right: 0.75rem !important;
+    color: var(--muted-foreground) !important;
+    cursor: pointer !important;
+    z-index: 10 !important;
+}
+
+.formio-dialog.component-settings .formio-dialog-close:hover {
+    color: var(--foreground) !important;
+}
+
+/* Form controls inside dialog — theme-aware for dark mode */
+.formio-dialog-content .form-control {
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+    border: 1px solid var(--input) !important;
+    border-radius: var(--radius) !important;
+}
+
+.formio-dialog-content .form-control:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 2px var(--ring) !important;
+}
+
+.formio-dialog-content .form-control::placeholder {
+    color: var(--muted-foreground) !important;
+}
+
+/* Labels */
+.formio-dialog-content label {
+    color: var(--foreground) !important;
+}
+
+/* Select dropdowns */
+.formio-dialog-content .form-select,
+.formio-dialog-content select.form-control {
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+    border: 1px solid var(--input) !important;
+}
+
+/* Checkbox/radio */
+.formio-dialog-content .form-check-input {
+    accent-color: var(--primary) !important;
+    border-color: var(--primary) !important;
+}
+
+.formio-dialog-content .form-check-label {
+    color: var(--foreground) !important;
+}
+
+/* Tab panel content area */
+.formio-dialog-content .card,
+.formio-dialog-content .card-body {
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+    border-color: var(--border) !important;
+}
+
+/* Nested component containers */
+.formio-dialog-content .component-edit-container {
+    background-color: var(--background) !important;
+    color: var(--foreground) !important;
+}
+
+/* Help text / descriptions */
+.formio-dialog-content .form-text,
+.formio-dialog-content .text-muted {
+    color: var(--muted-foreground) !important;
+}
+
+/* Table elements inside dialog (datagrid, properties) */
+.formio-dialog-content table {
+    color: var(--foreground) !important;
+}
+
+.formio-dialog-content table th {
+    color: var(--foreground) !important;
+    border-color: var(--border) !important;
+}
+
+.formio-dialog-content table td {
+    border-color: var(--border) !important;
+}
+
+/* Ace editor container (code editors for description/tooltip) */
+.formio-dialog-content .ace_editor {
+    border: 1px solid var(--input) !important;
+    border-radius: var(--radius) !important;
+}

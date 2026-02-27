@@ -11,15 +11,13 @@ export class Logger {
     }
 
     static error(...args: unknown[]): void {
-        if (this.isDevelopment) {
-            console.error(...args);
-        }
+        // Errors always log regardless of environment
+        console.error(...args);
     }
 
     static warn(...args: unknown[]): void {
-        if (this.isDevelopment) {
-            console.warn(...args);
-        }
+        // Warnings always log regardless of environment
+        console.warn(...args);
     }
 
     static debug(...args: unknown[]): void {

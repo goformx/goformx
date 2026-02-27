@@ -36,6 +36,7 @@ import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { getInitials } from '@/composables/useInitials';
 import { toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
+import { show as docsShow } from '@/routes/docs';
 import type { BreadcrumbItem, NavItem } from '@/types';
 
 type Props = {
@@ -61,6 +62,11 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
+function isExternal(href: string | { url: string }): boolean {
+    const url = typeof href === 'string' ? href : href.url;
+    return url.startsWith('http://') || url.startsWith('https://');
+}
+
 const rightNavItems: NavItem[] = [
     {
         title: 'Repository',
@@ -69,7 +75,7 @@ const rightNavItems: NavItem[] = [
     },
     {
         title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#vue',
+        href: docsShow(),
         icon: BookOpen,
     },
 ];
@@ -125,21 +131,37 @@ const rightNavItems: NavItem[] = [
                                     </Link>
                                 </nav>
                                 <div class="flex flex-col space-y-4">
-                                    <a
+                                    <template
                                         v-for="item in rightNavItems"
                                         :key="item.title"
-                                        :href="toUrl(item.href)"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        class="flex items-center space-x-2 text-sm font-medium"
                                     >
-                                        <component
-                                            v-if="item.icon"
-                                            :is="item.icon"
-                                            class="h-5 w-5"
-                                        />
-                                        <span>{{ item.title }}</span>
-                                    </a>
+                                        <a
+                                            v-if="isExternal(item.href)"
+                                            :href="toUrl(item.href)"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            class="flex items-center space-x-2 text-sm font-medium"
+                                        >
+                                            <component
+                                                v-if="item.icon"
+                                                :is="item.icon"
+                                                class="h-5 w-5"
+                                            />
+                                            <span>{{ item.title }}</span>
+                                        </a>
+                                        <Link
+                                            v-else
+                                            :href="item.href"
+                                            class="flex items-center space-x-2 text-sm font-medium"
+                                        >
+                                            <component
+                                                v-if="item.icon"
+                                                :is="item.icon"
+                                                class="h-5 w-5"
+                                            />
+                                            <span>{{ item.title }}</span>
+                                        </Link>
+                                    </template>
                                 </div>
                             </div>
                         </SheetContent>
@@ -151,7 +173,7 @@ const rightNavItems: NavItem[] = [
                 </Link>
 
                 <!-- Desktop Menu -->
-                <div class="max-lg:hidden h-full lg:flex lg:flex-1">
+                <div class="h-full max-lg:hidden lg:flex lg:flex-1">
                     <NavigationMenu class="ml-10 flex h-full items-stretch">
                         <NavigationMenuList
                             class="flex h-full items-stretch space-x-2"
@@ -200,7 +222,7 @@ const rightNavItems: NavItem[] = [
                             />
                         </Button>
 
-                        <div class="max-lg:hidden space-x-1 lg:flex">
+                        <div class="space-x-1 max-lg:hidden lg:flex">
                             <template
                                 v-for="item in rightNavItems"
                                 :key="item.title"
@@ -215,6 +237,7 @@ const rightNavItems: NavItem[] = [
                                                 class="group h-9 w-9 cursor-pointer"
                                             >
                                                 <a
+                                                    v-if="isExternal(item.href)"
                                                     :href="toUrl(item.href)"
                                                     target="_blank"
                                                     rel="noopener noreferrer"
@@ -227,6 +250,15 @@ const rightNavItems: NavItem[] = [
                                                         class="size-5 opacity-80 group-hover:opacity-100"
                                                     />
                                                 </a>
+                                                <Link v-else :href="item.href">
+                                                    <span class="sr-only">{{
+                                                        item.title
+                                                    }}</span>
+                                                    <component
+                                                        :is="item.icon"
+                                                        class="size-5 opacity-80 group-hover:opacity-100"
+                                                    />
+                                                </Link>
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
