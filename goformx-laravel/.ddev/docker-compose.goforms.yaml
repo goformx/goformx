@@ -47,8 +47,10 @@ services:
       DATABASE_USERNAME: goforms
       DATABASE_PASSWORD: goforms
       DATABASE_DRIVER: postgres
-      # Must match Laravel .env GOFORMS_SHARED_SECRET (hardcoded so container always gets it)
-      GOFORMS_SHARED_SECRET: "ddev-goforms-secret"
+      # Must match Laravel .env GOFORMS_SHARED_SECRET (min 32 chars required by Go config validation)
+      GOFORMS_SHARED_SECRET: "ddev-goforms-shared-secret-key-for-local-development"
+      SESSION_SECRET: "ddev-goforms-session-secret-key-for-local-development"
+      SECURITY_CSRF_SECRET: "ddev-goforms-csrf-secret-key-for-local-development-use"
     expose:
       - "18000"
     ports:
@@ -62,7 +64,7 @@ services:
     x-ddev:
       describe-info: |
         Go forms API (assertion auth). Laravel uses GOFORMS_API_URL=http://goforms:18000.
-        Set GOFORMS_SHARED_SECRET in .env (same as this container, default: ddev-goforms-secret).
+        GOFORMS_SHARED_SECRET in Laravel .env must match this container (min 32 chars).
       describe-url-port: "http://goforms:18000 (internal)"
 
   web:
