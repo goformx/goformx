@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\BillingController;
 use App\Http\Controllers\DemoController;
+use App\Http\Controllers\DocsController;
 use App\Http\Controllers\FormController;
 use App\Http\Controllers\PricingController;
 use App\Http\Controllers\PrivacyController;
@@ -52,6 +53,7 @@ Route::get('sitemap.xml', function (): Response {
 })->name('sitemap');
 
 Route::get('demo', DemoController::class)->name('demo');
+Route::get('docs/{slug?}', DocsController::class)->name('docs.show');
 Route::get('pricing', PricingController::class)->name('pricing');
 Route::get('privacy', PrivacyController::class)->name('privacy');
 Route::get('terms', TermsController::class)->name('terms');
