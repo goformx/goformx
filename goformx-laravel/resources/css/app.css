@@ -1,6 +1,4 @@
-@import 'bootstrap/dist/css/bootstrap.min.css' layer(formio);
-@import 'bootstrap-icons/font/bootstrap-icons.css' layer(formio);
-@import '@formio/js/dist/formio.full.css' layer(formio);
+@import '@goformx/formio/css';
 @import './formio-overrides.css' layer(formio);
 
 @import 'tailwindcss';
