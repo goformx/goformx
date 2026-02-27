@@ -43,4 +43,32 @@ test.describe('Form builder', () => {
         await titleInput.fill('E2E Test Form');
         await expect(titleInput).toHaveValue('E2E Test Form');
     });
+
+    test('drag Text Field from sidebar onto empty canvas', async ({ authenticatedPage: page }) => {
+        await page.goto(formEditUrl);
+        const builder = page.locator('#form-schema-builder');
+        await builder.waitFor({ timeout: 15000 });
+
+        // Verify initial state: empty canvas has only the Submit button component
+        const componentsBefore = await builder.locator('.builder-component').count();
+        const dropTarget = builder.locator('.drag-and-drop-alert');
+        await expect(dropTarget).toBeVisible();
+
+        // Sidebar drag source: the Text Field component button
+        const dragSource = builder.locator('span.formcomponent.drag-copy[data-type="textfield"]');
+        await expect(dragSource).toBeVisible({ timeout: 10000 });
+
+        // Form.io uses Dragula which requires pointer events with buttons:1 held.
+        // Playwright's high-level dragAndDrop handles this correctly.
+        await dragSource.dragTo(builder.locator('.formio-builder-form'));
+
+        // After drop: a new Text Field component should appear in the canvas
+        // The empty placeholder should disappear and component count should increase
+        await expect(async () => {
+            const componentsAfter = await builder.locator('.builder-component').count();
+            expect(componentsAfter).toBeGreaterThan(componentsBefore);
+        }).toPass({ timeout: 5000 });
+        // The drop zone placeholder should no longer be visible
+        await expect(dropTarget).not.toBeVisible();
+    });
 });
