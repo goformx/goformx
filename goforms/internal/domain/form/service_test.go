@@ -118,8 +118,8 @@ func TestService_CreateForm_UnderProTierLimit(t *testing.T) {
 		},
 	})
 
-	// User has 10 forms, pro tier allows 25
-	repo.EXPECT().CountFormsByUser(gomock.Any(), userID).Return(10, nil)
+	// User has 9 forms, pro tier allows 10
+	repo.EXPECT().CountFormsByUser(gomock.Any(), userID).Return(9, nil)
 	repo.EXPECT().CreateForm(gomock.Any(), gomock.Any()).Return(nil)
 	eventBus.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
 
