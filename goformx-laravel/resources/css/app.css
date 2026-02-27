@@ -216,8 +216,8 @@
     flex-shrink: 0;
     width: 200px;
     overflow-y: auto;
-    border-right: 1px solid hsl(var(--border));
-    background: hsl(var(--background));
+    border-right: 1px solid var(--border);
+    background: var(--background);
 }
 
 #form-schema-builder .builder-sidebar_scroll {

@@ -83,13 +83,18 @@ export function useFormBuilder(
 
     let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
     let sidebarObserver: MutationObserver | null = null;
+    let styleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let mouseEnterHandler: ((e: Event) => void) | null = null;
+    let mouseLeaveHandler: ((e: Event) => void) | null = null;
+    let observedContainer: HTMLElement | null = null;
 
     /**
-     * Apply styles to sidebar buttons via CSSOM to bypass Bootstrap's
-     * layered !important rules that override both CSS classes and inline styles.
+     * Apply inline !important styles to Form.io elements via element.style.setProperty().
+     * Bootstrap's stylesheet rules use !important within the formio cascade layer,
+     * which defeats normal CSS class overrides. Inline !important (set via JS)
+     * wins the cascade over stylesheet !important.
      */
     function styleFormioElements(root: HTMLElement) {
-        // Style sidebar buttons
         root.querySelectorAll<HTMLElement>('.gfx-sidebar-btn').forEach((btn) => {
             btn.style.setProperty('display', 'inline-flex', 'important');
             btn.style.setProperty('align-items', 'center', 'important');
@@ -106,55 +111,54 @@ export function useFormBuilder(
             btn.style.setProperty('cursor', 'grab', 'important');
         });
 
-        // Style drop zone
         root.querySelectorAll<HTMLElement>('.drag-and-drop-alert').forEach((zone) => {
             zone.style.setProperty('border', '2px dashed var(--border)', 'important');
-            zone.style.setProperty('border-radius', '0.75rem', 'important');
-            zone.style.setProperty('padding', '3rem 2rem', 'important');
-            zone.style.setProperty('text-align', 'center', 'important');
             zone.style.setProperty('color', 'var(--muted-foreground)', 'important');
             zone.style.setProperty('background', 'var(--muted)', 'important');
-            zone.style.setProperty('font-size', '0.875rem', 'important');
         });
 
-        // Style submit button
         root.querySelectorAll<HTMLElement>('.btn-primary').forEach((btn) => {
-            btn.style.setProperty('display', 'inline-flex', 'important');
-            btn.style.setProperty('align-items', 'center', 'important');
-            btn.style.setProperty('justify-content', 'center', 'important');
-            btn.style.setProperty('padding', '0.5rem 1rem', 'important');
-            btn.style.setProperty('font-size', '0.875rem', 'important');
-            btn.style.setProperty('font-weight', '500', 'important');
-            btn.style.setProperty('border-radius', '0.375rem', 'important');
             btn.style.setProperty('border', '1px solid var(--primary)', 'important');
             btn.style.setProperty('color', 'var(--primary-foreground)', 'important');
             btn.style.setProperty('background-color', 'var(--primary)', 'important');
-            btn.style.setProperty('cursor', 'pointer', 'important');
         });
     }
 
+    /**
+     * Watch for Form.io DOM mutations and re-apply custom styles.
+     * Also adds hover effects via event delegation since CSS :hover
+     * is overridden by the JS-applied inline styles.
+     */
     function observeSidebar(container: HTMLElement) {
-        // Hover effects via event delegation on the container
-        container.addEventListener('mouseenter', (e) => {
+        observedContainer = container;
+
+        mouseEnterHandler = (e: Event) => {
             const btn = (e.target as HTMLElement).closest?.('.gfx-sidebar-btn') as HTMLElement | null;
             if (btn) {
                 btn.style.setProperty('border-color', 'var(--foreground)', 'important');
                 btn.style.setProperty('background-color', 'var(--accent)', 'important');
             }
-        }, true);
-        container.addEventListener('mouseleave', (e) => {
+        };
+        mouseLeaveHandler = (e: Event) => {
             const btn = (e.target as HTMLElement).closest?.('.gfx-sidebar-btn') as HTMLElement | null;
             if (btn) {
                 btn.style.setProperty('border', '1px solid var(--border)', 'important');
                 btn.style.setProperty('background-color', 'var(--background)', 'important');
             }
-        }, true);
+        };
+
+        container.addEventListener('mouseenter', mouseEnterHandler, true);
+        container.addEventListener('mouseleave', mouseLeaveHandler, true);
 
         sidebarObserver = new MutationObserver(() => {
-            styleFormioElements(container);
+            if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
+            styleDebounceTimer = setTimeout(() => {
+                styleFormioElements(container);
+            }, 16);
         });
         sidebarObserver.observe(container, { childList: true, subtree: true });
-        // Initial pass
+
+        // Style elements already in the DOM before the observer starts watching
         styleFormioElements(container);
     }
 
@@ -331,7 +335,12 @@ export function useFormBuilder(
     });
 
     onUnmounted(() => {
+        if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
         sidebarObserver?.disconnect();
+        if (observedContainer) {
+            if (mouseEnterHandler) observedContainer.removeEventListener('mouseenter', mouseEnterHandler, true);
+            if (mouseLeaveHandler) observedContainer.removeEventListener('mouseleave', mouseLeaveHandler, true);
+        }
         if (builderInstance && typeof builderInstance.destroy === 'function') {
             builderInstance.destroy();
         }

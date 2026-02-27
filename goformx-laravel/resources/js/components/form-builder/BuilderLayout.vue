@@ -193,7 +193,7 @@ function toggleSettingsPanel() {
         max-height: 40vh;
         border-right: none;
         border-left: none;
-        border-bottom: 1px solid hsl(var(--border));
+        border-bottom: 1px solid var(--border);
     }
 
     .builder-canvas {
