@@ -35,6 +35,7 @@ Route::get('sitemap.xml', function (): Response {
         ['loc' => $appUrl.'/pricing', 'lastmod' => $lastmod],
         ['loc' => $appUrl.'/privacy', 'lastmod' => $lastmod],
         ['loc' => $appUrl.'/terms', 'lastmod' => $lastmod],
+        ['loc' => $appUrl.'/docs', 'lastmod' => $lastmod],
     ];
 
     $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n";
