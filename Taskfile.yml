@@ -75,6 +75,22 @@ tasks:
       - vendor/bin/pint --dirty --format agent
       - npm run lint
 
+  test:e2e:
+    desc: Seed DB and run Playwright E2E tests
+    dir: ./goformx-laravel
+    deps: [ddev:ensure]
+    cmds:
+      - ddev exec php artisan migrate:fresh --seed --seeder=E2eTestSeeder --no-interaction
+      - npx playwright test
+
+  test:e2e:ui:
+    desc: Seed DB and run Playwright E2E tests in UI mode
+    dir: ./goformx-laravel
+    deps: [ddev:ensure]
+    cmds:
+      - ddev exec php artisan migrate:fresh --seed --seeder=E2eTestSeeder --no-interaction
+      - npx playwright test --ui
+
   setup:
     desc: Full first-time setup (ddev, Go tools, deps, generate, migrate)
     cmds:
