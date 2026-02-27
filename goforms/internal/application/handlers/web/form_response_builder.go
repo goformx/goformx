@@ -67,13 +67,14 @@ func (b *FormResponseBuilderImpl) BuildFormResponse(c echo.Context, form *model.
 		Success: true,
 		Data: map[string]any{
 			"form": map[string]any{
-				"id":          form.ID,
-				"title":       form.Title,
-				"description": form.Description,
-				"status":      form.Status,
-				"schema":      form.Schema,
-				"created_at":  form.CreatedAt.Format(time.RFC3339),
-				"updated_at":  form.UpdatedAt.Format(time.RFC3339),
+				"id":           form.ID,
+				"title":        form.Title,
+				"description":  form.Description,
+				"status":       form.Status,
+				"schema":       form.Schema,
+				"cors_origins": form.CorsOrigins,
+				"created_at":   form.CreatedAt.Format(time.RFC3339),
+				"updated_at":   form.UpdatedAt.Format(time.RFC3339),
 			},
 		},
 	})

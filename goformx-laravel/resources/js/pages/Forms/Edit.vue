@@ -43,7 +43,7 @@ interface Form {
     title?: string;
     description?: string;
     status?: 'draft' | 'published' | 'archived';
-    corsOrigins?: string[];
+    cors_origins?: { origins?: string[] };
     [key: string]: unknown;
 }
 
@@ -63,7 +63,7 @@ const detailsForm = useForm({
     title: props.form.title ?? '',
     description: props.form.description ?? '',
     status: props.form.status ?? 'draft',
-    cors_origins: props.form.corsOrigins?.join(', ') ?? '',
+    cors_origins: props.form.cors_origins?.origins?.join(', ') ?? '',
 });
 
 const showSchemaModal = ref(false);
@@ -201,7 +201,6 @@ async function handleSave() {
     isSavingAll.value = true;
     try {
         await saveSchema();
-        toast.success('Form saved successfully');
     } catch (err) {
         const message =
             err instanceof Error ? err.message : 'Failed to save form';
@@ -217,9 +216,13 @@ function viewSchema() {
 
 watch(
     () => props.flash,
-    (flash) => {
-        if (flash?.success) toast.success(flash.success);
-        if (flash?.error) toast.error(flash.error);
+    (flash, oldFlash) => {
+        if (flash?.success && flash.success !== oldFlash?.success) {
+            toast.success(flash.success);
+        }
+        if (flash?.error && flash.error !== oldFlash?.error) {
+            toast.error(flash.error);
+        }
     },
     { immediate: true },
 );
