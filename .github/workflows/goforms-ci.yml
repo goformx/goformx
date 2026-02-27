@@ -170,7 +170,7 @@ jobs:
           task build:backend
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: goformx-binary
           path: |
