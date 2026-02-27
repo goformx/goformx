@@ -1,6 +1,7 @@
 @import 'bootstrap/dist/css/bootstrap.min.css' layer(formio);
 @import 'bootstrap-icons/font/bootstrap-icons.css' layer(formio);
 @import '@formio/js/dist/formio.full.css' layer(formio);
+@import './formio-overrides.css' layer(formio);
 
 @import 'tailwindcss';
 
@@ -8,6 +9,7 @@
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
+@source '../../node_modules/@goformx/formio/lib/**/*.js';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -193,3 +195,42 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Form.io builder layout */
+#form-schema-builder {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+}
+
+#form-schema-builder .formbuilder {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Sidebar container */
+#form-schema-builder .builder-sidebar {
+    flex-shrink: 0;
+    width: 200px;
+    overflow-y: auto;
+    border-right: 1px solid hsl(var(--border));
+    background: hsl(var(--background));
+}
+
+#form-schema-builder .builder-sidebar_scroll {
+    position: relative;
+    top: 0;
+    max-height: none;
+    overflow-y: visible;
+}
+
+/* Canvas area */
+#form-schema-builder .formio-builder-form {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+

@@ -82,6 +82,81 @@ export function useFormBuilder(
     let isSettingSchema = false;
 
     let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+    let sidebarObserver: MutationObserver | null = null;
+
+    /**
+     * Apply styles to sidebar buttons via CSSOM to bypass Bootstrap's
+     * layered !important rules that override both CSS classes and inline styles.
+     */
+    function styleFormioElements(root: HTMLElement) {
+        // Style sidebar buttons
+        root.querySelectorAll<HTMLElement>('.gfx-sidebar-btn').forEach((btn) => {
+            btn.style.setProperty('display', 'inline-flex', 'important');
+            btn.style.setProperty('align-items', 'center', 'important');
+            btn.style.setProperty('gap', '0.375rem', 'important');
+            btn.style.setProperty('padding', '0.375rem 0.75rem', 'important');
+            btn.style.setProperty('margin', '0', 'important');
+            btn.style.setProperty('font-size', '0.8125rem', 'important');
+            btn.style.setProperty('font-weight', '500', 'important');
+            btn.style.setProperty('line-height', '1.25', 'important');
+            btn.style.setProperty('border-radius', '0.375rem', 'important');
+            btn.style.setProperty('border', '1px solid var(--border)', 'important');
+            btn.style.setProperty('color', 'var(--foreground)', 'important');
+            btn.style.setProperty('background-color', 'var(--background)', 'important');
+            btn.style.setProperty('cursor', 'grab', 'important');
+        });
+
+        // Style drop zone
+        root.querySelectorAll<HTMLElement>('.drag-and-drop-alert').forEach((zone) => {
+            zone.style.setProperty('border', '2px dashed var(--border)', 'important');
+            zone.style.setProperty('border-radius', '0.75rem', 'important');
+            zone.style.setProperty('padding', '3rem 2rem', 'important');
+            zone.style.setProperty('text-align', 'center', 'important');
+            zone.style.setProperty('color', 'var(--muted-foreground)', 'important');
+            zone.style.setProperty('background', 'var(--muted)', 'important');
+            zone.style.setProperty('font-size', '0.875rem', 'important');
+        });
+
+        // Style submit button
+        root.querySelectorAll<HTMLElement>('.btn-primary').forEach((btn) => {
+            btn.style.setProperty('display', 'inline-flex', 'important');
+            btn.style.setProperty('align-items', 'center', 'important');
+            btn.style.setProperty('justify-content', 'center', 'important');
+            btn.style.setProperty('padding', '0.5rem 1rem', 'important');
+            btn.style.setProperty('font-size', '0.875rem', 'important');
+            btn.style.setProperty('font-weight', '500', 'important');
+            btn.style.setProperty('border-radius', '0.375rem', 'important');
+            btn.style.setProperty('border', '1px solid var(--primary)', 'important');
+            btn.style.setProperty('color', 'var(--primary-foreground)', 'important');
+            btn.style.setProperty('background-color', 'var(--primary)', 'important');
+            btn.style.setProperty('cursor', 'pointer', 'important');
+        });
+    }
+
+    function observeSidebar(container: HTMLElement) {
+        // Hover effects via event delegation on the container
+        container.addEventListener('mouseenter', (e) => {
+            const btn = (e.target as HTMLElement).closest?.('.gfx-sidebar-btn') as HTMLElement | null;
+            if (btn) {
+                btn.style.setProperty('border-color', 'var(--foreground)', 'important');
+                btn.style.setProperty('background-color', 'var(--accent)', 'important');
+            }
+        }, true);
+        container.addEventListener('mouseleave', (e) => {
+            const btn = (e.target as HTMLElement).closest?.('.gfx-sidebar-btn') as HTMLElement | null;
+            if (btn) {
+                btn.style.setProperty('border', '1px solid var(--border)', 'important');
+                btn.style.setProperty('background-color', 'var(--background)', 'important');
+            }
+        }, true);
+
+        sidebarObserver = new MutationObserver(() => {
+            styleFormioElements(container);
+        });
+        sidebarObserver.observe(container, { childList: true, subtree: true });
+        // Initial pass
+        styleFormioElements(container);
+    }
 
     async function initializeBuilder() {
         const container = document.getElementById(options.containerId);
@@ -192,6 +267,9 @@ export function useFormBuilder(
             // 1i: Push initial schema to history as baseline for undo
             pushHistory(schema.value);
 
+            // Style sidebar buttons via JS to bypass Bootstrap layer !important
+            observeSidebar(container);
+
             Logger.debug('Form.io builder initialized successfully');
         } catch (err) {
             Logger.error('Failed to initialize Form.io builder:', err);
@@ -253,6 +331,7 @@ export function useFormBuilder(
     });
 
     onUnmounted(() => {
+        sidebarObserver?.disconnect();
         if (builderInstance && typeof builderInstance.destroy === 'function') {
             builderInstance.destroy();
         }

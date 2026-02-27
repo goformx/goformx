@@ -177,7 +177,8 @@ function toggleSettingsPanel() {
 
 <style scoped>
 .builder-layout {
-    height: calc(100vh - 4rem);
+    flex: 1;
+    min-height: 0;
 }
 
 @media (max-width: 768px) {

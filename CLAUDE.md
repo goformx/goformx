@@ -9,9 +9,42 @@ GoFormX is a forms management platform organized as a monorepo with two services
 - **`goforms/`** — Go API backend (Echo, GORM, Uber FX). Owns the entire forms domain: CRUD, schema storage, submissions, public embed/submit. API-only, no UI.
 - **`goformx-laravel/`** — Laravel 12 + Vue 3 + Inertia v2 frontend. Handles identity (Fortify auth, 2FA), user dashboard, form builder UI (Form.io), and settings.
 
-- **`goformx-formio/`** — Git submodule (`goformx/formio`). Form.io wrapper library.
+- **`goformx-formio/`** — Git submodule (`goformx/formio`). Form.io template library providing Tailwind-based templates to replace Form.io's default Bootstrap templates.
 
 Each service has its own CLAUDE.md with detailed development instructions. Read those when working within a specific service.
+
+## Form.io Template Integration
+
+The `@goformx/formio` package provides custom Tailwind-styled templates for the Form.io builder and renderer. **Important development notes:**
+
+### Local Development Setup
+
+During development, link the local package to get template changes immediately:
+
+```bash
+cd goformx-formio && npm link
+cd goformx-laravel && npm link @goformx/formio
+```
+
+### Template Registration
+
+Templates are registered in `useFormBuilder.ts`:
+```typescript
+import { Formio } from '@formio/js';
+import goforms from '@goformx/formio';
+Formio.use(goforms);  // Registers 'goforms' framework templates
+```
+
+### CSS Requirements
+
+The goforms templates use Tailwind CSS variables and utilities. Because Tailwind v4's `@source` scanning may not fully resolve symlinked packages, explicit CSS overrides are needed in `app.css` for the builder sidebar components:
+
+```css
+/* Form.io sidebar components need explicit styling */
+#form-schema-builder .formcomponent { ... }
+```
+
+See `docs/solutions/2026-02-27-formio-builder-sidebar-visibility.md` for detailed troubleshooting.
 
 ## Development Environment
 
@@ -137,7 +170,8 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 - **FormController**, **DemoController**, **PublicFormController** — FormController catches `RequestException` from Go and maps status codes (422→validation, 404→not found, 5xx→flash message)
 - **Frontend**: Vue 3 pages in `resources/js/pages/`, layouts in `resources/js/layouts/`, shadcn-vue components
 - **Routes**: Wayfinder generates type-safe TypeScript route functions from Laravel routes (import from `@/actions/` or `@/routes/`)
-- **Form builder**: Form.io integration (`@goformx/formio` wrapper) in `Forms/Edit.vue`
+- **Form builder**: Form.io integration (`@goformx/formio` wrapper) in `Forms/Edit.vue`. Uses Tailwind-based templates from the goformx-formio package.
+- **CSS Layers**: Bootstrap CSS (required by Form.io) is imported in `layer(formio)` to give it lower specificity than Tailwind. Goal is to fully replace Bootstrap with Tailwind.
 
 ## Key Conventions
 
@@ -156,3 +190,13 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 - Use `config()` not `env()` outside config files
 - Pest for tests, Pint for formatting
 - Run `vendor/bin/pint --dirty --format agent` before finalizing changes
+
+### Frontend/CSS
+- Tailwind CSS v4 with `@tailwindcss/vite` plugin (config via CSS `@theme`, not tailwind.config.js)
+- shadcn-vue components in `resources/js/components/ui/`
+- CSS variables for theming: `--primary`, `--foreground`, `--background`, etc.
+- Form.io Bootstrap CSS isolated in `layer(formio)` — being migrated to Tailwind via goformx-formio templates
+
+## Troubleshooting Resources
+
+Solution documents for past issues are in `docs/solutions/`. Check these before debugging similar problems.
