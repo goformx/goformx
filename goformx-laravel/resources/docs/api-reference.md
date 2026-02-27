@@ -40,11 +40,11 @@ Content-Type: application/json
 
 ```json
 {
-  "data": {
-    "name": "Jane Doe",
-    "email": "jane@example.com",
-    "message": "Hello!"
-  }
+    "data": {
+        "name": "Jane Doe",
+        "email": "jane@example.com",
+        "message": "Hello!"
+    }
 }
 ```
 
@@ -52,19 +52,19 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "sub_xyz",
-  "form_id": "abc123",
-  "created_at": "2026-02-27T12:00:00Z"
+    "id": "sub_xyz",
+    "form_id": "abc123",
+    "created_at": "2026-02-27T12:00:00Z"
 }
 ```
 
 **Error responses**
 
-| Status | Meaning |
-|--------|---------|
-| `404`  | Form not found |
+| Status | Meaning                                            |
+| ------ | -------------------------------------------------- |
+| `404`  | Form not found                                     |
 | `422`  | Validation failed — response includes field errors |
-| `429`  | Rate limit exceeded — wait and retry |
+| `429`  | Rate limit exceeded — wait and retry               |
 
 ## Get embed HTML
 

@@ -43,7 +43,13 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Logger } from '@/lib/logger';
 import { dashboard } from '@/routes';
-import { index as formsIndex, submissions, embed, update, preview } from '@/routes/forms';
+import {
+    index as formsIndex,
+    submissions,
+    embed,
+    update,
+    preview,
+} from '@/routes/forms';
 import { type BreadcrumbItem } from '@/types';
 
 interface Form {
@@ -127,7 +133,9 @@ const {
                     onSuccess: () => resolve(),
                     onError: (errors) => {
                         const errorMessages = Object.values(errors).join('. ');
-                        reject(new Error(errorMessages || 'Failed to save form'));
+                        reject(
+                            new Error(errorMessages || 'Failed to save form'),
+                        );
                     },
                 },
             );
@@ -224,8 +232,12 @@ watch(showInPlacePreview, async (isPreview) => {
         await nextTick();
         const container = document.getElementById('edit-inplace-preview');
         if (!container) {
-            toast.error('Preview container could not be found. Please try again.');
-            Logger.error('Preview container #edit-inplace-preview not found after nextTick');
+            toast.error(
+                'Preview container could not be found. Please try again.',
+            );
+            Logger.error(
+                'Preview container #edit-inplace-preview not found after nextTick',
+            );
             return;
         }
         const schema = getSchema();
@@ -245,7 +257,9 @@ watch(showInPlacePreview, async (isPreview) => {
             );
         } catch (err) {
             Logger.error('Failed to create Form.io preview:', err);
-            toast.error('Failed to load preview. Try switching back to the builder and trying again.');
+            toast.error(
+                'Failed to load preview. Try switching back to the builder and trying again.',
+            );
         }
     } else {
         if (inPlacePreviewInstance?.destroy) {
@@ -389,7 +403,10 @@ const breadcrumbs: BreadcrumbItem[] = [
                 :show-settings-panel="!!selectedField"
             >
                 <template #header>
-                    <Collapsible v-model:open="isSettingsOpen" class="border-b px-4 py-2">
+                    <Collapsible
+                        v-model:open="isSettingsOpen"
+                        class="border-b px-4 py-2"
+                    >
                         <div class="flex items-center gap-2">
                             <Input
                                 id="title"
@@ -400,12 +417,18 @@ const breadcrumbs: BreadcrumbItem[] = [
                                 class="h-8 max-w-xs border-transparent bg-transparent text-sm font-medium hover:border-input focus:border-input"
                             />
                             <CollapsibleTrigger as-child>
-                                <Button variant="ghost" size="sm" class="h-7 gap-1 text-xs text-muted-foreground">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    class="h-7 gap-1 text-xs text-muted-foreground"
+                                >
                                     <Settings2 class="h-3.5 w-3.5" />
                                     Settings
                                     <ChevronDown
                                         class="h-3 w-3 transition-transform"
-                                        :class="{ 'rotate-180': isSettingsOpen }"
+                                        :class="{
+                                            'rotate-180': isSettingsOpen,
+                                        }"
                                     />
                                 </Button>
                             </CollapsibleTrigger>
@@ -413,19 +436,31 @@ const breadcrumbs: BreadcrumbItem[] = [
                         <CollapsibleContent class="mt-2 space-y-2 pb-1">
                             <div class="grid grid-cols-3 gap-3">
                                 <div class="space-y-1">
-                                    <Label for="status" class="text-xs text-muted-foreground">Status</Label>
+                                    <Label
+                                        for="status"
+                                        class="text-xs text-muted-foreground"
+                                        >Status</Label
+                                    >
                                     <select
                                         id="status"
                                         v-model="detailsForm.status"
                                         class="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
                                     >
                                         <option value="draft">Draft</option>
-                                        <option value="published">Published</option>
-                                        <option value="archived">Archived</option>
+                                        <option value="published">
+                                            Published
+                                        </option>
+                                        <option value="archived">
+                                            Archived
+                                        </option>
                                     </select>
                                 </div>
                                 <div class="space-y-1">
-                                    <Label for="description" class="text-xs text-muted-foreground">Description</Label>
+                                    <Label
+                                        for="description"
+                                        class="text-xs text-muted-foreground"
+                                        >Description</Label
+                                    >
                                     <Input
                                         id="description"
                                         v-model="detailsForm.description"
@@ -435,7 +470,11 @@ const breadcrumbs: BreadcrumbItem[] = [
                                     />
                                 </div>
                                 <div class="space-y-1">
-                                    <Label for="corsOrigins" class="text-xs text-muted-foreground">CORS Origins</Label>
+                                    <Label
+                                        for="corsOrigins"
+                                        class="text-xs text-muted-foreground"
+                                        >CORS Origins</Label
+                                    >
                                     <Input
                                         id="corsOrigins"
                                         v-model="detailsForm.cors_origins"

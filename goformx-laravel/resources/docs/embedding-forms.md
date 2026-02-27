@@ -23,11 +23,11 @@ Add this HTML to your page:
 
 ```html
 <iframe
-  src="https://goformx.com/forms/{form-id}/embed"
-  width="100%"
-  height="600"
-  frameborder="0"
-  style="border: none;"
+    src="https://goformx.com/forms/{form-id}/embed"
+    width="100%"
+    height="600"
+    frameborder="0"
+    style="border: none;"
 ></iframe>
 ```
 

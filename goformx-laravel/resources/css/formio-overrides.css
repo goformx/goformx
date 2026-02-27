@@ -45,7 +45,11 @@
 .formio-dialog.component-settings .formio-dialog-overlay {
     position: fixed !important;
     inset: 0 !important;
-    background-color: color-mix(in srgb, var(--foreground) 50%, transparent) !important;
+    background-color: color-mix(
+        in srgb,
+        var(--foreground) 50%,
+        transparent
+    ) !important;
 }
 
 /* Dialog content panel */

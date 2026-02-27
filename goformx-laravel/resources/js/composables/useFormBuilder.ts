@@ -97,19 +97,19 @@ export function useFormBuilder(
 
     // Base styles for sidebar buttons — shared between styleFormioElements and hover handlers
     const sidebarBtnBaseStyles: Record<string, string> = {
-        'display': 'inline-flex',
+        display: 'inline-flex',
         'align-items': 'center',
-        'gap': '0.375rem',
-        'padding': '0.375rem 0.75rem',
-        'margin': '0',
+        gap: '0.375rem',
+        padding: '0.375rem 0.75rem',
+        margin: '0',
         'font-size': '0.8125rem',
         'font-weight': '500',
         'line-height': '1.25',
         'border-radius': '0.375rem',
-        'border': '1px solid var(--border)',
-        'color': 'var(--foreground)',
+        border: '1px solid var(--border)',
+        color: 'var(--foreground)',
         'background-color': 'var(--background)',
-        'cursor': 'grab',
+        cursor: 'grab',
     };
 
     /**
@@ -119,23 +119,27 @@ export function useFormBuilder(
      * wins the cascade over stylesheet !important.
      */
     function styleFormioElements(root: HTMLElement) {
-        root.querySelectorAll<HTMLElement>('.gfx-sidebar-btn').forEach((btn) => {
-            applyStyles(btn, sidebarBtnBaseStyles);
-        });
+        root.querySelectorAll<HTMLElement>('.gfx-sidebar-btn').forEach(
+            (btn) => {
+                applyStyles(btn, sidebarBtnBaseStyles);
+            },
+        );
 
-        root.querySelectorAll<HTMLElement>('.drag-and-drop-alert').forEach((zone) => {
-            applyStyles(zone, {
-                'border': '2px dashed var(--border)',
-                'color': 'var(--muted-foreground)',
-                'background': 'var(--muted)',
-            });
-        });
+        root.querySelectorAll<HTMLElement>('.drag-and-drop-alert').forEach(
+            (zone) => {
+                applyStyles(zone, {
+                    border: '2px dashed var(--border)',
+                    color: 'var(--muted-foreground)',
+                    background: 'var(--muted)',
+                });
+            },
+        );
 
         // Color properties only — layout properties for .btn-primary are handled by formio-overrides.css
         root.querySelectorAll<HTMLElement>('.btn-primary').forEach((btn) => {
             applyStyles(btn, {
-                'border': '1px solid var(--primary)',
-                'color': 'var(--primary-foreground)',
+                border: '1px solid var(--primary)',
+                color: 'var(--primary-foreground)',
                 'background-color': 'var(--primary)',
             });
         });
@@ -153,19 +157,39 @@ export function useFormBuilder(
         mouseEnterHandler = (e: Event) => {
             const target = e.target;
             if (!(target instanceof Element)) return;
-            const btn = target.closest('.gfx-sidebar-btn') as HTMLElement | null;
+            const btn = target.closest(
+                '.gfx-sidebar-btn',
+            ) as HTMLElement | null;
             if (btn) {
-                btn.style.setProperty('border', '1px solid var(--foreground)', 'important');
-                btn.style.setProperty('background-color', 'var(--accent)', 'important');
+                btn.style.setProperty(
+                    'border',
+                    '1px solid var(--foreground)',
+                    'important',
+                );
+                btn.style.setProperty(
+                    'background-color',
+                    'var(--accent)',
+                    'important',
+                );
             }
         };
         mouseLeaveHandler = (e: Event) => {
             const target = e.target;
             if (!(target instanceof Element)) return;
-            const btn = target.closest('.gfx-sidebar-btn') as HTMLElement | null;
+            const btn = target.closest(
+                '.gfx-sidebar-btn',
+            ) as HTMLElement | null;
             if (btn) {
-                btn.style.setProperty('border', '1px solid var(--border)', 'important');
-                btn.style.setProperty('background-color', 'var(--background)', 'important');
+                btn.style.setProperty(
+                    'border',
+                    '1px solid var(--border)',
+                    'important',
+                );
+                btn.style.setProperty(
+                    'background-color',
+                    'var(--background)',
+                    'important',
+                );
             }
         };
 
@@ -181,7 +205,10 @@ export function useFormBuilder(
                     isApplyingStyles = true;
                     styleFormioElements(container);
                 } catch (err) {
-                    Logger.error('Failed to re-apply Form.io sidebar styles:', err);
+                    Logger.error(
+                        'Failed to re-apply Form.io sidebar styles:',
+                        err,
+                    );
                 } finally {
                     isApplyingStyles = false;
                 }
@@ -266,9 +293,14 @@ export function useFormBuilder(
             // per CSS Cascade Level 5, so the mirror stays visible and blocks
             // elementFromPoint() from finding the actual drop target.
             const instance = builderInstance!;
-            const bi = instance as typeof instance & { dragula?: {
-                on: (event: string, callback: (...args: unknown[]) => void) => void;
-            } };
+            const bi = instance as typeof instance & {
+                dragula?: {
+                    on: (
+                        event: string,
+                        callback: (...args: unknown[]) => void,
+                    ) => void;
+                };
+            };
             if (bi.dragula) {
                 bi.dragula.on('cloned', (mirror: unknown) => {
                     if (!(mirror instanceof HTMLElement)) return;
@@ -278,18 +310,15 @@ export function useFormBuilder(
                 });
             }
 
-            instance.on(
-                'change',
-                (newSchema: unknown, flags: unknown) => {
-                    // Ignore programmatic changes (from setSchema/builder.form assignment)
-                    if (flags || isSettingSchema) return;
-                    const s = newSchema as FormSchema;
-                    schema.value = s;
-                    pushHistory(s);
-                    markDirty();
-                    options.onSchemaChange?.(s);
-                },
-            );
+            instance.on('change', (newSchema: unknown, flags: unknown) => {
+                // Ignore programmatic changes (from setSchema/builder.form assignment)
+                if (flags || isSettingSchema) return;
+                const s = newSchema as FormSchema;
+                schema.value = s;
+                pushHistory(s);
+                markDirty();
+                options.onSchemaChange?.(s);
+            });
 
             instance.on('editComponent', (component: unknown) => {
                 const comp = component as FormComponent;
@@ -307,10 +336,7 @@ export function useFormBuilder(
 
             instance.on('removeComponent', (component: unknown) => {
                 const comp = component as FormComponent;
-                if (
-                    selectedField.value &&
-                    comp.key === selectedField.value
-                ) {
+                if (selectedField.value && comp.key === selectedField.value) {
                     selectField(null);
                 }
             });
@@ -323,7 +349,8 @@ export function useFormBuilder(
 
             Logger.debug('Form.io builder initialized successfully');
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Unknown error';
+            const message =
+                err instanceof Error ? err.message : 'Unknown error';
             Logger.error('Failed to initialize Form.io builder:', err);
             error.value = `Failed to initialize form builder: ${message}`;
         } finally {
@@ -389,8 +416,18 @@ export function useFormBuilder(
         if (styleDebounceTimer) clearTimeout(styleDebounceTimer);
         sidebarObserver?.disconnect();
         if (observedContainer) {
-            if (mouseEnterHandler) observedContainer.removeEventListener('mouseenter', mouseEnterHandler, true);
-            if (mouseLeaveHandler) observedContainer.removeEventListener('mouseleave', mouseLeaveHandler, true);
+            if (mouseEnterHandler)
+                observedContainer.removeEventListener(
+                    'mouseenter',
+                    mouseEnterHandler,
+                    true,
+                );
+            if (mouseLeaveHandler)
+                observedContainer.removeEventListener(
+                    'mouseleave',
+                    mouseLeaveHandler,
+                    true,
+                );
         }
         if (autoSaveTimeout) {
             clearTimeout(autoSaveTimeout);
