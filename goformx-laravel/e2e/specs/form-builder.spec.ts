@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth';
+import { deleteAllForms } from '../helpers/forms';
 
 test.describe('Form builder', () => {
     let formEditUrl: string;
@@ -13,6 +14,16 @@ test.describe('Form builder', () => {
         await page.getByRole('button', { name: /New form/i }).click();
         await page.waitForURL(/\/forms\/.*\/edit/);
         formEditUrl = new URL(page.url()).pathname;
+        await context.close();
+    });
+
+    test.afterAll(async ({ browser }) => {
+        const context = await browser.newContext({
+            storageState: 'e2e/.auth/user.json',
+            ignoreHTTPSErrors: true,
+        });
+        const page = await context.newPage();
+        await deleteAllForms(page);
         await context.close();
     });
 

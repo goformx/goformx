@@ -1,6 +1,17 @@
 import { test, expect } from '../fixtures/auth';
+import { deleteAllForms } from '../helpers/forms';
 
 test.describe('Forms CRUD', () => {
+    test.afterAll(async ({ browser }) => {
+        const context = await browser.newContext({
+            storageState: 'e2e/.auth/user.json',
+            ignoreHTTPSErrors: true,
+        });
+        const page = await context.newPage();
+        await deleteAllForms(page);
+        await context.close();
+    });
+
     test('forms index loads', async ({ authenticatedPage: page }) => {
         await page.goto('/forms');
         await expect(page).toHaveTitle(/Forms/);

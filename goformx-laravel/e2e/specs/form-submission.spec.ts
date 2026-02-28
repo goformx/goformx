@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures/auth';
+import { deleteAllForms } from '../helpers/forms';
 
 test.describe('Form submission', () => {
     let formId: string;
@@ -21,6 +22,16 @@ test.describe('Form submission', () => {
             );
         }
         formId = match[1];
+        await context.close();
+    });
+
+    test.afterAll(async ({ browser }) => {
+        const context = await browser.newContext({
+            storageState: 'e2e/.auth/user.json',
+            ignoreHTTPSErrors: true,
+        });
+        const page = await context.newPage();
+        await deleteAllForms(page);
         await context.close();
     });
 

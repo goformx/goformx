@@ -1,4 +1,5 @@
 import { chromium, type FullConfig } from '@playwright/test';
+import { deleteAllForms } from './helpers/forms';
 import { TEST_USER } from './helpers/test-user';
 
 async function globalSetup(config: FullConfig) {
@@ -40,6 +41,9 @@ async function globalSetup(config: FullConfig) {
         }
 
         await context.storageState({ path: 'e2e/.auth/user.json' });
+
+        // Clean up stale forms from previous runs to avoid hitting plan limits
+        await deleteAllForms(page, baseURL);
     } finally {
         await browser.close();
     }
