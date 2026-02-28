@@ -38,7 +38,7 @@
     },
     "dependencies": {
         "@formio/js": "^5.1.1",
-        "@goformx/formio": "^0.1.4",
+        "@goformx/formio": "^0.2.1",
         "@inertiajs/vue3": "^2.3.7",
         "@tailwindcss/typography": "^0.5.19",
         "@vueuse/core": "^14.2.1",
