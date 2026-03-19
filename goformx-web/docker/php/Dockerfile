@@ -13,6 +13,9 @@ WORKDIR /app
 # Nginx config
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
+# Allow PHP-FPM to inherit Docker env vars
+RUN echo "clear_env = no" >> /usr/local/etc/php-fpm.d/www.conf
+
 # Supervisor config
 COPY supervisord.conf /etc/supervisord.conf
 
