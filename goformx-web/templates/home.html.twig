@@ -1,20 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>GoFormX</title>
-    <style>
-        body { font-family: system-ui, sans-serif; max-width: 800px; margin: 4rem auto; padding: 0 1rem; color: #1a1a1a; }
-        h1 { font-size: 2rem; margin-bottom: 0.5rem; }
-        p { color: #666; line-height: 1.6; }
-        a { color: #2563eb; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-    </style>
-</head>
-<body>
-    <h1>GoFormX</h1>
-    <p>Forms management platform — powered by <a href="https://github.com/waaseyaa">Waaseyaa</a>.</p>
-    <p><a href="/login">Sign in</a> | <a href="/register">Create account</a></p>
-</body>
-</html>
+{% extends "layout.html.twig" %}
+
+{% block title %}GoFormX — Forms Management Platform{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 4rem 0;">
+    <h1 style="font-size: 2.5rem; font-weight: 800; margin-bottom: 1rem;">Build forms. Collect submissions.<br>Ship faster.</h1>
+    <p style="font-size: 1.125rem; color: #6b7280; max-width: 600px; margin: 0 auto 2rem;">
+        GoFormX makes it easy to create, embed, and manage forms for your website or application.
+    </p>
+    <a href="/register" class="btn btn-primary" style="padding: 0.75rem 2rem; font-size: 1rem;">Get started free</a>
+</div>
+{% endblock %}
