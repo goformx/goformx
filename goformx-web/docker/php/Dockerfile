@@ -14,8 +14,8 @@ WORKDIR /app
 COPY nginx.conf /etc/nginx/http.d/default.conf
 
 # Supervisor config
-RUN printf "[supervisord]\nnodaemon=true\n\n[program:php-fpm]\ncommand=php-fpm\n\n[program:nginx]\ncommand=nginx -g 'daemon off;'\n" > /etc/supervisor/conf.d/supervisord.conf
+COPY supervisord.conf /etc/supervisord.conf
 
 EXPOSE 80
 
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["supervisord", "-c", "/etc/supervisord.conf"]
