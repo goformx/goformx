@@ -1,14 +1,83 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-defineProps<{ forms: Array<{ id: string; title: string }> }>();
+import { Head, router } from '@inertiajs/vue3';
+import { Plus } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import FormCard from '@/components/FormCard.vue';
+import { Button } from '@/components/ui/button';
+import AppLayout from '@/layouts/AppLayout.vue';
+import { type BreadcrumbItem } from '@/types';
+
+interface Form {
+    id?: string;
+    ID?: string;
+    title?: string;
+    description?: string;
+    status?: string;
+    updated_at?: string;
+    [key: string]: unknown;
+}
+
+interface Props {
+    forms: Form[] | { forms: Form[] };
+}
+
+const props = defineProps<Props>();
+
+const formList = computed(() => {
+    const f = props.forms;
+    return Array.isArray(f) ? f : (f?.forms ?? []);
+});
+
+const breadcrumbs: BreadcrumbItem[] = [
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Forms', href: '/forms' },
+];
+
+const isCreating = ref(false);
+
+function createForm() {
+    if (isCreating.value) return;
+    isCreating.value = true;
+    router.post(
+        '/forms',
+        { title: 'Untitled Form' },
+        {
+            preserveScroll: true,
+            onFinish: () => {
+                isCreating.value = false;
+            },
+        },
+    );
+}
 </script>
+
 <template>
     <Head title="Forms" />
-    <div class="p-6">
-        <h1 class="text-2xl font-bold">Your Forms</h1>
-        <div v-if="forms.length === 0" class="mt-4 text-muted-foreground">No forms yet.</div>
-        <ul v-else class="mt-4 space-y-2">
-            <li v-for="form in forms" :key="form.id">{{ form.title }}</li>
-        </ul>
-    </div>
+
+    <AppLayout :breadcrumbs="breadcrumbs">
+        <div
+            class="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4"
+        >
+            <div class="flex items-center justify-between">
+                <h1 class="text-xl font-semibold">Forms</h1>
+                <Button :disabled="isCreating" @click="createForm">
+                    <Plus class="size-4" />
+                    New form
+                </Button>
+            </div>
+            <div
+                v-if="formList.length === 0"
+                class="rounded-xl border border-sidebar-border/70 p-8 text-center text-muted-foreground"
+            >
+                No forms yet.
+            </div>
+            <div v-else class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <FormCard
+                    v-for="form in formList"
+                    :key="form.id ?? form.ID"
+                    :form="form"
+                />
+            </div>
+        </div>
+    </AppLayout>
 </template>
