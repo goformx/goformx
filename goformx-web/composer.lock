@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "febbb8a3a41ab2bca781e61de44a6b17",
+    "content-hash": "b035150ca9dcd5e5be78147d189175d1",
     "packages": [
         {
             "name": "doctrine/dbal",
@@ -990,6 +990,65 @@
                 "source": "https://github.com/ralouphie/getallheaders/tree/develop"
             },
             "time": "2019-03-08T08:55:37+00:00"
+        },
+        {
+            "name": "stripe/stripe-php",
+            "version": "v16.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/stripe/stripe-php.git",
+                "reference": "d6de0a536f00b5c5c74f36b8f4d0d93b035499ff"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/stripe/stripe-php/zipball/d6de0a536f00b5c5c74f36b8f4d0d93b035499ff",
+                "reference": "d6de0a536f00b5c5c74f36b8f4d0d93b035499ff",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "php": ">=5.6.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "3.5.0",
+                "phpstan/phpstan": "^1.2",
+                "phpunit/phpunit": "^5.7 || ^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "2.0-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Stripe\\": "lib/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Stripe and contributors",
+                    "homepage": "https://github.com/stripe/stripe-php/contributors"
+                }
+            ],
+            "description": "Stripe PHP Library",
+            "homepage": "https://stripe.com/",
+            "keywords": [
+                "api",
+                "payment processing",
+                "stripe"
+            ],
+            "support": {
+                "issues": "https://github.com/stripe/stripe-php/issues",
+                "source": "https://github.com/stripe/stripe-php/tree/v16.6.0"
+            },
+            "time": "2025-02-24T22:35:29+00:00"
         },
         {
             "name": "symfony/clock",
@@ -2609,6 +2668,107 @@
             "time": "2026-03-16T21:50:01+00:00"
         },
         {
+            "name": "waaseyaa/auth",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/waaseyaa/auth.git",
+                "reference": "c06289f5808ccdd3a2d15f16fba676847017bca1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/waaseyaa/auth/zipball/c06289f5808ccdd3a2d15f16fba676847017bca1",
+                "reference": "c06289f5808ccdd3a2d15f16fba676847017bca1",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/foundation": "@dev",
+                "waaseyaa/mail": "@dev",
+                "waaseyaa/user": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Auth\\AuthServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Auth\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Headless authentication for Waaseyaa — login, registration, 2FA, password reset",
+            "support": {
+                "issues": "https://github.com/waaseyaa/auth/issues",
+                "source": "https://github.com/waaseyaa/auth/tree/v0.1.0-alpha.30"
+            },
+            "time": "2026-03-19T20:14:59+00:00"
+        },
+        {
+            "name": "waaseyaa/billing",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/waaseyaa/billing.git",
+                "reference": "4627a859a74ba5af38a0b250363947a182017759"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/waaseyaa/billing/zipball/4627a859a74ba5af38a0b250363947a182017759",
+                "reference": "4627a859a74ba5af38a0b250363947a182017759",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4",
+                "stripe/stripe-php": "^16.0",
+                "waaseyaa/foundation": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Billing\\BillingServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Billing\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Stripe billing for Waaseyaa — subscriptions, checkout, portal, plan tiers",
+            "support": {
+                "issues": "https://github.com/waaseyaa/billing/issues",
+                "source": "https://github.com/waaseyaa/billing/tree/v0.1.0-alpha.30"
+            },
+            "time": "2026-03-19T20:24:38+00:00"
+        },
+        {
             "name": "waaseyaa/cache",
             "version": "dev-main",
             "source": {
@@ -2705,6 +2865,51 @@
             "time": "2026-03-16T21:50:01+00:00"
         },
         {
+            "name": "waaseyaa/database-legacy",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/waaseyaa/database-legacy.git",
+                "reference": "463c7031f852be7d714b19baa3bb08edda492bd2"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/waaseyaa/database-legacy/zipball/463c7031f852be7d714b19baa3bb08edda492bd2",
+                "reference": "463c7031f852be7d714b19baa3bb08edda492bd2",
+                "shasum": ""
+            },
+            "require": {
+                "doctrine/dbal": "^4.0",
+                "php": ">=8.4"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Database\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Database adapter wrapping Drupal DBAL. Interim until Doctrine migration.",
+            "support": {
+                "issues": "https://github.com/waaseyaa/database-legacy/issues",
+                "source": "https://github.com/waaseyaa/database-legacy/tree/v0.1.0-alpha.25"
+            },
+            "time": "2026-03-19T11:48:24+00:00"
+        },
+        {
             "name": "waaseyaa/entity",
             "version": "dev-main",
             "source": {
@@ -2756,6 +2961,55 @@
                 "source": "https://github.com/waaseyaa/entity/tree/v0.1.0-alpha.21"
             },
             "time": "2026-03-18T16:06:13+00:00"
+        },
+        {
+            "name": "waaseyaa/entity-storage",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/waaseyaa/entity-storage.git",
+                "reference": "4af8de6213b46a47ec7fd40172a7f5399642d761"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/waaseyaa/entity-storage/zipball/4af8de6213b46a47ec7fd40172a7f5399642d761",
+                "reference": "4af8de6213b46a47ec7fd40172a7f5399642d761",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4",
+                "symfony/event-dispatcher": "^7.3",
+                "waaseyaa/cache": "^0.1",
+                "waaseyaa/database-legacy": "^0.1",
+                "waaseyaa/entity": "^0.1",
+                "waaseyaa/field": "^0.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\EntityStorage\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Pluggable entity persistence. v0.1.0: SQL storage behind clean interfaces.",
+            "support": {
+                "issues": "https://github.com/waaseyaa/entity-storage/issues",
+                "source": "https://github.com/waaseyaa/entity-storage/tree/v0.1.0-alpha.21"
+            },
+            "time": "2026-03-18T23:44:26+00:00"
         },
         {
             "name": "waaseyaa/field",
@@ -2896,6 +3150,104 @@
             "support": {
                 "issues": "https://github.com/waaseyaa/i18n/issues",
                 "source": "https://github.com/waaseyaa/i18n/tree/v0.1.0-alpha.30"
+            },
+            "time": "2026-03-16T21:50:01+00:00"
+        },
+        {
+            "name": "waaseyaa/inertia",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/waaseyaa/inertia.git",
+                "reference": "b7b215763d55049ce3ea674851faa1859a9688f6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/waaseyaa/inertia/zipball/b7b215763d55049ce3ea674851faa1859a9688f6",
+                "reference": "b7b215763d55049ce3ea674851faa1859a9688f6",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/foundation": "@dev"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "waaseyaa": {
+                    "providers": [
+                        "Waaseyaa\\Inertia\\InertiaServiceProvider"
+                    ]
+                },
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Inertia\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Server-side Inertia.js v3 protocol adapter for Waaseyaa",
+            "support": {
+                "issues": "https://github.com/waaseyaa/inertia/issues",
+                "source": "https://github.com/waaseyaa/inertia/tree/v0.1.0-alpha.28"
+            },
+            "time": "2026-03-19T18:56:00+00:00"
+        },
+        {
+            "name": "waaseyaa/mail",
+            "version": "dev-main",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/waaseyaa/mail.git",
+                "reference": "45ca1165261e0c7ae8ec13dd481bff8167da3720"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/waaseyaa/mail/zipball/45ca1165261e0c7ae8ec13dd481bff8167da3720",
+                "reference": "45ca1165261e0c7ae8ec13dd481bff8167da3720",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4",
+                "waaseyaa/foundation": "^0.1"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^10.5",
+                "twig/twig": "^3.0"
+            },
+            "suggest": {
+                "twig/twig": "Required for TwigMailRenderer template support"
+            },
+            "default-branch": true,
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "0.1.x-dev",
+                    "dev-develop/v1.1": "0.1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Waaseyaa\\Mail\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "GPL-2.0-or-later"
+            ],
+            "description": "Transport-agnostic mail API for Waaseyaa",
+            "support": {
+                "issues": "https://github.com/waaseyaa/mail/issues",
+                "source": "https://github.com/waaseyaa/mail/tree/v0.1.0-alpha.10"
             },
             "time": "2026-03-16T21:50:01+00:00"
         },
@@ -4913,11 +5265,17 @@
     "minimum-stability": "dev",
     "stability-flags": {
         "waaseyaa/access": 20,
+        "waaseyaa/auth": 20,
+        "waaseyaa/billing": 20,
         "waaseyaa/cache": 20,
         "waaseyaa/config": 20,
+        "waaseyaa/database-legacy": 20,
         "waaseyaa/entity": 20,
+        "waaseyaa/entity-storage": 20,
         "waaseyaa/field": 20,
         "waaseyaa/foundation": 20,
+        "waaseyaa/inertia": 20,
+        "waaseyaa/mail": 20,
         "waaseyaa/plugin": 20,
         "waaseyaa/routing": 20,
         "waaseyaa/ssr": 20,

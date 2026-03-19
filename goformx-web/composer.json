@@ -17,18 +17,16 @@
         "waaseyaa/typed-data": "0.1.x-dev",
         "waaseyaa/validation": "0.1.x-dev",
         "waaseyaa/field": "0.1.x-dev",
+        "waaseyaa/auth": "0.1.x-dev",
+        "waaseyaa/billing": "0.1.x-dev",
+        "waaseyaa/inertia": "0.1.x-dev",
+        "waaseyaa/entity-storage": "0.1.x-dev",
+        "waaseyaa/mail": "0.1.x-dev",
+        "waaseyaa/database-legacy": "0.1.x-dev",
         "guzzlehttp/guzzle": "^7.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5"
-    },
-    "suggest": {
-        "waaseyaa/auth": "Authentication — not yet published (0.1.x-dev)",
-        "waaseyaa/billing": "Stripe billing — not yet published (0.1.x-dev)",
-        "waaseyaa/inertia": "Inertia v3 SSR — not yet published (0.1.x-dev)",
-        "waaseyaa/entity-storage": "Entity storage — not yet published (0.1.x-dev)",
-        "waaseyaa/mail": "Mail system — not yet published (0.1.x-dev)",
-        "waaseyaa/database-legacy": "Database legacy — not yet published (0.1.x-dev)"
     },
     "autoload": {
         "psr-4": {
