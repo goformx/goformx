@@ -32,8 +32,8 @@ final class InertiaRenderer
             JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE,
         );
 
-        // Inertia v3 reads page data from the data-page attribute on the #app element
-        $dataPage = $this->escapeHtml($json);
+        // Inertia v3 reads page data from: <script data-page="app" type="application/json">
+        $pageScript = '<script data-page="app" type="application/json">' . $json . '</script>';
 
         if ($this->isDev) {
             $assetTags = <<<HTML
@@ -54,7 +54,8 @@ final class InertiaRenderer
             {$assetTags}
         </head>
         <body class="font-sans antialiased">
-            <div id="app" data-page="{$dataPage}"></div>
+            <div id="app"></div>
+            {$pageScript}
         </body>
         </html>
         HTML;
