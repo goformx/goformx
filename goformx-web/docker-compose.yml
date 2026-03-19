@@ -1,0 +1,64 @@
+services:
+  web:
+    build:
+      context: ./docker/php
+    volumes:
+      - .:/app
+    ports:
+      - "8080:80"
+    depends_on:
+      - mariadb
+    environment:
+      - APP_ENV=local
+      - APP_URL=http://localhost:8080
+      - APP_SECRET=local-dev-secret-change-in-production
+      - GOFORMS_API_URL=http://goforms:8090
+      - GOFORMS_SHARED_SECRET=${GOFORMS_SHARED_SECRET:-}
+      - GOFORMS_PUBLIC_URL=http://localhost:8091
+      - STRIPE_KEY=${STRIPE_KEY:-}
+      - STRIPE_SECRET=${STRIPE_SECRET:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+
+  mariadb:
+    image: mariadb:11.8
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MARIADB_DATABASE: goformx
+      MARIADB_USER: goformx
+      MARIADB_PASSWORD: goformx
+      MARIADB_ROOT_PASSWORD: root
+
+  goforms:
+    build:
+      context: ../goforms
+      dockerfile: Dockerfile
+    ports:
+      - "8091:8090"
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://goforms:goforms@postgres:5432/goforms?sslmode=disable
+
+  postgres:
+    image: postgres:17
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: goforms
+      POSTGRES_USER: goforms
+      POSTGRES_PASSWORD: goforms
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+volumes:
+  mariadb_data:
+  postgres_data:
