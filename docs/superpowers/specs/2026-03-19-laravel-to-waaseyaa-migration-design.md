@@ -137,6 +137,12 @@ Server-side Inertia v3 protocol adapter for Waaseyaa.
 
 **Client-side:** Uses official `@inertiajs/vue3@^3.0.0-beta` and `@inertiajs/vite@^3.0.0-beta` packages.
 
+**Inertia v3 Beta Risk Mitigation:**
+- The `waaseyaa/inertia` server-side adapter implements the Inertia protocol, which is stable and well-documented. If v3 has breaking changes before stable release, the adapter can be adjusted without affecting app code.
+- The Vue pages themselves are standard Vue 3 components — the Inertia dependency is a thin layer.
+- Fallback: if v3 proves unstable, the adapter can target v2 protocol instead. The protocol differences are additive (deferred props, merge props, etc.) — removing them is straightforward.
+- Track the `inertiajs/inertia` releases and pin to a known-good beta tag rather than floating `^3.0.0-beta`.
+
 ## Entity System & Data Model
 
 ### User Entity (Waaseyaa content entity)
@@ -196,6 +202,8 @@ Reimplemented as a Waaseyaa service. Same signature format, same headers. Go API
 - Headers: `X-User-Id`, `X-Timestamp`, `X-Signature`, `X-Plan-Tier`
 - Shared secret: `GOFORMS_SHARED_SECRET` env var
 - Timestamp skew tolerance: 60 seconds
+
+> **Note:** The root CLAUDE.md and goforms/CLAUDE.md describe the signature as `HMAC-SHA256 of user_id:timestamp`. This is outdated — the actual Go code (`assertion.go`) uses the full `METHOD:PATH:USER_ID:TIMESTAMP:PLAN_TIER` payload. Update those CLAUDE.md files before implementation begins.
 
 ## Routing & Controllers
 
@@ -407,21 +415,53 @@ task lint        # run PHP + Go linters
 - Adjust columns as needed for Waaseyaa entity storage conventions
 
 **Drop (Laravel-specific):**
-- `sessions` — Waaseyaa uses Symfony session handling
 - `cache` — Waaseyaa's cache layer
 - `jobs` — Waaseyaa's queue system
-- `password_reset_tokens` — reimplemented in `waaseyaa/auth`
 - `migrations` — Laravel migration tracking
+
+**Preserve but rename/repurpose:**
+- `sessions` — Keep table during confidence period for rollback; Waaseyaa uses file-based Symfony sessions in dev, database sessions in production (for horizontal scaling)
+- `password_reset_tokens` — Keep table during confidence period; `waaseyaa/auth` creates its own equivalent
 
 ### Cutover Sequence
 
 1. Full database + file backup (verified restorable)
 2. Put Laravel app in maintenance mode
-3. Run MariaDB schema migrations
+3. Run MariaDB schema migrations (additive only — add columns, create new tables, do NOT drop tables yet)
 4. Deploy `goformx-web` to `/home/deployer/goformx-web`
 5. Point nginx to new app
-6. Verify all functionality
-7. Remove old Laravel deployment (after confidence period)
+6. Verify all functionality (see verification checklist below)
+7. **Confidence period: 7 days** — Laravel app remains deployed but inactive
+8. After confidence period with no issues: drop unused Laravel tables, remove old deployment
+
+### Rollback Plan
+
+If issues are found during confidence period:
+1. Point nginx back to Laravel app at `/home/deployer/goformx` (instant)
+2. Laravel app is fully intact — no destructive schema changes were made during cutover
+3. The additive schema changes (`_data` columns) are harmless to Laravel
+4. Investigate and fix the issue in `goformx-web`, then re-attempt cutover
+
+**Rollback is possible because:**
+- Schema migrations are additive-only during cutover (no drops until confidence period ends)
+- Laravel deployment is preserved for 7 days
+- Full backup exists as last resort
+
+### Verification Checklist (Post-Cutover)
+
+- [ ] User can log in, log out
+- [ ] 2FA challenge works
+- [ ] Password reset email sends and completes
+- [ ] Email verification works
+- [ ] Form CRUD works (create, edit, delete)
+- [ ] Form builder (Form.io) loads and saves
+- [ ] Submissions list and detail views work
+- [ ] Public form fill and submit works
+- [ ] Billing dashboard shows usage stats
+- [ ] Stripe checkout creates subscription
+- [ ] Stripe portal accessible
+- [ ] All public pages render (home, pricing, docs, privacy, terms)
+- [ ] HMAC assertion auth headers verified in Go API logs
 
 ### Zero User Impact
 
@@ -429,6 +469,50 @@ task lint        # run PHP + Go linters
 - No re-registration needed
 - Go API completely unaffected
 - User UUIDs match between MariaDB and Go's PostgreSQL (assertion auth depends on this)
+
+## Email & Queue Strategy
+
+**Transactional emails** (verification, password reset):
+- Sent via Symfony Mailer (SMTP transport)
+- Production: PostMark (same provider as current Laravel setup)
+- Dev: Mailpit container added to Docker Compose
+
+**Queue:**
+- Waaseyaa's queue system for async email sending
+- Synchronous fallback acceptable for low-volume transactional emails during initial rollout
+
+**Docker Compose addition:**
+```yaml
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025"  # Web UI
+      - "1025:1025"  # SMTP
+```
+
+## Session Storage
+
+- **Development:** File-based (Symfony default)
+- **Production:** Database-backed sessions for reliability and horizontal scaling readiness
+- Session table created by `waaseyaa/auth` package
+
+## Testing Strategy
+
+**Unit/Integration tests (PHP):**
+- Port relevant Pest tests from Laravel to PHPUnit/Pest for Waaseyaa
+- Test all `waaseyaa/auth` flows (login, register, 2FA, reset)
+- Test `waaseyaa/billing` Stripe integration (mock Stripe API)
+- Test `waaseyaa/inertia` protocol compliance
+- Test GoFormsClient HMAC signing
+
+**E2E tests (Playwright):**
+- Port existing Playwright tests from Laravel
+- Add cutover-specific smoke tests matching the verification checklist
+
+**Pre-cutover validation:**
+- Run full test suite against staging environment
+- Manual walkthrough of verification checklist
+- Compare Go API logs to confirm HMAC auth working identically
 
 ## What Does NOT Change
 
