@@ -1,0 +1,45 @@
+version: '3'
+
+tasks:
+  dev:
+    desc: Start development environment
+    cmds:
+      - docker compose up -d
+
+  stop:
+    desc: Stop development environment
+    cmds:
+      - docker compose down
+
+  setup:
+    desc: First-time setup — install deps, build containers
+    cmds:
+      - docker compose build
+      - docker compose up -d
+      - docker compose exec web composer install
+      - echo "Setup complete. Visit http://localhost:8080"
+
+  logs:
+    desc: Tail all container logs
+    cmds:
+      - docker compose logs -f
+
+  test:
+    desc: Run PHP tests
+    cmds:
+      - docker compose exec web vendor/bin/phpunit tests/
+
+  lint:
+    desc: Run PHP CS Fixer
+    cmds:
+      - docker compose exec web vendor/bin/php-cs-fixer fix --dry-run --diff
+
+  shell:
+    desc: Open shell in PHP container
+    cmds:
+      - docker compose exec web sh
+
+  composer:
+    desc: Run composer command in container
+    cmds:
+      - docker compose exec web composer {{.CLI_ARGS}}
