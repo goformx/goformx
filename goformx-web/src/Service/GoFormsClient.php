@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace GoFormX\Service;
 
-final class GoFormsClient
+final class GoFormsClient implements GoFormsClientInterface
 {
     public function __construct(
         private readonly string $baseUrl,
