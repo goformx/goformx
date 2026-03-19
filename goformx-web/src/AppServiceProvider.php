@@ -12,6 +12,7 @@ use GoFormX\Controller\SettingsController;
 use GoFormX\Middleware\SecurityHeadersMiddleware;
 use GoFormX\Service\GoFormsClient;
 use GoFormX\Service\GoFormsClientInterface;
+use GoFormX\Service\InertiaRenderer;
 use GoFormX\Service\UserRepository;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -45,6 +46,11 @@ final class AppServiceProvider extends ServiceProvider
 
         $this->singleton(GoFormsClient::class, fn() => $this->resolve(GoFormsClientInterface::class));
 
+        $this->singleton(InertiaRenderer::class, fn() => new InertiaRenderer(
+            isDev: ($this->config['app_env'] ?? 'local') !== 'production',
+            viteDevUrl: 'http://localhost:5173',
+        ));
+
         $this->singleton(UserRepository::class, fn() => new UserRepository(
             host: $_ENV['DB_HOST'] ?? $this->config['db_host'] ?? '127.0.0.1',
             database: $_ENV['DB_DATABASE'] ?? $this->config['db_database'] ?? 'goformx',
@@ -77,6 +83,20 @@ final class AppServiceProvider extends ServiceProvider
         $this->registerWebhookRoutes($router);
     }
 
+    /**
+     * Render an Inertia response — returns full HTML for initial loads,
+     * or InertiaResponse for XHR (handled by ControllerDispatcher as JSON).
+     */
+    private function inertia(Request $request, InertiaResponse $response): Response|InertiaResponse
+    {
+        if ($request->headers->get('X-Inertia') === 'true') {
+            return $response;
+        }
+
+        $renderer = $this->resolve(InertiaRenderer::class);
+        return $renderer->render($response, $request->getRequestUri());
+    }
+
     private function twig(string $template, array $vars = []): \Closure
     {
         return function (Request $request) use ($template, $vars): Response {
@@ -98,7 +118,7 @@ final class AppServiceProvider extends ServiceProvider
 
         // Public form fill (Inertia)
         $router->addRoute('forms.public', new Route('/forms/{id}', defaults: [
-            '_controller' => fn(Request $request, string $id) => Inertia::render('Forms/Fill', ['formId' => $id]),
+            '_controller' => fn(Request $request, string $id) => $this->inertia($request, Inertia::render('Forms/Fill', ['formId' => $id])),
         ], methods: ['GET']));
     }
 
@@ -256,19 +276,24 @@ final class AppServiceProvider extends ServiceProvider
             return ['userId' => $uid, 'planTier' => $planTier, 'user' => $user];
         };
 
+        // Helper to share auth and render Inertia
+        $renderInertia = function (Request $request, string $component, array $props, array $ctx): Response|InertiaResponse {
+            Inertia::share('auth', ['user' => [
+                'id' => $ctx['userId'],
+                'name' => $ctx['user']['name'] ?? '',
+                'email' => $ctx['user']['mail'] ?? '',
+            ]]);
+            return $this->inertia($request, Inertia::render($component, $props));
+        };
+
         // Dashboard
         $router->addRoute('dashboard', new Route('/dashboard', defaults: [
-            '_controller' => function (Request $request) use ($getUserContext) {
+            '_controller' => function (Request $request) use ($getUserContext, $renderInertia) {
                 $ctx = $getUserContext();
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => [
-                    'id' => $ctx['userId'],
-                    'name' => $ctx['user']['name'] ?? '',
-                    'email' => $ctx['user']['mail'] ?? '',
-                ]]);
-                return Inertia::render('Dashboard', []);
+                return $renderInertia($request, 'Dashboard', [], $ctx);
             },
         ]));
 
@@ -279,9 +304,10 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new FormController($getClient());
-                return $controller->index($ctx['userId'], $ctx['planTier']);
+                $response = $controller->index($ctx['userId'], $ctx['planTier']);
+                return $this->inertia($request, $response);
             },
         ]));
 
@@ -304,9 +330,10 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new FormController($getClient());
-                return $controller->edit($id, $ctx['userId'], $ctx['planTier']);
+                $response = $controller->edit($id, $ctx['userId'], $ctx['planTier']);
+                return $this->inertia($request, $response);
             },
         ]));
 
@@ -316,9 +343,10 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new FormController($getClient());
-                return $controller->show($id, $ctx['userId'], $ctx['planTier']);
+                $response = $controller->show($id, $ctx['userId'], $ctx['planTier']);
+                return $this->inertia($request, $response);
             },
         ]));
 
@@ -328,28 +356,27 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new FormController($getClient());
-                return $controller->submissions($id, $ctx['userId'], $ctx['planTier']);
+                $response = $controller->submissions($id, $ctx['userId'], $ctx['planTier']);
+                return $this->inertia($request, $response);
             },
         ]));
 
         $router->addRoute('forms.submission', new Route('/forms/{id}/submissions/{sid}', defaults: [
-            '_controller' => function (Request $request, string $id, string $sid) use ($getClient, $getUserContext) {
+            '_controller' => function (Request $request, string $id, string $sid) use ($getClient, $getUserContext, $renderInertia) {
                 $ctx = $getUserContext();
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
-                $controller = new FormController($getClient());
                 // Show single submission
                 try {
                     $form = $getClient()->get("/api/forms/{$id}", $ctx['userId'], $ctx['planTier']);
                     $submission = $getClient()->get("/api/forms/{$id}/submissions/{$sid}", $ctx['userId'], $ctx['planTier']);
-                    return Inertia::render('Forms/SubmissionShow', [
+                    return $renderInertia($request, 'Forms/SubmissionShow', [
                         'form' => $form['data'] ?? [],
                         'submission' => $submission['data'] ?? [],
-                    ]);
+                    ], $ctx);
                 } catch (\RuntimeException) {
                     return new RedirectResponse('/forms');
                 }
@@ -362,10 +389,11 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 Inertia::share('goFormsPublicUrl', $this->config['goforms_public_url'] ?? '');
                 $controller = new FormController($getClient());
-                return $controller->embed($id, $ctx['userId'], $ctx['planTier']);
+                $response = $controller->embed($id, $ctx['userId'], $ctx['planTier']);
+                return $this->inertia($request, $response);
             },
         ]));
 
@@ -401,9 +429,10 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new SettingsController();
-                return $controller->profile(['id' => $ctx['userId'], 'name' => '', 'email' => '']);
+                $response = $controller->profile(['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']);
+                return $this->inertia($request, $response);
             },
         ]));
 
@@ -427,9 +456,10 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new SettingsController();
-                return $controller->password();
+                $response = $controller->password();
+                return $this->inertia($request, $response);
             },
         ]));
 
@@ -445,9 +475,10 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new SettingsController();
-                return $controller->appearance();
+                $response = $controller->appearance();
+                return $this->inertia($request, $response);
             },
         ]));
 
@@ -457,27 +488,27 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
                 $controller = new SettingsController();
-                return $controller->twoFactor(['enabled' => false]);
+                $response = $controller->twoFactor(['enabled' => false]);
+                return $this->inertia($request, $response);
             },
         ]));
 
         // Billing
         $router->addRoute('billing.index', new Route('/billing', defaults: [
-            '_controller' => function (Request $request) use ($getClient, $getUserContext) {
+            '_controller' => function (Request $request) use ($getClient, $getUserContext, $renderInertia) {
                 $ctx = $getUserContext();
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId']]]);
                 // For now render with basic tier info
-                return Inertia::render('Billing/Index', [
+                return $renderInertia($request, 'Billing/Index', [
                     'tier' => $ctx['planTier'],
                     'is_paid' => false,
                     'stripe_id' => null,
                     'usage' => ['forms_count' => 0],
-                ]);
+                ], $ctx);
             },
         ]));
 
