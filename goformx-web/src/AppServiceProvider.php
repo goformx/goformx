@@ -69,15 +69,26 @@ final class AppServiceProvider extends ServiceProvider
         $this->registerWebhookRoutes($router);
     }
 
+    private function twig(string $template, array $vars = []): \Closure
+    {
+        return function (Request $request) use ($template, $vars): Response {
+            $loader = new \Twig\Loader\FilesystemLoader($this->projectRoot . '/templates');
+            $twig = new \Twig\Environment($loader);
+            $vars['csrf_token'] = $_SESSION['_csrf_token'] ?? bin2hex(random_bytes(16));
+            $_SESSION['_csrf_token'] ??= $vars['csrf_token'];
+            $html = $twig->render($template, $vars);
+            return new Response($html, 200, ['Content-Type' => 'text/html; charset=UTF-8']);
+        };
+    }
+
     private function registerPublicRoutes(WaaseyaaRouter $router): void
     {
-        // SSR public pages
-        $router->addRoute('home', new Route('/', defaults: ['_controller' => 'render.page']));
-        $router->addRoute('pricing', new Route('/pricing', defaults: ['_controller' => 'render.page']));
-        $router->addRoute('privacy', new Route('/privacy', defaults: ['_controller' => 'render.page']));
-        $router->addRoute('terms', new Route('/terms', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('home', new Route('/', defaults: ['_controller' => $this->twig('home.html.twig')]));
+        $router->addRoute('pricing', new Route('/pricing', defaults: ['_controller' => $this->twig('pricing.html.twig')]));
+        $router->addRoute('privacy', new Route('/privacy', defaults: ['_controller' => $this->twig('privacy.html.twig')]));
+        $router->addRoute('terms', new Route('/terms', defaults: ['_controller' => $this->twig('terms.html.twig')]));
 
-        // Public form fill
+        // Public form fill (Inertia)
         $router->addRoute('forms.public', new Route('/forms/{id}', defaults: [
             '_controller' => fn(Request $request, string $id) => Inertia::render('Forms/Fill', ['formId' => $id]),
         ], methods: ['GET']));
@@ -85,13 +96,15 @@ final class AppServiceProvider extends ServiceProvider
 
     private function registerAuthRoutes(WaaseyaaRouter $router): void
     {
-        // SSR auth GET pages (render templates)
-        $router->addRoute('login', new Route('/login', defaults: ['_controller' => 'render.page'], methods: ['GET']));
-        $router->addRoute('register', new Route('/register', defaults: ['_controller' => 'render.page'], methods: ['GET']));
-        $router->addRoute('forgot-password', new Route('/forgot-password', defaults: ['_controller' => 'render.page'], methods: ['GET']));
-        $router->addRoute('reset-password', new Route('/reset-password/{token}', defaults: ['_controller' => 'render.page'], methods: ['GET']));
-        $router->addRoute('verify-email', new Route('/verify-email', defaults: ['_controller' => 'render.page']));
-        $router->addRoute('two-factor-challenge', new Route('/two-factor-challenge', defaults: ['_controller' => 'render.page'], methods: ['GET']));
+        // SSR auth GET pages
+        $router->addRoute('login', new Route('/login', defaults: ['_controller' => $this->twig('auth/login.html.twig')], methods: ['GET']));
+        $router->addRoute('register', new Route('/register', defaults: ['_controller' => $this->twig('auth/register.html.twig')], methods: ['GET']));
+        $router->addRoute('forgot-password', new Route('/forgot-password', defaults: ['_controller' => $this->twig('auth/forgot-password.html.twig')], methods: ['GET']));
+        $router->addRoute('reset-password', new Route('/reset-password/{token}', defaults: [
+            '_controller' => fn(Request $request, string $token) => ($this->twig('auth/reset-password.html.twig', ['token' => $token]))($request),
+        ], methods: ['GET']));
+        $router->addRoute('verify-email', new Route('/verify-email', defaults: ['_controller' => $this->twig('auth/verify-email.html.twig')]));
+        $router->addRoute('two-factor-challenge', new Route('/two-factor-challenge', defaults: ['_controller' => $this->twig('auth/two-factor-challenge.html.twig')], methods: ['GET']));
 
         // Auth POST handlers
         $router->addRoute('login.post', new Route('/login', defaults: [
