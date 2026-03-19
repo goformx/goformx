@@ -502,12 +502,22 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                // For now render with basic tier info
+                $usage = ['forms' => 0, 'submissions' => 0];
+                try {
+                    $formsCount = $getClient()->get('/api/forms/usage/forms-count', $ctx['userId'], $ctx['planTier']);
+                    $usage['forms'] = $formsCount['data']['count'] ?? 0;
+                } catch (\RuntimeException) {
+                }
+
                 return $renderInertia($request, 'Billing/Index', [
-                    'tier' => $ctx['planTier'],
-                    'is_paid' => false,
-                    'stripe_id' => null,
-                    'usage' => ['forms_count' => 0],
+                    'currentTier' => $ctx['planTier'],
+                    'subscription' => null,
+                    'usage' => $usage,
+                    'prices' => [
+                        'pro_monthly' => $this->config['billing_price_tier_map'] ? array_search('pro', $this->config['billing_price_tier_map']) ?: null : null,
+                        'business_monthly' => $this->config['billing_price_tier_map'] ? array_search('business', $this->config['billing_price_tier_map']) ?: null : null,
+                        'growth_monthly' => $this->config['billing_price_tier_map'] ? array_search('growth', $this->config['billing_price_tier_map']) ?: null : null,
+                    ],
                 ], $ctx);
             },
         ]));
