@@ -1,0 +1,38 @@
+<script setup lang="ts">
+import type { HTMLAttributes } from 'vue';
+
+defineOptions({
+    inheritAttrs: false,
+});
+
+type Props = {
+    className?: HTMLAttributes['class'];
+};
+
+defineProps<Props>();
+</script>
+
+<template>
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 32 32"
+        :class="className"
+        v-bind="$attrs"
+    >
+        <!-- Form/document with field lines -->
+        <path
+            fill="currentColor"
+            fill-rule="evenodd"
+            clip-rule="evenodd"
+            d="M6 4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4zm2 0v20h10V4H8zm2 4h6v1.5h-6V8zm0 4h6v1.5h-6V12zm0 4h4v1.5h-4V16z"
+        />
+        <!-- X (GoFormX) -->
+        <path
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            fill="none"
+            d="M20 10l6 6-6 6M26 10l-6 6 6 6"
+        />
+    </svg>
+</template>

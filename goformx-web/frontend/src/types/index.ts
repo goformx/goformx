@@ -24,3 +24,9 @@ export interface BreadcrumbItem {
     title: string;
     href: string;
 }
+
+export interface TwoFactorConfigContent {
+    title: string;
+    description: string;
+    buttonText: string;
+}
