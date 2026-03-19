@@ -1,0 +1,139 @@
+name: Deploy GoFormX Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'goformx-web/**'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-goformx-web
+  cancel-in-progress: false
+
+env:
+  DEPLOY_USER: deployer
+  DEPLOY_PATH: /home/deployer/goformx-web
+  APP_PATH: goformx-web
+  PHP_VERSION: '8.4'
+  NODE_VERSION: '22'
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, mbstring, xml
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: cd goformx-web && composer install --no-interaction --prefer-dist
+
+      - name: Run PHPUnit
+        run: cd goformx-web && vendor/bin/phpunit tests/
+
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: [test]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, mbstring, xml
+          coverage: none
+
+      - name: Install PHP dependencies (production)
+        run: cd goformx-web && composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build frontend
+        run: cd goformx-web/frontend && npm ci && npm run build
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${SSH_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${DEPLOY_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Create release directory
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          RELEASE="$(date +%Y%m%d%H%M%S)"
+          echo "RELEASE_NAME=${RELEASE}" >> "$GITHUB_ENV"
+          ssh -i ~/.ssh/deploy_key "deployer@${DEPLOY_HOST}" \
+            "mkdir -p /home/deployer/goformx-web/releases/${RELEASE}"
+
+      - name: Sync files to server
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          rsync -azP --delete \
+            --exclude='.git' \
+            --exclude='frontend/node_modules' \
+            --exclude='storage/*.sqlite' \
+            --exclude='.env' \
+            --exclude='tests/' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            goformx-web/ \
+            "deployer@${DEPLOY_HOST}:/home/deployer/goformx-web/releases/${RELEASE_NAME}/"
+
+      - name: Activate release
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "deployer@${DEPLOY_HOST}" bash -s -- "${RELEASE_NAME}" << 'DEPLOY'
+            set -euo pipefail
+            RELEASE="$1"
+            DEPLOY_PATH="/home/deployer/goformx-web"
+            RELEASE_PATH="${DEPLOY_PATH}/releases/${RELEASE}"
+            SHARED_PATH="${DEPLOY_PATH}/shared"
+
+            # Link shared .env
+            ln -nfs "${SHARED_PATH}/.env" "${RELEASE_PATH}/.env"
+
+            # Link shared storage
+            ln -nfs "${SHARED_PATH}/storage" "${RELEASE_PATH}/storage"
+
+            # Run migrations
+            cd "${RELEASE_PATH}" && php bin/migrate.php
+
+            # Activate
+            ln -nfs "${RELEASE_PATH}" "${DEPLOY_PATH}/current"
+
+            # Reload PHP-FPM
+            sudo systemctl reload php8.4-fpm || true
+
+            # Cleanup old releases (keep 5)
+            cd "${DEPLOY_PATH}/releases"
+            ls -1dt */ | tail -n +6 | xargs -r rm -rf
+          DEPLOY
+
+      - name: Verify deployment
+        run: |
+          sleep 3
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://goformx.com" || echo "000")
+          if [ "${STATUS}" != "200" ]; then
+            echo "::error::Deployment verification failed — got HTTP ${STATUS}"
+            exit 1
+          fi
+          echo "Deployment verified — HTTP ${STATUS}"
