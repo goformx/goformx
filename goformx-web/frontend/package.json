@@ -1,0 +1,40 @@
+{
+  "name": "goformx-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint . --fix",
+    "format": "prettier --write frontend/"
+  },
+  "dependencies": {
+    "@formio/js": "^5.1.1",
+    "@goformx/formio": "^0.2.1",
+    "@inertiajs/vue3": "^3.0.0-beta",
+    "@inertiajs/vite": "^3.0.0-beta",
+    "@tailwindcss/typography": "^0.5",
+    "@tailwindcss/vite": "^4.1",
+    "@vueuse/core": "^12.0",
+    "class-variance-authority": "^0.7",
+    "clsx": "^2.1",
+    "lucide-vue-next": "^0.575",
+    "reka-ui": "^2.6",
+    "tailwind-merge": "^3.0",
+    "tailwindcss": "^4.1",
+    "tw-animate-css": "^1.0",
+    "vue": "^3.5",
+    "vue-sonner": "^2.0",
+    "zod": "^4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45",
+    "@types/node": "^22.0",
+    "@vitejs/plugin-vue": "^5.2",
+    "eslint": "^9.0",
+    "prettier": "^3.4",
+    "typescript": "^5.7",
+    "vite": "^6.0",
+    "vue-tsc": "^2.2"
+  }
+}
