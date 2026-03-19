@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace GoFormX;
 
 use GoFormX\Controller\DashboardController;
+use GoFormX\Controller\FormController;
 use GoFormX\Middleware\SecurityHeadersMiddleware;
 use GoFormX\Service\GoFormsClient;
+use GoFormX\Service\GoFormsClientInterface;
 use Symfony\Component\Routing\Route;
 use Waaseyaa\Entity\EntityTypeManager;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
@@ -21,6 +23,8 @@ final class AppServiceProvider extends ServiceProvider
             baseUrl: $this->config['goforms_api_url'] ?? 'http://localhost:8090',
             sharedSecret: $this->config['goforms_shared_secret'] ?? '',
         ));
+
+        $this->singleton(GoFormsClientInterface::class, fn() => $this->resolve(GoFormsClient::class));
     }
 
     /**
@@ -62,6 +66,36 @@ final class AppServiceProvider extends ServiceProvider
         $router->addRoute('dashboard', new Route('/dashboard', defaults: [
             '_controller' => fn(\Symfony\Component\HttpFoundation\Request $request) => (new DashboardController())->index($request),
         ]));
+
+        // Form routes (authenticated, Inertia)
+        $router->addRoute('forms.index', new Route('/forms', defaults: [
+            '_controller' => fn(\Symfony\Component\HttpFoundation\Request $request) => (new FormController($this->resolve(GoFormsClientInterface::class)))->index('', 'free'),
+        ]));
+        $router->addRoute('forms.create', new Route('/forms', defaults: ['_controller' => 'render.page'], methods: ['POST']));
+        $router->addRoute('forms.edit', new Route('/forms/{id}/edit', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('forms.preview', new Route('/forms/{id}/preview', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('forms.submissions', new Route('/forms/{id}/submissions', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('forms.submission', new Route('/forms/{id}/submissions/{sid}', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('forms.embed', new Route('/forms/{id}/embed', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('forms.update', new Route('/forms/{id}', defaults: ['_controller' => 'render.page'], methods: ['PUT']));
+        $router->addRoute('forms.destroy', new Route('/forms/{id}', defaults: ['_controller' => 'render.page'], methods: ['DELETE']));
+
+        // Settings routes (authenticated, Inertia)
+        $router->addRoute('settings.profile', new Route('/settings/profile', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('settings.profile.update', new Route('/settings/profile', defaults: ['_controller' => 'render.page'], methods: ['PATCH']));
+        $router->addRoute('settings.profile.destroy', new Route('/settings/profile', defaults: ['_controller' => 'render.page'], methods: ['DELETE']));
+        $router->addRoute('settings.password', new Route('/settings/password', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('settings.password.update', new Route('/settings/password', defaults: ['_controller' => 'render.page'], methods: ['PUT']));
+        $router->addRoute('settings.appearance', new Route('/settings/appearance', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('settings.two-factor', new Route('/settings/two-factor', defaults: ['_controller' => 'render.page']));
+
+        // Billing routes (authenticated, Inertia)
+        $router->addRoute('billing.index', new Route('/billing', defaults: ['_controller' => 'render.page']));
+        $router->addRoute('billing.checkout', new Route('/billing/checkout', defaults: ['_controller' => 'render.page'], methods: ['POST']));
+        $router->addRoute('billing.portal', new Route('/billing/portal', defaults: ['_controller' => 'render.page']));
+
+        // Public form fill (SSR, no auth)
+        $router->addRoute('forms.public', new Route('/forms/{id}', defaults: ['_controller' => 'render.page'], methods: ['GET']));
 
         // Stripe webhook
         $router->addRoute('stripe.webhook', new Route('/stripe/webhook', defaults: ['_controller' => 'render.page'], methods: ['POST']));
