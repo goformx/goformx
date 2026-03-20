@@ -13,7 +13,7 @@ final class User extends ContentEntityBase
 {
     public function __construct(array $values = [])
     {
-        parent::__construct($values, 'user', [
+        parent::__construct($values, 'users', [
             'id' => 'id',
             'label' => 'name',
         ]);

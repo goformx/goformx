@@ -84,7 +84,7 @@ final class AppServiceProvider extends ServiceProvider
             $resolver = new SingleConnectionResolver($database);
             $driver = new SqlStorageDriver($resolver);
             $entityType = new EntityType(
-                id: 'user',
+                id: 'users',
                 label: 'User',
                 class: User::class,
                 keys: ['id' => 'id', 'label' => 'name'],
