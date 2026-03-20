@@ -207,7 +207,9 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 - **Ansible Caddy pattern** — Each app deploys its own `Caddyfile` to `/home/deployer/<app>/Caddyfile`. Main `/etc/caddy/Caddyfile` imports them via glob. New services need a Caddyfile or they have no reverse proxy.
 - **Route priority** — Public routes in `registerPublicRoutes()` shadow auth routes for the same path. If both need `/forms/{id}`, handle auth check in the public route handler (#62).
 - **Vite base URL** — `vite.config.ts` must set `base: '/build/'` so dynamic imports resolve to `/build/assets/` not `/assets/`.
-- **UserRepository uses raw PDO** — Migration debt. See `docs/specs/user-persistence.md` for the migration plan to Waaseyaa entity storage.
+- **Entity type ID = SQL table name** — Waaseyaa's `SqlStorageDriver` uses the entity type ID directly as the table name. If your table is `users` (plural), the entity type ID must be `users`, not `user`.
+- **Go API nests response data** — The Go API wraps responses as `{data: {form: {...}}}` not `{data: {...}}`. Use `$response['data']['form']`, `$response['data']['forms']`, `$response['data']['submissions']` when unwrapping.
+- **Deploy: `ln -nfs` won't replace directories** — `rsync` creates `storage/` as a real directory. `ln -nfs` then creates a symlink *inside* the directory instead of replacing it. The deploy script must `rm -rf` the directory before symlinking to `shared/storage`.
 
 ## Codified Context
 
