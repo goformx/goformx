@@ -652,8 +652,32 @@ final class AppServiceProvider extends ServiceProvider
         ], methods: ['POST']));
 
         $router->addRoute('billing.portal', new Route('/billing/portal', defaults: [
-            '_controller' => function (Request $request) {
-                return new RedirectResponse('/billing');
+            '_controller' => function (Request $request) use ($getUserContext) {
+                $ctx = $getUserContext();
+                if ($ctx['userId'] === '') {
+                    return new RedirectResponse('/login');
+                }
+
+                $stripeCustomerId = $ctx['user']['stripe_id'] ?? null;
+                if ($stripeCustomerId === null || $stripeCustomerId === '') {
+                    return new RedirectResponse('/billing');
+                }
+
+                $stripeClient = $this->resolve(\Waaseyaa\Billing\StripeClientInterface::class);
+                $billing = new BillingManager(
+                    stripe: $stripeClient,
+                    priceTierMap: $this->config['billing_price_tier_map'] ?? [],
+                    successUrl: $this->config['billing_success_url'] ?? '/',
+                    cancelUrl: $this->config['billing_cancel_url'] ?? '/',
+                    portalReturnUrl: $this->config['billing_portal_return_url'] ?? '/',
+                );
+
+                try {
+                    $url = $billing->getPortalUrl($stripeCustomerId);
+                    return new RedirectResponse($url);
+                } catch (\Exception $e) {
+                    return new RedirectResponse('/billing');
+                }
             },
         ]));
     }
@@ -665,8 +689,16 @@ final class AppServiceProvider extends ServiceProvider
                 $payload = $request->getContent();
                 $signature = $request->headers->get('Stripe-Signature', '');
 
-                // TODO: Wire to WebhookHandler with real StripeClient
-                return new Response('', 200);
+                $stripeClient = $this->resolve(\Waaseyaa\Billing\StripeClientInterface::class);
+                $handler = new WebhookHandler($stripeClient);
+
+                try {
+                    $result = $handler->handle($payload, $signature);
+                    // TODO: Update subscription data in MariaDB based on $result
+                    return new Response('', 200);
+                } catch (\Exception $e) {
+                    return new Response('Webhook error', 400);
+                }
             },
         ], methods: ['POST']));
     }
