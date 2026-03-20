@@ -13,6 +13,7 @@ use GoFormX\Middleware\SecurityHeadersMiddleware;
 use GoFormX\Service\GoFormsClient;
 use GoFormX\Service\GoFormsClientInterface;
 use GoFormX\Service\InertiaRenderer;
+use GoFormX\Service\StripeClient;
 use GoFormX\Service\UserRepository;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -56,6 +57,11 @@ final class AppServiceProvider extends ServiceProvider
             database: $_ENV['DB_DATABASE'] ?? $this->config['db_database'] ?? 'goformx',
             username: $_ENV['DB_USERNAME'] ?? $this->config['db_username'] ?? 'goformx',
             password: $_ENV['DB_PASSWORD'] ?? $this->config['db_password'] ?? 'goformx',
+        ));
+
+        $this->singleton(\Waaseyaa\Billing\StripeClientInterface::class, fn() => new StripeClient(
+            secretKey: $this->config['stripe_secret'] ?? '',
+            webhookSecret: $this->config['stripe_webhook_secret'] ?? '',
         ));
     }
 
@@ -199,13 +205,61 @@ final class AppServiceProvider extends ServiceProvider
         ], methods: ['POST']));
 
         $router->addRoute('reset-password.post', new Route('/reset-password', defaults: [
-            '_controller' => function (Request $request) {
+            '_controller' => function (Request $request) use ($getUsers) {
+                $token = (string) $request->request->get('token', '');
+                $email = trim((string) $request->request->get('email', ''));
+                $password = (string) $request->request->get('password', '');
+                $confirmation = (string) $request->request->get('password_confirmation', '');
+
+                $authController = new AuthController();
+                $errors = $authController->validatePasswordReset($email, $password, $confirmation);
+                if ($errors !== []) {
+                    return ($this->twig('auth/reset-password.html.twig', ['error' => $errors[0], 'token' => $token, 'email' => $email]))($request);
+                }
+
+                $resetManager = new PasswordResetManager(
+                    secret: $this->config['auth_secret'] ?? 'change-me',
+                );
+                $users = $getUsers();
+                $user = $users->findByEmail($email);
+
+                if ($user === null || !$resetManager->validateToken($token, $user['id'], $email)) {
+                    return ($this->twig('auth/reset-password.html.twig', ['error' => 'Invalid or expired reset link.', 'token' => $token, 'email' => $email]))($request);
+                }
+
+                $users->updatePassword($user['id'], $password);
                 return new RedirectResponse('/login');
             },
         ], methods: ['POST']));
 
         $router->addRoute('verify-email.verify', new Route('/verify-email/{id}/{hash}', defaults: [
-            '_controller' => function (Request $request, string $id, string $hash) {
+            '_controller' => function (Request $request, string $id, string $hash) use ($getUsers) {
+                $expires = (int) $request->query->get('expires', '0');
+                $signature = (string) $request->query->get('signature', '');
+
+                $verifier = new EmailVerifier(
+                    secret: $this->config['auth_secret'] ?? 'change-me',
+                );
+
+                $users = $getUsers();
+                $user = $users->findById($id);
+                if ($user === null) {
+                    return new RedirectResponse('/login');
+                }
+
+                $isValid = $verifier->verify(
+                    userId: $id,
+                    email: $user['email'],
+                    expires: $expires,
+                    hash: $hash,
+                    signature: $signature,
+                );
+
+                if ($isValid) {
+                    $users->verifyEmail($id);
+                }
+
+                $_SESSION['waaseyaa_uid'] = $id;
                 return new RedirectResponse('/dashboard');
             },
         ]));
@@ -238,7 +292,7 @@ final class AppServiceProvider extends ServiceProvider
                     $codes = json_decode($user['two_factor_recovery_codes'] ?? '[]', true) ?: [];
                     if ($twoFactor->verifyRecoveryCode($recoveryCode, $codes)) {
                         $remaining = array_values(array_filter($codes, fn($c) => $c !== $recoveryCode));
-                        $stmt = $getUsers()->findById($uid); // just verify; update codes would need a method
+                        $getUsers()->updateRecoveryCodes($uid, $remaining);
                         unset($_SESSION['two_factor_uid']);
                         $_SESSION['waaseyaa_uid'] = $uid;
                         return new RedirectResponse('/dashboard');
@@ -433,13 +487,34 @@ final class AppServiceProvider extends ServiceProvider
         ]));
 
         $router->addRoute('settings.profile.update', new Route('/settings/profile', defaults: [
-            '_controller' => function (Request $request) {
+            '_controller' => function (Request $request) use ($getUsers) {
+                $uid = $_SESSION['waaseyaa_uid'] ?? '';
+                if ($uid === '') {
+                    return new RedirectResponse('/login');
+                }
+
+                $name = trim((string) $request->request->get('name', ''));
+                $email = trim((string) $request->request->get('email', ''));
+
+                $controller = new SettingsController();
+                $errors = $controller->validateProfileUpdate($name, $email);
+                if ($errors !== []) {
+                    return new RedirectResponse('/settings/profile');
+                }
+
+                $getUsers()->updateProfile($uid, $name, $email);
                 return new RedirectResponse('/settings/profile');
             },
         ], methods: ['PATCH']));
 
         $router->addRoute('settings.profile.destroy', new Route('/settings/profile', defaults: [
-            '_controller' => function (Request $request) {
+            '_controller' => function (Request $request) use ($getUsers) {
+                $uid = $_SESSION['waaseyaa_uid'] ?? '';
+                if ($uid === '') {
+                    return new RedirectResponse('/login');
+                }
+
+                $getUsers()->delete($uid);
                 $auth = new AuthManager();
                 $auth->logout();
                 return new RedirectResponse('/');
@@ -460,7 +535,29 @@ final class AppServiceProvider extends ServiceProvider
         ]));
 
         $router->addRoute('settings.password.update', new Route('/settings/password', defaults: [
-            '_controller' => function (Request $request) {
+            '_controller' => function (Request $request) use ($getUsers) {
+                $uid = $_SESSION['waaseyaa_uid'] ?? '';
+                if ($uid === '') {
+                    return new RedirectResponse('/login');
+                }
+
+                $currentPassword = (string) $request->request->get('current_password', '');
+                $newPassword = (string) $request->request->get('password', '');
+                $confirmation = (string) $request->request->get('password_confirmation', '');
+
+                $controller = new SettingsController();
+                $errors = $controller->validatePasswordChange($currentPassword, $newPassword, $confirmation);
+                if ($errors !== []) {
+                    return new RedirectResponse('/settings/password');
+                }
+
+                $users = $getUsers();
+                $user = $users->findById($uid);
+                if ($user === null || !password_verify($currentPassword, $user['password'] ?? '')) {
+                    return new RedirectResponse('/settings/password');
+                }
+
+                $users->updatePassword($uid, $newPassword);
                 return new RedirectResponse('/settings/password');
             },
         ], methods: ['PUT']));
@@ -519,8 +616,38 @@ final class AppServiceProvider extends ServiceProvider
         ]));
 
         $router->addRoute('billing.checkout', new Route('/billing/checkout', defaults: [
-            '_controller' => function (Request $request) {
-                return new RedirectResponse('/billing');
+            '_controller' => function (Request $request) use ($getClient, $getUserContext) {
+                $ctx = $getUserContext();
+                if ($ctx['userId'] === '') {
+                    return new RedirectResponse('/login');
+                }
+
+                $priceId = (string) $request->request->get('price_id', '');
+                if ($priceId === '') {
+                    return new RedirectResponse('/billing');
+                }
+
+                $stripeCustomerId = $ctx['user']['stripe_id'] ?? null;
+                if ($stripeCustomerId === null || $stripeCustomerId === '') {
+                    // No Stripe customer yet — redirect to billing with error
+                    return new RedirectResponse('/billing');
+                }
+
+                $stripeClient = $this->resolve(\Waaseyaa\Billing\StripeClientInterface::class);
+                $billing = new BillingManager(
+                    stripe: $stripeClient,
+                    priceTierMap: $this->config['billing_price_tier_map'] ?? [],
+                    successUrl: $this->config['billing_success_url'] ?? '/',
+                    cancelUrl: $this->config['billing_cancel_url'] ?? '/',
+                    portalReturnUrl: $this->config['billing_portal_return_url'] ?? '/',
+                );
+
+                try {
+                    $session = $billing->createCheckoutSession($stripeCustomerId, $priceId);
+                    return new RedirectResponse($session->url);
+                } catch (\Exception $e) {
+                    return new RedirectResponse('/billing');
+                }
             },
         ], methods: ['POST']));
 
