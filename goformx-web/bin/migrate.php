@@ -9,18 +9,29 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/vendor/autoload.php';
 
-$config = require dirname(__DIR__) . '/config/waaseyaa.php';
+// Load .env file (PHP CLI doesn't read it automatically)
+$envFile = dirname(__DIR__) . '/.env';
+if (is_file($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        if (str_starts_with(trim($line), '#')) {
+            continue;
+        }
+        if (str_contains($line, '=')) {
+            putenv(trim($line));
+        }
+    }
+}
 
 $dsn = sprintf(
     'mysql:host=%s;dbname=%s;charset=utf8mb4',
-    $_ENV['DB_HOST'] ?? '127.0.0.1',
-    $_ENV['DB_DATABASE'] ?? 'goformx',
+    getenv('DB_HOST') ?: '127.0.0.1',
+    getenv('DB_DATABASE') ?: 'goformx',
 );
 
 $pdo = new PDO(
     $dsn,
-    $_ENV['DB_USERNAME'] ?? 'goformx',
-    $_ENV['DB_PASSWORD'] ?? 'goformx',
+    getenv('DB_USERNAME') ?: 'goformx',
+    getenv('DB_PASSWORD') ?: 'goformx',
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
 );
 
