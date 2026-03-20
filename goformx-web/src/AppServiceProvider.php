@@ -9,6 +9,7 @@ use GoFormX\Controller\BillingController;
 use GoFormX\Controller\DashboardController;
 use GoFormX\Controller\FormController;
 use GoFormX\Controller\SettingsController;
+use GoFormX\Mail\Transport\SmtpTransport;
 use GoFormX\Middleware\SecurityHeadersMiddleware;
 use GoFormX\Service\GoFormsClient;
 use GoFormX\Service\GoFormsClientInterface;
@@ -33,6 +34,10 @@ use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Inertia\Inertia;
 use Waaseyaa\Inertia\InertiaResponse;
+use Waaseyaa\Mail\Envelope;
+use Waaseyaa\Mail\Mailer;
+use Waaseyaa\Mail\MailerInterface;
+use Waaseyaa\Mail\Transport\TransportInterface;
 use Waaseyaa\Routing\WaaseyaaRouter;
 
 final class AppServiceProvider extends ServiceProvider
@@ -61,6 +66,17 @@ final class AppServiceProvider extends ServiceProvider
         $this->singleton(\Waaseyaa\Billing\StripeClientInterface::class, fn() => new StripeClient(
             secretKey: $this->config['stripe_secret'] ?? '',
             webhookSecret: $this->config['stripe_webhook_secret'] ?? '',
+        ));
+
+        // Mail — override MailServiceProvider with SMTP transport for dev (Mailpit)
+        $mailConfig = $this->config['mail'] ?? [];
+        $this->singleton(TransportInterface::class, fn() => new SmtpTransport(
+            host: $mailConfig['host'] ?? 'mailpit',
+            port: (int) ($mailConfig['port'] ?? 1025),
+        ));
+        $this->singleton(MailerInterface::class, fn() => new Mailer(
+            transport: $this->resolve(TransportInterface::class),
+            defaultFrom: $mailConfig['from_address'] ?? 'noreply@goformx.com',
         ));
     }
 
@@ -218,6 +234,38 @@ final class AppServiceProvider extends ServiceProvider
                 }
 
                 $uid = $users->create(['name' => $name, 'email' => $email, 'password' => $password]);
+
+                // Send verification email
+                $verifier = new EmailVerifier(
+                    secret: $this->config['auth_secret'] ?? 'change-me',
+                    urlLifetimeSeconds: $this->config['email_verification_lifetime'] ?? 3600,
+                );
+                // generateUrl puts all params as query string; reformat to match
+                // route pattern /verify-email/{id}/{hash}?expires=...&signature=...
+                $rawUrl = $verifier->generateUrl(
+                    baseUrl: 'https://placeholder/verify-email',
+                    userId: $uid,
+                    email: $email,
+                );
+                $parsed = parse_url($rawUrl);
+                parse_str($parsed['query'] ?? '', $params);
+                $appUrl = $this->config['app_url'] ?? 'http://localhost:8080';
+                $verificationUrl = $appUrl . '/verify-email/' . urlencode($params['id']) . '/' . urlencode($params['hash'])
+                    . '?' . http_build_query(['expires' => $params['expires'], 'signature' => $params['signature']]);
+
+                try {
+                    $mailer = $this->resolve(MailerInterface::class);
+                    $mailer->send(new Envelope(
+                        to: [$email],
+                        from: $this->config['mail']['from_address'] ?? 'noreply@goformx.com',
+                        subject: 'Verify your email — GoFormX',
+                        textBody: "Click to verify your email: {$verificationUrl}",
+                        htmlBody: "<p>Click to verify your email:</p><p><a href=\"{$verificationUrl}\">Verify Email</a></p>",
+                    ));
+                } catch (\Throwable $e) {
+                    error_log('[GoFormX] Failed to send verification email: ' . $e->getMessage());
+                }
+
                 $_SESSION['waaseyaa_uid'] = $uid;
                 return new RedirectResponse('/verify-email');
             },
@@ -226,6 +274,32 @@ final class AppServiceProvider extends ServiceProvider
         $router->addRoute('forgot-password.post', new Route('/forgot-password', defaults: [
             '_controller' => function (Request $request) use ($getUsers) {
                 $email = trim((string) $request->request->get('email', ''));
+
+                // Look up user and send reset email if they exist
+                $users = $getUsers();
+                $user = $users->findByEmail($email);
+                if ($user !== null) {
+                    $resetManager = new PasswordResetManager(
+                        secret: $this->config['auth_secret'] ?? 'change-me',
+                        tokenLifetimeSeconds: $this->config['password_reset_lifetime'] ?? 3600,
+                    );
+                    $token = $resetManager->createToken($user['id'], $email);
+                    $resetUrl = ($this->config['app_url'] ?? 'http://localhost:8080') . '/reset-password/' . $token;
+
+                    try {
+                        $mailer = $this->resolve(MailerInterface::class);
+                        $mailer->send(new Envelope(
+                            to: [$email],
+                            from: $this->config['mail']['from_address'] ?? 'noreply@goformx.com',
+                            subject: 'Reset your password — GoFormX',
+                            textBody: "Reset your password: {$resetUrl}",
+                            htmlBody: "<p>Click to reset your password:</p><p><a href=\"{$resetUrl}\">Reset Password</a></p>",
+                        ));
+                    } catch (\Throwable $e) {
+                        error_log('[GoFormX] Failed to send password reset email: ' . $e->getMessage());
+                    }
+                }
+
                 // Always show success to prevent email enumeration
                 return ($this->twig('auth/forgot-password.html.twig', ['status' => 'If an account exists, a reset link has been sent.']))($request);
             },

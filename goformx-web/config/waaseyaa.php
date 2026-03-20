@@ -28,6 +28,15 @@ return [
     'password_reset_lifetime' => 3600,
     'email_verification_lifetime' => 3600,
 
+    // Mail
+    'mail' => [
+        'transport' => env('MAIL_TRANSPORT', 'smtp'),
+        'from_address' => env('MAIL_FROM_ADDRESS', 'noreply@goformx.com'),
+        'from_name' => env('MAIL_FROM_NAME', 'GoFormX'),
+        'host' => env('MAIL_HOST', 'mailpit'),
+        'port' => (int) env('MAIL_PORT', 1025),
+    ],
+
     // Billing (waaseyaa/billing)
     'stripe_key' => env('STRIPE_KEY'),
     'stripe_secret' => env('STRIPE_SECRET'),
