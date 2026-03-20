@@ -57,10 +57,10 @@ final class AppServiceProvider extends ServiceProvider
         ));
 
         $this->singleton(UserRepository::class, fn() => new UserRepository(
-            host: $_ENV['DB_HOST'] ?? $this->config['db_host'] ?? '127.0.0.1',
-            database: $_ENV['DB_DATABASE'] ?? $this->config['db_database'] ?? 'goformx',
-            username: $_ENV['DB_USERNAME'] ?? $this->config['db_username'] ?? 'goformx',
-            password: $_ENV['DB_PASSWORD'] ?? $this->config['db_password'] ?? 'goformx',
+            host: getenv('DB_HOST') ?: ($this->config['db_host'] ?? '127.0.0.1'),
+            database: getenv('DB_DATABASE') ?: ($this->config['db_database'] ?? 'goformx'),
+            username: getenv('DB_USERNAME') ?: ($this->config['db_username'] ?? 'goformx'),
+            password: getenv('DB_PASSWORD') ?: ($this->config['db_password'] ?? 'goformx'),
         ));
 
         $this->singleton(\Waaseyaa\Billing\StripeClientInterface::class, fn() => new StripeClient(

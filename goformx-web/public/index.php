@@ -10,6 +10,8 @@ try {
     $kernel = new HttpKernel(dirname(__DIR__));
     $kernel->handle();
 } catch (\Throwable $e) {
+    error_log('[GoFormX] Unhandled exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    error_log('[GoFormX] Stack trace: ' . $e->getTraceAsString());
     http_response_code(500);
     header('Content-Type: application/json');
     if (($_ENV['APP_ENV'] ?? 'production') !== 'production') {

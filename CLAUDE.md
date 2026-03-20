@@ -196,6 +196,19 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 - CSS variables for theming: `--primary`, `--foreground`, `--background`, etc.
 - Form.io Bootstrap CSS isolated in `layer(formio)` — being migrated to Tailwind via goformx-formio templates
 
+## Server Access
+
+- `deployer@coforge.xyz` — app deployment, file management (no sudo)
+- `jones@northcloud.one` — sudo operations (Caddy reload, file ownership, PHP-FPM)
+- Caddy reload: `ssh jones@northcloud.one "sudo caddy reload --config /etc/caddy/Caddyfile"`
+
+## Gotchas
+
+- **Never use `$_ENV` in app code** — Waaseyaa's `EnvLoader` only populates `putenv()`/`getenv()`. Use `getenv()` or the `env()` helper. `$_ENV` silently returns `null` and falls through to wrong defaults.
+- **Caddy log ownership** — Log dirs and files must be `caddy:caddy`. Caddy reload fails with permission denied if deployer owns them.
+- **SQLite write access** — Both the `.sqlite` file AND its parent directory need `www-data` group write for WAL/journal files.
+- **Ansible Caddy pattern** — Each app deploys its own `Caddyfile` to `/home/deployer/<app>/Caddyfile`. Main `/etc/caddy/Caddyfile` imports them via glob. New services need a Caddyfile or they have no reverse proxy.
+
 ## Troubleshooting Resources
 
 Solution documents for past issues are in `docs/solutions/`. Check these before debugging similar problems.
