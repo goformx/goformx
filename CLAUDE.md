@@ -208,6 +208,8 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 - **Caddy log ownership** — Log dirs and files must be `caddy:caddy`. Caddy reload fails with permission denied if deployer owns them.
 - **SQLite write access** — Both the `.sqlite` file AND its parent directory need `www-data` group write for WAL/journal files.
 - **Ansible Caddy pattern** — Each app deploys its own `Caddyfile` to `/home/deployer/<app>/Caddyfile`. Main `/etc/caddy/Caddyfile` imports them via glob. New services need a Caddyfile or they have no reverse proxy.
+- **Route priority** — Public routes in `registerPublicRoutes()` shadow auth routes for the same path. If both need `/forms/{id}`, handle auth check in the public route handler (#62).
+- **Vite base URL** — `vite.config.ts` must set `base: '/build/'` so dynamic imports resolve to `/build/assets/` not `/assets/`.
 
 ## Troubleshooting Resources
 
