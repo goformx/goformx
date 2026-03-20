@@ -19,7 +19,7 @@ final class FormController
     {
         try {
             $response = $this->client->get('/api/forms', $userId, $planTier);
-            $forms = $response['data'] ?? [];
+            $forms = $response['data']['forms'] ?? [];
         } catch (\RuntimeException $e) {
             $forms = [];
         }
@@ -31,14 +31,14 @@ final class FormController
     {
         $response = $this->client->get("/api/forms/{$formId}", $userId, $planTier);
 
-        return Inertia::render('Forms/Show', ['form' => $response['data'] ?? []]);
+        return Inertia::render('Forms/Show', ['form' => $response['data']['form'] ?? []]);
     }
 
     public function edit(string $formId, string $userId, string $planTier): InertiaResponse
     {
         $response = $this->client->get("/api/forms/{$formId}", $userId, $planTier);
 
-        return Inertia::render('Forms/Edit', ['form' => $response['data'] ?? []]);
+        return Inertia::render('Forms/Edit', ['form' => $response['data']['form'] ?? []]);
     }
 
     /**
@@ -73,8 +73,8 @@ final class FormController
         $submissions = $this->client->get("/api/forms/{$formId}/submissions", $userId, $planTier);
 
         return Inertia::render('Forms/Submissions', [
-            'form' => $form['data'] ?? [],
-            'submissions' => $submissions['data'] ?? [],
+            'form' => $form['data']['form'] ?? [],
+            'submissions' => $submissions['data']['submissions'] ?? [],
         ]);
     }
 
@@ -82,6 +82,6 @@ final class FormController
     {
         $response = $this->client->get("/api/forms/{$formId}", $userId, $planTier);
 
-        return Inertia::render('Forms/Embed', ['form' => $response['data'] ?? []]);
+        return Inertia::render('Forms/Embed', ['form' => $response['data']['form'] ?? []]);
     }
 }

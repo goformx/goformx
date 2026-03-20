@@ -23,7 +23,7 @@ final class FormControllerTest extends TestCase
     public function testIndexReturnsInertiaResponseWithForms(): void
     {
         $client = $this->createMock(GoFormsClientInterface::class);
-        $client->method('get')->willReturn(['data' => [['id' => '1', 'title' => 'Contact']]]);
+        $client->method('get')->willReturn(['data' => ['forms' => [['id' => '1', 'title' => 'Contact']]]]);
 
         $controller = new FormController($client);
         $response = $controller->index('user-1', 'free');
@@ -49,7 +49,7 @@ final class FormControllerTest extends TestCase
     public function testEditReturnsFormData(): void
     {
         $client = $this->createMock(GoFormsClientInterface::class);
-        $client->method('get')->willReturn(['data' => ['id' => 'form-1', 'title' => 'Survey']]);
+        $client->method('get')->willReturn(['data' => ['form' => ['id' => 'form-1', 'title' => 'Survey']]]);
 
         $controller = new FormController($client);
         $response = $controller->edit('form-1', 'user-1', 'pro');
@@ -63,8 +63,8 @@ final class FormControllerTest extends TestCase
     {
         $client = $this->createMock(GoFormsClientInterface::class);
         $client->method('get')->willReturnOnConsecutiveCalls(
-            ['data' => ['id' => 'form-1']],
-            ['data' => [['id' => 'sub-1'], ['id' => 'sub-2']]],
+            ['data' => ['form' => ['id' => 'form-1']]],
+            ['data' => ['submissions' => [['id' => 'sub-1'], ['id' => 'sub-2']]]],
         );
 
         $controller = new FormController($client);
@@ -79,7 +79,7 @@ final class FormControllerTest extends TestCase
     public function testEmbedReturnsFormData(): void
     {
         $client = $this->createMock(GoFormsClientInterface::class);
-        $client->method('get')->willReturn(['data' => ['id' => 'form-1']]);
+        $client->method('get')->willReturn(['data' => ['form' => ['id' => 'form-1']]]);
 
         $controller = new FormController($client);
         $response = $controller->embed('form-1', 'user-1', 'free');
