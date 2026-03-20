@@ -137,9 +137,14 @@ final class AppServiceProvider extends ServiceProvider
         $router->addRoute('privacy', new Route('/privacy', defaults: ['_controller' => $this->twig('privacy.html.twig')]));
         $router->addRoute('terms', new Route('/terms', defaults: ['_controller' => $this->twig('terms.html.twig')]));
 
-        // Public form fill (Inertia)
+        // Form view: authenticated users go to edit, anonymous users see public fill
         $router->addRoute('forms.public', new Route('/forms/{id}', defaults: [
-            '_controller' => fn(Request $request, string $id) => $this->inertia($request, Inertia::render('Forms/Fill', ['formId' => $id])),
+            '_controller' => function (Request $request, string $id): Response {
+                if (!empty($_SESSION['waaseyaa_uid'])) {
+                    return new RedirectResponse("/forms/{$id}/edit");
+                }
+                return $this->inertia($request, Inertia::render('Forms/Fill', ['formId' => $id]));
+            },
         ], methods: ['GET']));
     }
 
@@ -474,17 +479,23 @@ final class AppServiceProvider extends ServiceProvider
             },
         ], methods: ['POST']));
 
-        $router->addRoute('forms.edit', new Route('/forms/{id}/edit', defaults: [
-            '_controller' => function (Request $request, string $id) use ($getClient, $getUserContext) {
-                $ctx = $getUserContext();
-                if ($ctx['userId'] === '') {
-                    return new RedirectResponse('/login');
-                }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
-                $controller = new FormController($getClient());
+        $formShowHandler = function (Request $request, string $id) use ($getClient, $getUserContext) {
+            $ctx = $getUserContext();
+            if ($ctx['userId'] === '') {
+                return new RedirectResponse('/login');
+            }
+            Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+            $controller = new FormController($getClient());
+            try {
                 $response = $controller->edit($id, $ctx['userId'], $ctx['planTier']);
                 return $this->inertia($request, $response);
-            },
+            } catch (\RuntimeException) {
+                return new RedirectResponse('/forms');
+            }
+        };
+
+        $router->addRoute('forms.edit', new Route('/forms/{id}/edit', defaults: [
+            '_controller' => $formShowHandler,
         ]));
 
         $router->addRoute('forms.preview', new Route('/forms/{id}/preview', defaults: [
@@ -495,8 +506,12 @@ final class AppServiceProvider extends ServiceProvider
                 }
                 Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new FormController($getClient());
-                $response = $controller->show($id, $ctx['userId'], $ctx['planTier']);
-                return $this->inertia($request, $response);
+                try {
+                    $response = $controller->show($id, $ctx['userId'], $ctx['planTier']);
+                    return $this->inertia($request, $response);
+                } catch (\RuntimeException) {
+                    return new RedirectResponse('/forms');
+                }
             },
         ]));
 
@@ -508,8 +523,12 @@ final class AppServiceProvider extends ServiceProvider
                 }
                 Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new FormController($getClient());
-                $response = $controller->submissions($id, $ctx['userId'], $ctx['planTier']);
-                return $this->inertia($request, $response);
+                try {
+                    $response = $controller->submissions($id, $ctx['userId'], $ctx['planTier']);
+                    return $this->inertia($request, $response);
+                } catch (\RuntimeException) {
+                    return new RedirectResponse('/forms');
+                }
             },
         ]));
 

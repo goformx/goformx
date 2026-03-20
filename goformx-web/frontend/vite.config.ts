@@ -14,6 +14,7 @@ export default defineConfig({
         },
         dedupe: ['@formio/js', '@goformx/formio'],
     },
+    base: '/build/',
     build: {
         outDir: '../public/build',
         manifest: true,
