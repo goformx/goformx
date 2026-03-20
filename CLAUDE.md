@@ -7,12 +7,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 GoFormX is a forms management platform organized as a monorepo with three services:
 
 - **`goforms/`** — Go API backend (Echo, GORM, Uber FX). Owns the entire forms domain: CRUD, schema storage, submissions, public embed/submit. API-only, no UI.
-- **`goformx-web/`** — **Waaseyaa + Vue 3 + Inertia v3 frontend** (replacing goformx-laravel). Handles identity (waaseyaa/auth), user dashboard, form builder UI (Form.io), billing (waaseyaa/billing), and settings. Docker Compose dev environment.
-- **`goformx-laravel/`** — **Deprecated.** Laravel 12 + Vue 3 + Inertia v2 frontend. Kept during confidence period for rollback capability.
-
+- **`goformx-web/`** — **Waaseyaa + Vue 3 + Inertia v3 frontend** (primary). Handles identity (waaseyaa/auth), user dashboard, form builder UI (Form.io), billing (waaseyaa/billing), and settings.
+- **`goformx-laravel/`** — **Deprecated.** Laravel 12 + Vue 3 + Inertia v2 frontend. Kept during confidence period for rollback capability. Do not develop new features here.
 - **`goformx-formio/`** — Git submodule (`goformx/formio`). Form.io template library providing Tailwind-based templates to replace Form.io's default Bootstrap templates.
 
 Each service has its own CLAUDE.md with detailed development instructions. Read those when working within a specific service.
+
+## Orchestration Table
+
+When working on a file pattern, consult the associated skill and spec for context:
+
+| File Pattern | Skill | Spec |
+|-------------|-------|------|
+| `goformx-web/src/Service/GoFormsClient*` | `debug-integration` | `docs/specs/cross-service-auth.md` |
+| `goformx-web/src/Service/UserRepository*` | `laravel-to-waaseyaa` | `docs/specs/user-persistence.md` |
+| `goformx-web/src/Controller/Form*` | `feature-dev` | `docs/specs/form-lifecycle.md` |
+| `goformx-web/src/Controller/Auth*` | `feature-dev` | `docs/specs/cross-service-auth.md` |
+| `goformx-web/src/Controller/Billing*` | `feature-dev` | `docs/specs/form-lifecycle.md` |
+| `goformx-web/src/AppServiceProvider.php` | `claudriel` | All specs (routes span all domains) |
+| `goformx-web/frontend/**` | `frontend-design` | `docs/specs/form-lifecycle.md` |
+| `goforms/internal/application/middleware/assertion/**` | `debug-integration` | `docs/specs/cross-service-auth.md` |
+| `goforms/internal/domain/form/**` | `feature-dev` | `docs/specs/form-lifecycle.md` |
+| `goforms/internal/application/handlers/**` | `feature-dev` | `docs/specs/form-lifecycle.md` |
+| `.claude/rules/**` | `updating-codified-context` | — |
+| `docs/specs/**` | `updating-codified-context` | — |
 
 ## Form.io Template Integration
 
@@ -24,7 +42,7 @@ During development, link the local package to get template changes immediately:
 
 ```bash
 cd goformx-formio && npm link
-cd goformx-laravel && npm link @goformx/formio
+cd goformx-web/frontend && npm link @goformx/formio
 ```
 
 ### Template Registration
@@ -47,26 +65,7 @@ See `docs/solutions/2026-02-27-formio-builder-sidebar-visibility.md` for detaile
 
 ## Development Environment
 
-The primary dev workflow uses **DDEV**. DDEV provides Laravel (nginx + PHP 8.4 + MariaDB 11.8) and runs the Go API as a sidecar container with its own PostgreSQL.
-
-```bash
-# Full-stack (recommended) — from monorepo root
-task dev                  # Starts DDEV + Laravel (Go sidecar auto-starts)
-task setup                # First-time: DDEV start, install deps, generate, migrate
-
-# Individual services
-task dev:go               # Go backend standalone (requires local PostgreSQL)
-task dev:laravel          # Laravel via DDEV (includes Go sidecar)
-
-# Testing & linting (both services)
-task test                 # Run all test suites (Go + Laravel)
-task lint                 # Run all linters (Go + Laravel)
-
-# Install deps
-task install              # Install Go tools + PHP/Node deps via DDEV
-```
-
-### GoForms (Go Backend) — runs on :8090 (host :8091 via DDEV)
+### GoForms (Go Backend) — runs on :8090
 
 ```bash
 cd goforms
@@ -84,32 +83,27 @@ task migrate:down         # Rollback one migration
 go test -v -run TestFunctionName ./path/to/package/...
 ```
 
-### GoFormX-Laravel (PHP/Vue Frontend) — runs on https://goformx-laravel.ddev.site
+### GoFormX-Web (Waaseyaa Frontend)
 
 ```bash
-cd goformx-laravel
-ddev start                # Start DDEV environment
-ddev composer setup       # First-time: install deps, create .env, generate key
-ddev composer dev         # Starts Laravel server + queue + Pail logs + Vite
-ddev artisan test --compact                          # Run all Pest tests
-ddev artisan test --compact --filter=TestName         # Single test
-ddev exec vendor/bin/pint --dirty --format agent      # PHP formatting (Pint)
-ddev exec npm run lint    # ESLint
-ddev exec npm run format  # Prettier
-ddev exec npm run build   # Production frontend build
+cd goformx-web
+vendor/bin/phpunit          # Run tests
+bin/migrate.php             # Run MariaDB migrations
+# Frontend dev:
+cd frontend && npm run dev  # Vite dev server on :5173
 ```
 
 ## Cross-Service Architecture
 
 ```
-Browser → Laravel (DDEV) → GoFormsClient → GoForms API (:8090) → PostgreSQL
-              │                                    │
-         Users/Sessions DB (MariaDB)          Forms/Submissions DB (PostgreSQL)
+Browser → Waaseyaa (goformx-web) → GoFormsClient → GoForms API (:8090) → PostgreSQL
+                │                                          │
+          Users/Sessions DB (MariaDB)              Forms/Submissions DB (PostgreSQL)
 ```
 
 ### Assertion-Based Authentication
 
-Laravel authenticates users (Fortify) and signs every request to Go with HMAC headers:
+Waaseyaa authenticates users (session-based, AuthManager) and signs every request to Go with HMAC headers:
 
 - `X-User-Id` — authenticated user's ID
 - `X-Timestamp` — current UTC timestamp
@@ -119,22 +113,23 @@ Go middleware (`internal/application/middleware/assertion/`) verifies the signat
 
 **Critical shared config**: `GOFORMS_SHARED_SECRET` must match in both `.env` files.
 
-### GoFormsClient (Laravel → Go)
+See `docs/specs/cross-service-auth.md` for full protocol details.
 
-Located at `app/Services/GoFormsClient.php`. Config: `GOFORMS_API_URL` (default `http://localhost:8090`), `GOFORMS_SHARED_SECRET`.
+### GoFormsClient (Waaseyaa → Go)
 
-Usage: `GoFormsClient::fromConfig()->withUser(auth()->user())->listForms()`.
+Located at `goformx-web/src/Service/GoFormsClient.php`. Config: `goforms_api_url` (default `http://localhost:8090`), `goforms_shared_secret` in `config/waaseyaa.php`.
 
 ### Database Separation
 
-- **Laravel DB** (MariaDB 11.8 via DDEV): users, sessions, password resets
-- **Go DB** (PostgreSQL 17 via DDEV sidecar): forms, form_submissions, users (shadow-synced from Laravel assertions)
+- **Waaseyaa DB** (MariaDB): users, sessions, subscriptions, password resets
+- **Go DB** (PostgreSQL 17): forms, form_submissions, users (shadow-synced from assertions)
+- **Waaseyaa Entity Storage** (SQLite): framework entity storage (auto-migrated on boot)
 
-Laravel never touches form tables; Go never touches auth tables.
+Waaseyaa never touches form tables; Go never touches auth tables.
 
 ## API Surface (Go)
 
-**Authenticated** (assertion headers required, called by Laravel only):
+**Authenticated** (assertion headers required, called by Waaseyaa only):
 - `GET/POST /api/forms`, `GET/PUT/DELETE /api/forms/:id`
 - `GET /api/forms/:id/submissions`, `GET /api/forms/:id/submissions/:sid`
 
@@ -163,14 +158,16 @@ Dependencies point inward: Infrastructure → Application → Domain. FX wires e
 
 Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX groups (`group:"handlers"`).
 
-## Laravel Architecture
+## Waaseyaa Frontend Architecture
 
-- **Controllers** are thin: auth user → call GoFormsClient → Inertia render or redirect
-- **FormController**, **DemoController**, **PublicFormController** — FormController catches `RequestException` from Go and maps status codes (422→validation, 404→not found, 5xx→flash message)
-- **Frontend**: Vue 3 pages in `resources/js/pages/`, layouts in `resources/js/layouts/`, shadcn-vue components
-- **Routes**: Wayfinder generates type-safe TypeScript route functions from Laravel routes (import from `@/actions/` or `@/routes/`)
-- **Form builder**: Form.io integration (`@goformx/formio` wrapper) in `Forms/Edit.vue`. Uses Tailwind-based templates from the goformx-formio package.
-- **CSS Layers**: Bootstrap CSS (required by Form.io) is imported in `layer(formio)` to give it lower specificity than Tailwind. Goal is to fully replace Bootstrap with Tailwind.
+- **Service providers** register DI, routes, middleware via `ServiceProvider` base class
+- **Controllers** are thin: auth check → call GoFormsClient or UserRepository → Inertia render or redirect
+- **Routes** defined in `AppServiceProvider::routes()` via `WaaseyaaRouter`
+- **Frontend**: Vue 3 + Inertia v3 pages in `frontend/src/pages/`, shadcn-vue + reka-ui components
+- **Form builder**: Form.io integration via `@goformx/formio` in `Forms/Edit.vue`
+- **SSR pages**: Twig templates in `templates/` for public/auth pages (home, login, register, etc.)
+- **Auth**: `Waaseyaa\Auth\AuthManager` for session-based auth, `TwoFactorManager` for 2FA
+- **Billing**: `Waaseyaa\Billing\BillingManager` + Stripe integration
 
 ## Key Conventions
 
@@ -182,17 +179,17 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 - Structured logging only (Zap) — never `fmt.Printf` or `log.Printf`
 - 40+ golangci-lint v2 linters enabled (`.golangci.yml`)
 
-### Laravel/PHP
+### Waaseyaa/PHP
 - PHP 8.4 constructor property promotion
 - Explicit return types on all methods
-- Form Request classes for validation (never inline)
-- Use `config()` not `env()` outside config files
-- Pest for tests, Pint for formatting
-- Run `vendor/bin/pint --dirty --format agent` before finalizing changes
+- No Illuminate/Laravel imports — this is a Waaseyaa app (see `.claude/rules/waaseyaa-invariants.md`)
+- Entity persistence via `SqlEntityStorage` + `EntityRepository` (see `docs/specs/user-persistence.md`)
+- Use `getenv()` / `env()` helper — NEVER `$_ENV`
+- PHPUnit for tests
 
 ### Frontend/CSS
 - Tailwind CSS v4 with `@tailwindcss/vite` plugin (config via CSS `@theme`, not tailwind.config.js)
-- shadcn-vue components in `resources/js/components/ui/`
+- shadcn-vue + reka-ui components
 - CSS variables for theming: `--primary`, `--foreground`, `--background`, etc.
 - Form.io Bootstrap CSS isolated in `layer(formio)` — being migrated to Tailwind via goformx-formio templates
 
@@ -210,6 +207,19 @@ Handlers implement `web.Handler` (Register/Start/Stop) and are collected via FX 
 - **Ansible Caddy pattern** — Each app deploys its own `Caddyfile` to `/home/deployer/<app>/Caddyfile`. Main `/etc/caddy/Caddyfile` imports them via glob. New services need a Caddyfile or they have no reverse proxy.
 - **Route priority** — Public routes in `registerPublicRoutes()` shadow auth routes for the same path. If both need `/forms/{id}`, handle auth check in the public route handler (#62).
 - **Vite base URL** — `vite.config.ts` must set `base: '/build/'` so dynamic imports resolve to `/build/assets/` not `/assets/`.
+- **UserRepository uses raw PDO** — Migration debt. See `docs/specs/user-persistence.md` for the migration plan to Waaseyaa entity storage.
+
+## Codified Context
+
+This repo uses a three-tier codified context system:
+
+| Tier | Location | Purpose |
+|------|----------|---------|
+| **Constitution** | `CLAUDE.md` (this file) | Architecture, conventions, orchestration |
+| **Rules** | `.claude/rules/*.md` | Silent invariants (always active, never cited) |
+| **Specs** | `docs/specs/*.md` | Domain contracts for each subsystem |
+
+When modifying a subsystem, update its spec in the same PR.
 
 ## Troubleshooting Resources
 

@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace GoFormX;
 
+use Doctrine\DBAL\DriverManager;
 use GoFormX\Controller\AuthController;
 use GoFormX\Controller\BillingController;
 use GoFormX\Controller\DashboardController;
 use GoFormX\Controller\FormController;
 use GoFormX\Controller\SettingsController;
+use GoFormX\Entity\User;
 use GoFormX\Mail\Transport\SmtpTransport;
 use GoFormX\Middleware\SecurityHeadersMiddleware;
 use GoFormX\Service\GoFormsClient;
@@ -16,6 +18,7 @@ use GoFormX\Service\GoFormsClientInterface;
 use GoFormX\Service\InertiaRenderer;
 use GoFormX\Service\StripeClient;
 use GoFormX\Service\UserRepository;
+use Symfony\Component\EventDispatcher\EventDispatcher;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -29,7 +32,12 @@ use Waaseyaa\Billing\BillingManager;
 use Waaseyaa\Billing\FakeStripeClient;
 use Waaseyaa\Billing\SubscriptionData;
 use Waaseyaa\Billing\WebhookHandler;
+use Waaseyaa\Database\DBALDatabase;
+use Waaseyaa\Entity\EntityType;
 use Waaseyaa\Entity\EntityTypeManager;
+use Waaseyaa\EntityStorage\Connection\SingleConnectionResolver;
+use Waaseyaa\EntityStorage\Driver\SqlStorageDriver;
+use Waaseyaa\EntityStorage\EntityRepository;
 use Waaseyaa\Foundation\Middleware\HttpMiddlewareInterface;
 use Waaseyaa\Foundation\ServiceProvider\ServiceProvider;
 use Waaseyaa\Inertia\Inertia;
@@ -56,12 +64,36 @@ final class AppServiceProvider extends ServiceProvider
             viteDevUrl: 'http://localhost:5173',
         ));
 
-        $this->singleton(UserRepository::class, fn() => new UserRepository(
-            host: getenv('DB_HOST') ?: ($this->config['db_host'] ?? '127.0.0.1'),
-            database: getenv('DB_DATABASE') ?: ($this->config['db_database'] ?? 'goformx'),
-            username: getenv('DB_USERNAME') ?: ($this->config['db_username'] ?? 'goformx'),
-            password: getenv('DB_PASSWORD') ?: ($this->config['db_password'] ?? 'goformx'),
-        ));
+        // MariaDB connection for user persistence (via Waaseyaa DatabaseInterface)
+        $this->singleton(DBALDatabase::class . '.mariadb', function () {
+            $connection = DriverManager::getConnection([
+                'driver' => 'pdo_mysql',
+                'host' => getenv('DB_HOST') ?: ($this->config['db_host'] ?? '127.0.0.1'),
+                'dbname' => getenv('DB_DATABASE') ?: ($this->config['db_database'] ?? 'goformx'),
+                'user' => getenv('DB_USERNAME') ?: ($this->config['db_username'] ?? 'goformx'),
+                'password' => getenv('DB_PASSWORD') ?: ($this->config['db_password'] ?? 'goformx'),
+                'charset' => 'utf8mb4',
+            ]);
+
+            return new DBALDatabase($connection);
+        });
+
+        // User entity repository (backed by MariaDB)
+        $this->singleton(UserRepository::class, function () {
+            $database = $this->resolve(DBALDatabase::class . '.mariadb');
+            $resolver = new SingleConnectionResolver($database);
+            $driver = new SqlStorageDriver($resolver);
+            $entityType = new EntityType(
+                id: 'user',
+                label: 'User',
+                class: User::class,
+                keys: ['id' => 'id', 'label' => 'name'],
+            );
+            $eventDispatcher = new EventDispatcher();
+            $entityRepository = new EntityRepository($entityType, $driver, $eventDispatcher);
+
+            return new UserRepository($entityRepository, $database);
+        });
 
         $this->singleton(\Waaseyaa\Billing\StripeClientInterface::class, fn() => new StripeClient(
             secretKey: $this->config['stripe_secret'] ?? '',
@@ -199,7 +231,7 @@ final class AppServiceProvider extends ServiceProvider
 
                 $users = $getUsers();
                 $user = $users->findByEmail($email);
-                if ($user === null || !password_verify($password, $user['password'] ?? '')) {
+                if ($user === null || !password_verify($password, $user->password())) {
                     $_SESSION[$rateLimitKey] = $attempts + 1;
                     $_SESSION[$rateLimitKey . '_time'] = time();
                     return ($this->twig('auth/login.html.twig', ['error' => 'Invalid credentials.', 'email' => $email]))($request);
@@ -209,12 +241,12 @@ final class AppServiceProvider extends ServiceProvider
                 unset($_SESSION[$rateLimitKey], $_SESSION[$rateLimitKey . '_time']);
 
                 // Check if 2FA is enabled
-                if (!empty($user['two_factor_secret']) && !empty($user['two_factor_confirmed_at'])) {
-                    $_SESSION['two_factor_uid'] = $user['id'];
+                if ($user->hasTwoFactorEnabled()) {
+                    $_SESSION['two_factor_uid'] = $user->id();
                     return new RedirectResponse('/two-factor-challenge');
                 }
 
-                $_SESSION['waaseyaa_uid'] = $user['id'];
+                $_SESSION['waaseyaa_uid'] = $user->id();
                 return new RedirectResponse('/dashboard');
             },
         ], methods: ['POST']));
@@ -288,7 +320,7 @@ final class AppServiceProvider extends ServiceProvider
                         secret: $this->config['auth_secret'] ?? 'change-me',
                         tokenLifetimeSeconds: $this->config['password_reset_lifetime'] ?? 3600,
                     );
-                    $token = $resetManager->createToken($user['id'], $email);
+                    $token = $resetManager->createToken($user->id(), $email);
                     $resetUrl = ($this->config['app_url'] ?? 'http://localhost:8080') . '/reset-password/' . $token;
 
                     try {
@@ -329,11 +361,11 @@ final class AppServiceProvider extends ServiceProvider
                 $users = $getUsers();
                 $user = $users->findByEmail($email);
 
-                if ($user === null || !$resetManager->validateToken($token, $user['id'], $email)) {
+                if ($user === null || !$resetManager->validateToken($token, $user->id(), $email)) {
                     return ($this->twig('auth/reset-password.html.twig', ['error' => 'Invalid or expired reset link.', 'token' => $token, 'email' => $email]))($request);
                 }
 
-                $users->updatePassword($user['id'], $password);
+                $users->updatePassword((string) $user->id(), $password);
                 return new RedirectResponse('/login');
             },
         ], methods: ['POST']));
@@ -355,7 +387,7 @@ final class AppServiceProvider extends ServiceProvider
 
                 $isValid = $verifier->verify(
                     userId: $id,
-                    email: $user['email'],
+                    email: $user->email(),
                     expires: $expires,
                     hash: $hash,
                     signature: $signature,
@@ -386,7 +418,7 @@ final class AppServiceProvider extends ServiceProvider
                 }
 
                 $twoFactor = new TwoFactorManager();
-                $secret = $user['two_factor_secret'] ?? '';
+                $secret = $user->twoFactorSecret() ?? '';
 
                 if ($code !== '' && $twoFactor->verifyCode($secret, $code)) {
                     unset($_SESSION['two_factor_uid']);
@@ -395,7 +427,7 @@ final class AppServiceProvider extends ServiceProvider
                 }
 
                 if ($recoveryCode !== '') {
-                    $codes = json_decode($user['two_factor_recovery_codes'] ?? '[]', true) ?: [];
+                    $codes = $user->twoFactorRecoveryCodes();
                     if ($twoFactor->verifyRecoveryCode($recoveryCode, $codes)) {
                         $remaining = array_values(array_filter($codes, fn($c) => $c !== $recoveryCode));
                         $getUsers()->updateRecoveryCodes($uid, $remaining);
@@ -435,8 +467,8 @@ final class AppServiceProvider extends ServiceProvider
         $renderInertia = function (Request $request, string $component, array $props, array $ctx): Response|InertiaResponse {
             Inertia::share('auth', ['user' => [
                 'id' => $ctx['userId'],
-                'name' => $ctx['user']['name'] ?? '',
-                'email' => $ctx['user']['email'] ?? '',
+                'name' => $ctx['user']?->name() ?? '',
+                'email' => $ctx['user']?->email() ?? '',
             ]]);
             return $this->inertia($request, Inertia::render($component, $props));
         };
@@ -459,7 +491,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 $controller = new FormController($getClient());
                 $response = $controller->index($ctx['userId'], $ctx['planTier']);
                 return $this->inertia($request, $response);
@@ -484,7 +516,7 @@ final class AppServiceProvider extends ServiceProvider
             if ($ctx['userId'] === '') {
                 return new RedirectResponse('/login');
             }
-            Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+            Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
             $controller = new FormController($getClient());
             try {
                 $response = $controller->edit($id, $ctx['userId'], $ctx['planTier']);
@@ -504,7 +536,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 $controller = new FormController($getClient());
                 try {
                     $response = $controller->show($id, $ctx['userId'], $ctx['planTier']);
@@ -521,7 +553,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 $controller = new FormController($getClient());
                 try {
                     $response = $controller->submissions($id, $ctx['userId'], $ctx['planTier']);
@@ -558,7 +590,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 Inertia::share('goFormsPublicUrl', $this->config['goforms_public_url'] ?? '');
                 $controller = new FormController($getClient());
                 $response = $controller->embed($id, $ctx['userId'], $ctx['planTier']);
@@ -598,9 +630,9 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 $controller = new SettingsController();
-                $response = $controller->profile(['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']);
+                $response = $controller->profile(['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']);
                 return $this->inertia($request, $response);
             },
         ]));
@@ -646,7 +678,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 $controller = new SettingsController();
                 $response = $controller->password();
                 return $this->inertia($request, $response);
@@ -672,7 +704,7 @@ final class AppServiceProvider extends ServiceProvider
 
                 $users = $getUsers();
                 $user = $users->findById($uid);
-                if ($user === null || !password_verify($currentPassword, $user['password'] ?? '')) {
+                if ($user === null || !password_verify($currentPassword, $user->password())) {
                     return new RedirectResponse('/settings/password');
                 }
 
@@ -687,7 +719,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 $controller = new SettingsController();
                 $response = $controller->appearance();
                 return $this->inertia($request, $response);
@@ -700,7 +732,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']?->name() ?? '', 'email' => $ctx['user']?->email() ?? '']]);
                 $controller = new SettingsController();
                 $response = $controller->twoFactor(['enabled' => false]);
                 return $this->inertia($request, $response);
@@ -746,7 +778,7 @@ final class AppServiceProvider extends ServiceProvider
                     return new RedirectResponse('/billing');
                 }
 
-                $stripeCustomerId = $ctx['user']['stripe_id'] ?? null;
+                $stripeCustomerId = $ctx['user']?->stripeId();
                 if ($stripeCustomerId === null || $stripeCustomerId === '') {
                     // No Stripe customer yet — redirect to billing with error
                     return new RedirectResponse('/billing');
@@ -777,7 +809,7 @@ final class AppServiceProvider extends ServiceProvider
                     return new RedirectResponse('/login');
                 }
 
-                $stripeCustomerId = $ctx['user']['stripe_id'] ?? null;
+                $stripeCustomerId = $ctx['user']?->stripeId();
                 if ($stripeCustomerId === null || $stripeCustomerId === '') {
                     return new RedirectResponse('/billing');
                 }
