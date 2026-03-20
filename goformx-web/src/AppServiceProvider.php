@@ -23,7 +23,6 @@ use Waaseyaa\Auth\AuthManager;
 use Waaseyaa\Auth\EmailVerifier;
 use Waaseyaa\Auth\Middleware\AuthenticateMiddleware;
 use Waaseyaa\Auth\PasswordResetManager;
-use Waaseyaa\Auth\RateLimiter;
 use Waaseyaa\Auth\TwoFactorManager;
 use Waaseyaa\Billing\BillingManager;
 use Waaseyaa\Billing\FakeStripeClient;
@@ -130,6 +129,12 @@ final class AppServiceProvider extends ServiceProvider
 
     private function registerAuthRoutes(WaaseyaaRouter $router): void
     {
+        // CSRF note: Inertia XHR requests send the custom X-Inertia header, which
+        // cannot be set cross-origin without a CORS preflight. The CsrfMiddleware
+        // exempts application/json content type, but the X-Inertia header provides
+        // equivalent CSRF protection for Inertia PUT/PATCH/DELETE requests.
+        // This matches Laravel's approach to Inertia CSRF handling.
+
         // SSR auth GET pages
         $router->addRoute('login', new Route('/login', defaults: ['_controller' => $this->twig('auth/login.html.twig')], methods: ['GET']));
         $router->addRoute('register', new Route('/register', defaults: ['_controller' => $this->twig('auth/register.html.twig')], methods: ['GET']));
@@ -148,6 +153,23 @@ final class AppServiceProvider extends ServiceProvider
                 $email = trim((string) $request->request->get('email', ''));
                 $password = (string) $request->request->get('password', '');
 
+                // Session-based rate limiting: 5 attempts per 60 seconds
+                $rateLimitKey = 'login_attempts';
+                $attempts = $_SESSION[$rateLimitKey] ?? 0;
+                $lastAttempt = $_SESSION[$rateLimitKey . '_time'] ?? 0;
+
+                // Reset counter after 60 seconds
+                if (time() - $lastAttempt > 60) {
+                    $attempts = 0;
+                }
+
+                if ($attempts >= 5) {
+                    return ($this->twig('auth/login.html.twig', [
+                        'error' => 'Too many login attempts. Please try again in a minute.',
+                        'email' => $email,
+                    ]))($request);
+                }
+
                 $authController = new AuthController();
                 $errors = $authController->validateLogin($email, $password);
                 if ($errors !== []) {
@@ -157,8 +179,13 @@ final class AppServiceProvider extends ServiceProvider
                 $users = $getUsers();
                 $user = $users->findByEmail($email);
                 if ($user === null || !password_verify($password, $user['password'] ?? '')) {
+                    $_SESSION[$rateLimitKey] = $attempts + 1;
+                    $_SESSION[$rateLimitKey . '_time'] = time();
                     return ($this->twig('auth/login.html.twig', ['error' => 'Invalid credentials.', 'email' => $email]))($request);
                 }
+
+                // Successful login — clear rate limit state
+                unset($_SESSION[$rateLimitKey], $_SESSION[$rateLimitKey . '_time']);
 
                 // Check if 2FA is enabled
                 if (!empty($user['two_factor_secret']) && !empty($user['two_factor_confirmed_at'])) {
@@ -305,8 +332,7 @@ final class AppServiceProvider extends ServiceProvider
 
         $router->addRoute('logout', new Route('/logout', defaults: [
             '_controller' => function (Request $request) {
-                $auth = new AuthManager();
-                $auth->logout();
+                unset($_SESSION['waaseyaa_uid'], $_SESSION['two_factor_uid']);
                 return new RedirectResponse('/');
             },
         ], methods: ['POST']));
