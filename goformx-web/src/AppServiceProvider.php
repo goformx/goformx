@@ -576,7 +576,7 @@ final class AppServiceProvider extends ServiceProvider
                     $submission = $getClient()->get("/api/forms/{$id}/submissions/{$sid}", $ctx['userId'], $ctx['planTier']);
                     return $renderInertia($request, 'Forms/SubmissionShow', [
                         'form' => $form['data']['form'] ?? [],
-                        'submission' => $submission['data']['submission'] ?? [],
+                        'submission' => $submission['data'] ?? [],
                     ], $ctx);
                 } catch (\RuntimeException) {
                     return new RedirectResponse('/forms');
