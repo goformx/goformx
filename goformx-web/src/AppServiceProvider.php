@@ -168,6 +168,7 @@ final class AppServiceProvider extends ServiceProvider
         $router->addRoute('pricing', new Route('/pricing', defaults: ['_controller' => $this->twig('pricing.html.twig')]));
         $router->addRoute('privacy', new Route('/privacy', defaults: ['_controller' => $this->twig('privacy.html.twig')]));
         $router->addRoute('terms', new Route('/terms', defaults: ['_controller' => $this->twig('terms.html.twig')]));
+        $router->addRoute('contact', new Route('/contact', defaults: ['_controller' => $this->twig('contact.html.twig')]));
 
         // Form view: authenticated users go to edit, anonymous users see public fill
         $router->addRoute('forms.public', new Route('/forms/{id}', defaults: [

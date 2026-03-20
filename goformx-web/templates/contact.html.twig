@@ -1,0 +1,90 @@
+{% extends "layout.html.twig" %}
+
+{% block title %}Contact — GoFormX{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.form.io/formiojs/formio.full.min.css">
+<style>
+    .contact-page { max-width: 40rem; margin: 0 auto; padding: 3rem 0; }
+    .contact-page h1 { font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem; }
+    .contact-page .subtitle { color: #6b7280; margin-bottom: 2rem; }
+    .contact-form-container { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 2rem; }
+    .contact-success { text-align: center; padding: 3rem 2rem; }
+    .contact-success h2 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #059669; }
+    .contact-success p { color: #6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="contact-page">
+    <h1>Contact us</h1>
+    <p class="subtitle">Have a question or want to learn more? We'd love to hear from you.</p>
+    <div class="contact-form-container">
+        <div id="goformx-contact"></div>
+    </div>
+</div>
+
+<script src="https://cdn.form.io/formiojs/formio.full.min.js"></script>
+<script>
+(function() {
+    var FORM_ID = '442dd7f7-95a2-4709-91c9-3d4cd4996212';
+    var API_URL = 'https://api.goformx.com';
+    var container = document.getElementById('goformx-contact');
+
+    fetch(API_URL + '/forms/' + FORM_ID + '/schema')
+        .then(function(res) { return res.json(); })
+        .then(function(response) {
+            var schema = response.data || response;
+            return Formio.createForm(container, schema, {
+                noAlerts: true,
+                hooks: {
+                    beforeSubmit: function(submission, next) {
+                        submission.data = submission.data || {};
+                        submission.data.source = 'goformx.com';
+                        next();
+                    }
+                }
+            });
+        })
+        .then(function(form) {
+            form.nosubmit = true;
+
+            form.on('submit', function(submission) {
+                fetch(API_URL + '/forms/' + FORM_ID + '/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(submission.data)
+                })
+                .then(function(res) {
+                    if (!res.ok) throw new Error('Submission failed');
+                    showSuccess();
+                })
+                .catch(function() {
+                    alert('Something went wrong. Please try again.');
+                });
+            });
+        })
+        .catch(function() {
+            container.textContent = 'Unable to load contact form. Please email us directly.';
+        });
+
+    function showSuccess() {
+        var wrapper = container.closest('.contact-form-container');
+        while (wrapper.firstChild) wrapper.removeChild(wrapper.firstChild);
+
+        var div = document.createElement('div');
+        div.className = 'contact-success';
+
+        var h2 = document.createElement('h2');
+        h2.textContent = 'Message sent!';
+        div.appendChild(h2);
+
+        var p = document.createElement('p');
+        p.textContent = "Thanks for reaching out. We'll get back to you soon.";
+        div.appendChild(p);
+
+        wrapper.appendChild(div);
+    }
+})();
+</script>
+{% endblock %}
