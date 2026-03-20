@@ -23,7 +23,7 @@ final class UserRepository
      */
     public function findByEmail(string $email): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE mail = :email LIMIT 1');
+        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
         $stmt->execute(['email' => $email]);
         $user = $stmt->fetch(\PDO::FETCH_ASSOC);
 
@@ -33,10 +33,10 @@ final class UserRepository
     /**
      * @return array<string, mixed>|null
      */
-    public function findById(string $uid): ?array
+    public function findById(string $id): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE uid = :uid LIMIT 1');
-        $stmt->execute(['uid' => $uid]);
+        $stmt = $this->pdo->prepare('SELECT * FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
         $user = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         return $user !== false ? $user : null;
@@ -47,42 +47,69 @@ final class UserRepository
      */
     public function create(array $data): string
     {
-        $uid = $data['uid'] ?? bin2hex(random_bytes(18));
+        $id = $data['id'] ?? bin2hex(random_bytes(18));
         $stmt = $this->pdo->prepare(
-            'INSERT INTO users (uid, uuid, name, mail, pass, status, roles, created_at, updated_at)
-             VALUES (:uid, :uuid, :name, :mail, :pass, :status, :roles, NOW(), NOW())',
+            'INSERT INTO users (id, name, email, password, created_at, updated_at)
+             VALUES (:id, :name, :email, :password, NOW(), NOW())',
         );
         $stmt->execute([
-            'uid' => $uid,
-            'uuid' => $uid,
+            'id' => $id,
             'name' => $data['name'],
-            'mail' => $data['email'],
-            'pass' => password_hash($data['password'], PASSWORD_BCRYPT),
-            'status' => 1,
-            'roles' => json_encode(['authenticated']),
+            'email' => $data['email'],
+            'password' => password_hash($data['password'], PASSWORD_BCRYPT),
         ]);
 
-        return $uid;
+        return $id;
     }
 
-    public function updatePassword(string $uid, string $newPassword): void
+    public function updatePassword(string $id, string $newPassword): void
     {
-        $stmt = $this->pdo->prepare('UPDATE users SET pass = :pass, updated_at = NOW() WHERE uid = :uid');
+        $stmt = $this->pdo->prepare('UPDATE users SET password = :password, updated_at = NOW() WHERE id = :id');
         $stmt->execute([
-            'pass' => password_hash($newPassword, PASSWORD_BCRYPT),
-            'uid' => $uid,
+            'password' => password_hash($newPassword, PASSWORD_BCRYPT),
+            'id' => $id,
         ]);
     }
 
-    public function verifyEmail(string $uid): void
+    public function verifyEmail(string $id): void
     {
-        $stmt = $this->pdo->prepare('UPDATE users SET email_verified_at = NOW(), updated_at = NOW() WHERE uid = :uid');
-        $stmt->execute(['uid' => $uid]);
+        $stmt = $this->pdo->prepare('UPDATE users SET email_verified_at = NOW(), updated_at = NOW() WHERE id = :id');
+        $stmt->execute(['id' => $id]);
     }
 
-    public function getPlanTier(string $uid): string
+    public function updateProfile(string $id, string $name, string $email): void
     {
-        $user = $this->findById($uid);
+        $stmt = $this->pdo->prepare('UPDATE users SET name = :name, email = :email, updated_at = NOW() WHERE id = :id');
+        $stmt->execute([
+            'name' => $name,
+            'email' => $email,
+            'id' => $id,
+        ]);
+    }
+
+    public function delete(string $id): void
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM users WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+    }
+
+    /**
+     * @param list<string> $codes
+     */
+    public function updateRecoveryCodes(string $id, array $codes): void
+    {
+        $stmt = $this->pdo->prepare(
+            'UPDATE users SET two_factor_recovery_codes = :codes, updated_at = NOW() WHERE id = :id',
+        );
+        $stmt->execute([
+            'codes' => json_encode($codes),
+            'id' => $id,
+        ]);
+    }
+
+    public function getPlanTier(string $id): string
+    {
+        $user = $this->findById($id);
         if ($user === null) {
             return 'free';
         }
@@ -100,10 +127,10 @@ final class UserRepository
         // Check active subscriptions
         $stmt = $this->pdo->prepare(
             "SELECT stripe_price FROM subscriptions
-             WHERE user_id = :uid AND stripe_status IN ('active', 'trialing')
+             WHERE user_id = :id AND stripe_status IN ('active', 'trialing')
              ORDER BY id DESC LIMIT 1",
         );
-        $stmt->execute(['uid' => $uid]);
+        $stmt->execute(['id' => $id]);
         $sub = $stmt->fetch(\PDO::FETCH_ASSOC);
 
         if ($sub === false) {

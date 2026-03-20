@@ -150,21 +150,17 @@ final class AppServiceProvider extends ServiceProvider
 
                 $users = $getUsers();
                 $user = $users->findByEmail($email);
-                if ($user === null || !password_verify($password, $user['pass'] ?? '')) {
+                if ($user === null || !password_verify($password, $user['password'] ?? '')) {
                     return ($this->twig('auth/login.html.twig', ['error' => 'Invalid credentials.', 'email' => $email]))($request);
-                }
-
-                if (($user['status'] ?? 0) != 1) {
-                    return ($this->twig('auth/login.html.twig', ['error' => 'Account is disabled.', 'email' => $email]))($request);
                 }
 
                 // Check if 2FA is enabled
                 if (!empty($user['two_factor_secret']) && !empty($user['two_factor_confirmed_at'])) {
-                    $_SESSION['two_factor_uid'] = $user['uid'];
+                    $_SESSION['two_factor_uid'] = $user['id'];
                     return new RedirectResponse('/two-factor-challenge');
                 }
 
-                $_SESSION['waaseyaa_uid'] = $user['uid'];
+                $_SESSION['waaseyaa_uid'] = $user['id'];
                 return new RedirectResponse('/dashboard');
             },
         ], methods: ['POST']));
@@ -281,7 +277,7 @@ final class AppServiceProvider extends ServiceProvider
             Inertia::share('auth', ['user' => [
                 'id' => $ctx['userId'],
                 'name' => $ctx['user']['name'] ?? '',
-                'email' => $ctx['user']['mail'] ?? '',
+                'email' => $ctx['user']['email'] ?? '',
             ]]);
             return $this->inertia($request, Inertia::render($component, $props));
         };
@@ -304,7 +300,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new FormController($getClient());
                 $response = $controller->index($ctx['userId'], $ctx['planTier']);
                 return $this->inertia($request, $response);
@@ -330,7 +326,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new FormController($getClient());
                 $response = $controller->edit($id, $ctx['userId'], $ctx['planTier']);
                 return $this->inertia($request, $response);
@@ -343,7 +339,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new FormController($getClient());
                 $response = $controller->show($id, $ctx['userId'], $ctx['planTier']);
                 return $this->inertia($request, $response);
@@ -356,7 +352,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new FormController($getClient());
                 $response = $controller->submissions($id, $ctx['userId'], $ctx['planTier']);
                 return $this->inertia($request, $response);
@@ -389,7 +385,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 Inertia::share('goFormsPublicUrl', $this->config['goforms_public_url'] ?? '');
                 $controller = new FormController($getClient());
                 $response = $controller->embed($id, $ctx['userId'], $ctx['planTier']);
@@ -429,9 +425,9 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new SettingsController();
-                $response = $controller->profile(['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']);
+                $response = $controller->profile(['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']);
                 return $this->inertia($request, $response);
             },
         ]));
@@ -456,7 +452,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new SettingsController();
                 $response = $controller->password();
                 return $this->inertia($request, $response);
@@ -475,7 +471,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new SettingsController();
                 $response = $controller->appearance();
                 return $this->inertia($request, $response);
@@ -488,7 +484,7 @@ final class AppServiceProvider extends ServiceProvider
                 if ($ctx['userId'] === '') {
                     return new RedirectResponse('/login');
                 }
-                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['mail'] ?? '']]);
+                Inertia::share('auth', ['user' => ['id' => $ctx['userId'], 'name' => $ctx['user']['name'] ?? '', 'email' => $ctx['user']['email'] ?? '']]);
                 $controller = new SettingsController();
                 $response = $controller->twoFactor(['enabled' => false]);
                 return $this->inertia($request, $response);
