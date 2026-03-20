@@ -111,7 +111,8 @@ jobs:
             # Link shared .env
             ln -nfs "${SHARED_PATH}/.env" "${RELEASE_PATH}/.env"
 
-            # Link shared storage
+            # Link shared storage (remove dir first — rsync creates it as a real directory)
+            rm -rf "${RELEASE_PATH}/storage"
             ln -nfs "${SHARED_PATH}/storage" "${RELEASE_PATH}/storage"
 
             # Run migrations
