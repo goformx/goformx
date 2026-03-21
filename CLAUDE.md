@@ -4,11 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-GoFormX is a forms management platform organized as a monorepo with three services:
+GoFormX is a forms management platform organized as a monorepo:
 
 - **`goforms/`** — Go API backend (Echo, GORM, Uber FX). Owns the entire forms domain: CRUD, schema storage, submissions, public embed/submit. API-only, no UI.
-- **`goformx-web/`** — **Waaseyaa + Vue 3 + Inertia v3 frontend** (primary). Handles identity (waaseyaa/auth), user dashboard, form builder UI (Form.io), billing (waaseyaa/billing), and settings.
-- **`goformx-laravel/`** — **Deprecated.** Laravel 12 + Vue 3 + Inertia v2 frontend. Kept during confidence period for rollback capability. Do not develop new features here.
+- **`goformx-web/`** — **Waaseyaa + Vue 3 + Inertia v3 frontend**. Handles identity (waaseyaa/auth), user dashboard, form builder UI (Form.io), billing (waaseyaa/billing), and settings.
 - **`goformx-formio/`** — Git submodule (`goformx/formio`). Form.io template library providing Tailwind-based templates to replace Form.io's default Bootstrap templates.
 
 Each service has its own CLAUDE.md with detailed development instructions. Read those when working within a specific service.
