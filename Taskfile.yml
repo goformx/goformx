@@ -1,124 +1,74 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 version: '3'
-output: 'interleaved'
+output: prefixed
 
 tasks:
-  ddev:ensure:
-    desc: Start ddev if not already running
-    dir: ./goformx-laravel
-    cmd: ddev describe >/dev/null 2>&1 || ddev start
-    silent: true
+  default:
+    desc: List supported schema-first development commands
+    cmd: task --list
 
-  dev:
-    desc: Start all services (Go sidecar + Laravel via ddev)
-    dir: ./goformx-laravel
-    deps: [ddev:ensure]
-    cmd: ddev composer dev
-    interactive: true
-
-  dev:go:
-    desc: Start Go backend standalone (without ddev; requires local PostgreSQL)
+  bootstrap:
+    desc: Download the supported Go dependencies and materialize generated code
     dir: ./goforms
-    cmd: task dev:backend
-
-  dev:laravel:
-    desc: Start Laravel via ddev (includes Go sidecar)
-    dir: ./goformx-laravel
-    deps: [ddev:ensure]
-    cmd: ddev composer dev
-    interactive: true
-
-  install:
-    desc: Install dependencies for both services
     cmds:
-      - task: install:go
-      - task: install:laravel
+      - go mod download
+      - go generate ./...
 
-  install:go:
-    desc: Install Go dependencies and tools
+  generate:
+    desc: Regenerate committed mocks and other generated Go artifacts
     dir: ./goforms
-    cmd: task install
+    cmd: go generate ./...
 
-  install:laravel:
-    desc: Install PHP and Node dependencies via ddev (creates .env, generates key)
-    dir: ./goformx-laravel
-    cmds:
-      - ddev composer setup
+  build:
+    desc: Build the supported Go API
+    dir: ./goforms
+    cmd: go build ./...
 
   test:
-    desc: Run all test suites
-    deps: [test:go, test:laravel]
-
-  test:go:
-    desc: Run Go unit tests
+    desc: Run all Go tests with the race detector
     dir: ./goforms
-    cmd: task test:backend
-
-  test:laravel:
-    desc: Run Laravel Pest tests
-    dir: ./goformx-laravel
-    cmd: php artisan test --compact
+    cmd: go test -race ./...
 
   lint:
-    desc: Run all linters
-    deps: [lint:go, lint:laravel]
-
-  lint:go:
-    desc: Run Go linters (fmt, vet, golangci-lint)
+    desc: Run static analysis with the pinned local golangci-lint
     dir: ./goforms
-    cmd: task lint:backend
-
-  lint:laravel:
-    desc: Run PHP and frontend linters
-    dir: ./goformx-laravel
     cmds:
-      - vendor/bin/pint --dirty --format agent
-      - npm run lint
+      - go vet ./...
+      - golangci-lint run ./...
 
-  test:e2e:
-    desc: Seed E2E test user and run Playwright E2E tests
-    dir: ./goformx-laravel
-    deps: [ddev:ensure]
-    cmds:
-      - ddev exec php artisan db:seed --class=E2eTestSeeder --no-interaction
-      - npx playwright test
-
-  test:e2e:fresh:
-    desc: Reset DB (destroys all data!) and run Playwright E2E tests
-    dir: ./goformx-laravel
-    deps: [ddev:ensure]
-    cmds:
-      - ddev exec php artisan migrate:fresh --seed --seeder=E2eTestSeeder --no-interaction
-      - npx playwright test
-
-  test:e2e:ui:
-    desc: Seed E2E test user and run Playwright E2E tests in UI mode
-    dir: ./goformx-laravel
-    deps: [ddev:ensure]
-    cmds:
-      - ddev exec php artisan db:seed --class=E2eTestSeeder --no-interaction
-      - npx playwright test --ui
-
-  setup:
-    desc: Full first-time setup (ddev, Go tools, deps, generate, migrate)
-    cmds:
-      - task: setup:ddev:start
-      - task: install:go
-      - task: install:laravel
-      - task: setup:go:generate
-      - task: setup:go:migrate
-
-  setup:ddev:start:
-    desc: Start ddev environment (provides postgres and goforms container)
-    cmds:
-      - task: ddev:ensure
-
-  setup:go:generate:
-    desc: Generate Go code artifacts
+  vuln:
+    desc: Scan reachable Go code with a pinned govulncheck
     dir: ./goforms
-    cmd: task generate
+    cmd: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
-  setup:go:migrate:
-    desc: Apply Go database migrations inside ddev goforms container
-    dir: ./goformx-laravel
-    cmd: ddev exec -s goforms task migrate:up DB_HOST=goforms-db DB_NAME=goforms DB_USERNAME=goforms DB_PASSWORD=goforms
+  verify:
+    desc: Run the deterministic local/CI verification contract
+    dir: ./goforms
+    cmds:
+      - go generate ./...
+      - git diff --exit-code -- test/mocks
+      - go mod tidy
+      - git diff --exit-code -- go.mod go.sum
+      - go vet ./...
+      - golangci-lint run ./...
+      - go test -race ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+  dev:
+    desc: Run the supported Go API with Air
+    dir: ./goforms
+    cmd: air -c .air.toml
+
+  migrate:up:
+    desc: Apply supported Postgres migrations
+    dir: ./goforms
+    cmd: task migrate:up
+
+  migrate:down:
+    desc: Roll back one supported Postgres migration
+    dir: ./goforms
+    cmd: task migrate:down
+
+  legacy:web:
+    desc: Explain the status of the retained human-first code
+    cmd: echo "goformx-web and goformx-formio are legacy reference code; see issue #83."

@@ -1,4 +1,4 @@
-//go:generate mockgen -typed -source=repository.go -destination=../../../test/mocks/form/mock_repository.go -package=form
+//go:generate go tool mockgen -typed -source=repository.go -destination=../../../test/mocks/form/mock_repository.go -package=form
 
 package form
 

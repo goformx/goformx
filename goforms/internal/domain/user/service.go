@@ -1,4 +1,4 @@
-//go:generate mockgen -typed -source=service.go -destination=../../../test/mocks/user/mock_service.go -package=user
+//go:generate go tool mockgen -typed -source=service.go -destination=../../../test/mocks/user/mock_service.go -package=user
 
 package user
 

@@ -4,18 +4,20 @@ updates:
     directory: "/goforms"
     schedule:
       interval: weekly
-
-  - package-ecosystem: "composer"
-    directory: "/goformx-laravel"
-    schedule:
-      interval: weekly
-
-  - package-ecosystem: "npm"
-    directory: "/goformx-laravel"
-    schedule:
-      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      go-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    groups:
+      actions-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

@@ -1,5 +1,5 @@
 # Go build stage
-FROM golang:1.25-alpine AS go-builder
+FROM golang:1.25.13-alpine AS go-builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -15,9 +15,6 @@ WORKDIR /app
 # Copy go mod files
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Install build tools
-RUN go install go.uber.org/mock/mockgen@latest
 
 # Copy source code
 COPY . .

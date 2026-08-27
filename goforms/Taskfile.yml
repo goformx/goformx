@@ -1,22 +1,13 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 version: '3'
-output: 'prefixed'
+output: prefixed
 
 includes:
   migrate:
     taskfile: tasks/Taskfile.migrate.yml
     namespace: migrate
-  user:
-    taskfile: tasks/Taskfile.user.yml
-    namespace: user
-  act:
-    taskfile: tasks/Taskfile.act.yml
-    namespace: act
-  docker:
-    taskfile: tasks/Taskfile.docker.yml
-    namespace: docker
 
-dotenv: [ '.env' ]
+dotenv: ['.env']
 
 vars:
   VERSION:
@@ -27,476 +18,84 @@ vars:
     sh: git rev-parse HEAD
   GO_VERSION:
     sh: go version | cut -d ' ' -f 3
-  LDFLAGS: -s -w -X github.com/goformx/goforms/internal/infrastructure/version.Version={{.VERSION}} -X github.com/goformx/goforms/internal/infrastructure/version.BuildTime={{.BUILD_TIME}} -X github.com/goformx/goforms/internal/infrastructure/version.GitCommit={{.GIT_COMMIT}} -X github.com/goformx/goforms/internal/infrastructure/version.GoVersion={{.GO_VERSION}}
-
-  DB_USER: '{{.DB_USER}}'
-  DB_PASSWORD: '{{.DB_PASSWORD}}'
-  DB_NAME: '{{.DB_NAME}}'
-  DB_HOST: '{{.DB_HOST}}'
-  DB_PORT: '{{.DB_PORT}}'
-  DB_ROOT_PASSWORD: '{{.DB_ROOT_PASSWORD}}'
-
-  TEST_DB_USER: '{{.TEST_DB_USER}}'
-  TEST_DB_PASSWORD: '{{.TEST_DB_PASSWORD}}'
-  TEST_DB_NAME: '{{.TEST_DB_NAME}}'
-  TEST_DB_HOST: '{{.TEST_DB_HOST}}'
-  TEST_DB_PORT: '{{.TEST_DB_PORT}}'
+  LDFLAGS: >-
+    -s -w
+    -X github.com/goformx/goforms/internal/infrastructure/version.Version={{.VERSION}}
+    -X github.com/goformx/goforms/internal/infrastructure/version.BuildTime={{.BUILD_TIME}}
+    -X github.com/goformx/goforms/internal/infrastructure/version.GitCommit={{.GIT_COMMIT}}
+    -X github.com/goformx/goforms/internal/infrastructure/version.GoVersion={{.GO_VERSION}}
 
 tasks:
   default:
-    desc: Run full dev setup pipeline
-    cmds:
-    - task: install
-    - task: generate
-    - task: build
-    - task: migrate:up
-    - task: run
-
-  ci:
-    desc: Run local GitHub Actions CI using act
-    cmds:
-    - task: act
-
-  verify:
-    desc: Verify code quality (backend only; frontend in goformx-laravel)
-    cmds:
-    - task: lint:backend
-
-  format:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel; nothing to format here."
+    desc: List supported Go service commands
+    cmd: task --list
 
   install:
-    desc: Install all project dependencies
-    deps: [ install:go-tools ]
-
-  install:go-tools:
-    desc: Install Go development tools
+    desc: Install pinned interactive development tools
     cmds:
-    - go install go.uber.org/mock/mockgen@latest
-    - go install github.com/air-verse/air@latest
-    - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-    - go install -tags 'mysql,postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-    - export PATH=$PATH:$(go env GOPATH)/bin
-
-  install:frontend:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel; no npm install needed."
+      - go install github.com/air-verse/air@v1.67.4
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+      - go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
   generate:
-    desc: Generate all code artifacts
-    deps: [ generate:mocks ]
-
-  generate:mocks:
-    desc: Generate all mock implementations
+    desc: Regenerate committed mocks
     sources:
-      - "internal/**/*.go"
-      - "!internal/**/*_test.go"
-      - "!internal/**/*_templ.go"
-      - "!test/mocks/**/*.go"
+      - internal/**/*.go
+      - '!internal/**/*_test.go'
+      - '!test/mocks/**/*.go'
     generates:
-      - "test/mocks/**/*.go"
-    cmds:
-    - go generate ./...
+      - test/mocks/**/*.go
+    cmd: go generate ./...
 
   build:
-    desc: Build the entire application
-    deps: [ generate ]
+    desc: Generate and build the API
+    deps: [generate]
     cmds:
-    - task: build:backend
-
-  build:frontend:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel; no build here."
+      - task: build:backend
 
   build:backend:
-    desc: Build the backend application
-    sources:
-      - "**/*.go"
-      - "!**/*_test.go"
-      - go.mod
-      - go.sum
-    generates:
-      - bin/goforms
-    cmds:
-    - go build -ldflags "{{.LDFLAGS}}" -o bin/goforms main.go
-
-  build:production:
-    desc: Build production binary with Go 1.25 optimizations
-    deps: [ generate ]
-    cmds:
-    - task: build:backend:production
-
-  build:backend:production:
-    desc: Build optimized production backend with Go 1.25 features
-    sources:
-      - "**/*.go"
-      - "!**/*_test.go"
-      - go.mod
-      - go.sum
-    generates:
-      - bin/goforms
-    env:
-      GOEXPERIMENT: greenteagc
-      CGO_ENABLED: "0"
-    cmds:
-    - go build -ldflags "{{.LDFLAGS}}" -trimpath -o bin/goforms main.go
-
-  run:
-    desc: Run the compiled application
-    deps: [ build:backend ]
-    cmds:
-    - ./bin/goforms
+    desc: Build the API binary
+    cmd: go build -ldflags "{{.LDFLAGS}}" -o bin/goforms main.go
 
   dev:
-    desc: Run development environment (backend only; frontend in goformx-laravel)
-    deps: [ dev:backend ]
-
-  dev:backend:
-    desc: Run backend with hot reload
-    deps: [ generate ]
-    cmds:
-    - air -c .air.toml
-
-  dev:frontend:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel; run it there."
-
-  clean:
-    desc: Remove generated artifacts and dependencies
-    cmds:
-    - for: ['bin/', 'dist/', 'node_modules/', 'coverage/', '.task/']
-      cmd: rm -rf {{.ITEM}}
-    - find test/mocks -name 'mock_*.go' -delete
+    desc: Run the API with pinned Air installed by task install
+    cmd: air -c .air.toml
 
   lint:
-    desc: Run all linters
-    deps: [ lint:backend ]
-
-  lint:backend:
-    desc: Run all backend linters
-    sources:
-      - "**/*.go"
-      - .golangci.yml
+    desc: Run static analysis
     cmds:
-    - go fmt ./...
-    - go vet ./...
-    - golangci-lint run ./...
-
-  lint:frontend:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel; lint there."
+      - go vet ./...
+      - golangci-lint run ./...
 
   test:
-    desc: Run all tests (backend only; frontend in goformx-laravel)
-    cmds:
-    - task: test:backend
-
-  test:frontend:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel; test there."
-
-  test:frontend:cover:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel; test there."
-
-  test:backend:
-    desc: Run backend unit tests
-    deps: [ generate ]
-    sources:
-      - "internal/**/*.go"
-      - "**/*_test.go"
-    cmds:
-    - go test -v ./internal/...
+    desc: Run every Go test with the race detector
+    deps: [generate]
+    cmd: go test -race ./...
 
   test:cover:
-    desc: Run backend tests and generate coverage report
-    deps: [ test:backend:cover ]
-
-  test:backend:cover:
-    desc: Run backend tests and generate coverage report
-    deps: [ generate ]
-    sources:
-      - "internal/**/*.go"
-      - "**/*_test.go"
-    generates:
-      - coverage.out
-      - coverage.html
+    desc: Generate race-enabled coverage for all supported packages
+    deps: [generate]
     cmds:
-    - go test -v -race -coverprofile=coverage.out -covermode=atomic ./internal/...
-    - go tool cover -html=coverage.out -o coverage.html
+      - go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
 
-  test:integration:
-    desc: Run integration tests
-    sources:
-      - "test/integration/**/*.go"
-      - "internal/**/*.go"
+  vuln:
+    desc: Scan reachable code with pinned govulncheck
+    cmd: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+  verify:
+    desc: Run the service verification contract
     cmds:
-    - go test -v -tags=integration ./test/integration/...
+      - go generate ./...
+      - git diff --exit-code -- test/mocks
+      - go mod tidy
+      - git diff --exit-code -- go.mod go.sum
+      - go vet ./...
+      - golangci-lint run ./...
+      - go test -race ./...
+      - go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
-  # Middleware-specific tasks
-  middleware:
-    desc: Middleware system management
+  clean:
+    desc: Remove local build and coverage artifacts
     cmds:
-    - task: middleware:test
-    - task: middleware:status
-
-  middleware:test:
-    desc: Run middleware-specific tests
-    deps: [ generate ]
-    sources:
-      - "internal/application/middleware/**/*.go"
-      - "internal/application/middleware/**/*_test.go"
-    cmds:
-    - go test -v ./internal/application/middleware/...
-
-  middleware:test:unit:
-    desc: Run middleware unit tests only
-    deps: [ generate ]
-    sources:
-      - "internal/application/middleware/**/*.go"
-      - "internal/application/middleware/**/*_test.go"
-    cmds:
-    - go test -v -run "^Test.*Unit" ./internal/application/middleware/...
-
-  middleware:test:integration:
-    desc: Run middleware integration tests
-    deps: [ generate ]
-    sources:
-      - "internal/application/middleware/**/*.go"
-      - "internal/application/middleware/**/*_test.go"
-    cmds:
-    - go test -v -run "^TestIntegration" ./internal/application/middleware/...
-
-  middleware:test:performance:
-    desc: Run middleware performance tests
-    deps: [ generate ]
-    sources:
-      - "internal/application/middleware/**/*.go"
-      - "internal/application/middleware/**/*_test.go"
-    cmds:
-    - go test -v -run "^Test.*Performance" ./internal/application/middleware/...
-
-  middleware:deploy:
-    desc: Deploy middleware system with new architecture
-    cmds:
-    - ./scripts/deploy-middleware.sh staging false
-
-  middleware:deploy:new:
-    desc: Deploy middleware system with new architecture enabled
-    cmds:
-    - ./scripts/deploy-middleware.sh staging true
-
-  middleware:deploy:production:
-    desc: Deploy middleware system to production
-    cmds:
-    - ./scripts/deploy-middleware.sh production true
-
-  middleware:status:
-    desc: Check middleware system status
-    cmds:
-    - |
-      if [ -f scripts/monitor-middleware.sh ]; then
-        ./scripts/monitor-middleware.sh
-      else
-        echo "Middleware monitoring script not found. Run middleware:deploy first."
-      fi
-
-  middleware:rollback:
-    desc: Rollback to legacy middleware system
-    cmds:
-    - |
-      if [ -f scripts/rollback-middleware.sh ]; then
-        ./scripts/rollback-middleware.sh
-      else
-        echo "Rollback script not found. Run middleware:deploy first."
-      fi
-
-  middleware:validate:
-    desc: Validate middleware configuration (runs middleware tests)
-    deps: [ generate ]
-    sources:
-      - "internal/application/middleware/**/*.go"
-      - "internal/application/middleware/**/*_test.go"
-    cmds:
-    - go test -v ./internal/application/middleware/...
-
-  middleware:benchmark:
-    desc: Run middleware performance benchmarks
-    deps: [ generate ]
-    sources:
-      - "internal/application/middleware/**/*.go"
-      - "internal/application/middleware/**/*_test.go"
-    cmds:
-    - go test -bench=. -benchmem ./internal/application/middleware/...
-
-  # Cleanup tasks for legacy code removal
-  cleanup:
-    desc: Legacy code cleanup management
-    cmds:
-    - task: cleanup:validate
-
-  cleanup:safe:
-    desc: Safe cleanup - remove obvious dead code
-    cmds:
-    - echo "🧹 Running safe cleanup..."
-    - find . -name "*.go" -exec gofmt -s -w {} \;
-    - find . -name "*.go" -exec goimports -w {} \;
-    - go mod tidy
-    - go vet ./...
-    - echo "✅ Safe cleanup completed"
-
-  cleanup:deprecate:
-    desc: Mark legacy code as deprecated
-    cmds:
-    - echo "⚠️ Adding deprecation warnings to legacy code..."
-    - |
-      # Add deprecation comments to old Manager methods
-      find internal/application/middleware/ -name "*.go" -exec sed -i 's/func (m \*Manager)/\/\/ @deprecated - Use new middleware architecture\nfunc (m *Manager)/g' {} \;
-    - echo "✅ Deprecation warnings added"
-
-  cleanup:partial:
-    desc: Remove non-critical legacy code (requires production validation)
-    cmds:
-    - echo "🔧 Removing non-critical legacy code..."
-    - echo "⚠️ This should only be run after 4+ weeks of production validation"
-    - |
-      # Remove unused methods from old Manager
-      # Keep core functionality for emergency fallback
-      echo "Keeping core Manager for emergency fallback"
-    - echo "✅ Partial cleanup completed"
-
-  cleanup:complete:
-    desc: Complete legacy removal (requires full validation)
-    cmds:
-    - echo "🗑️ Complete legacy code removal..."
-    - echo "⚠️ This should only be run after 8+ weeks of production validation"
-    - echo "⚠️ Ensure you have backup and rollback procedures"
-    - |
-      # This would remove the entire old Manager system
-      # Only run after extensive production validation
-      echo "Complete cleanup requires manual review and approval"
-    - echo "✅ Complete cleanup instructions provided"
-
-  cleanup:validate:
-    desc: Validate system after cleanup
-    deps: [ middleware:test, middleware:status ]
-    cmds:
-    - echo "🔍 Validating system after cleanup..."
-    - task: middleware:test
-    - task: middleware:status
-    - echo "✅ System validation completed"
-
-  cleanup:rollback:
-    desc: Rollback cleanup changes if needed
-    cmds:
-    - echo "🔄 Rolling back cleanup changes..."
-    - git checkout HEAD~1 -- internal/application/middleware/
-    - task: cleanup:validate
-    - echo "✅ Rollback completed"
-
-  security:
-    desc: Run all security checks
-    deps: [ security:go, security:frontend ]
-
-  security:go:
-    desc: Run Go security checks
-    sources:
-      - go.mod
-      - go.sum
-      - "**/*.go"
-    cmds:
-    - go list -json -deps ./... | nancy sleuth
-    - staticcheck ./...
-
-  security:frontend:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Frontend lives in goformx-laravel."
-
-  pre-commit:
-    desc: Pre-commit quality checks
-    cmds:
-    - task: format
-    - task: lint
-    - task: test
-
-  deps:update:
-    desc: Update all dependencies
-    cmds:
-    - go get -u ./...
-    - go mod tidy
-    status:
-    - test -f go.mod
-
-  docs:serve:
-    desc: No-op (no docs site in this repo)
-    cmds:
-    - echo "No documentation site in this repo."
-
-  benchmark:
-    desc: Run Go benchmarks
-    sources:
-      - "**/*_test.go"
-      - "internal/**/*.go"
-    cmds:
-    - go test -bench=. -benchmem ./internal/...
-
-  tools:install:
-    desc: Install additional development tools
-    cmds:
-    - go install github.com/swaggo/swag/cmd/swag@latest
-    - go install github.com/cosmtrek/air@latest
-    - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-    platforms: [linux, darwin]
-
-  health:
-    desc: Check application health and dependencies
-    cmds:
-    - task: health:go
-    - task: health:node
-    - task: health:database
-
-  health:go:
-    desc: Check Go environment
-    cmds:
-    - go version
-    - go env GOPATH
-    - go env GOROOT
-
-  health:node:
-    desc: No-op (frontend in goformx-laravel)
-    cmds:
-    - echo "Node not required for API-only backend."
-
-  health:database:
-    desc: Check database connectivity
-    cmds:
-    - |
-      if [ -n "$DB_HOST" ]; then
-        echo "Testing database connection to $DB_HOST:$DB_PORT"
-        # Add your database connection test here
-      else
-        echo "Database configuration not found"
-      fi
-
-  setup:storage:
-    desc: Create storage directories
-    cmds:
-    - mkdir -p storage/sessions
-    - mkdir -p storage/logs
-    - mkdir -p storage/uploads
-    - mkdir -p storage/cache
-    - mkdir -p storage/backups
-    - chmod 750 storage/sessions
-    - chmod 750 storage/logs
-    - chmod 750 storage/uploads
-    - chmod 750 storage/cache
-    - chmod 750 storage/backups
+      - rm -rf bin tmp coverage.out coverage.html
