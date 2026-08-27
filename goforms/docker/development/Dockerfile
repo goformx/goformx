@@ -1,7 +1,7 @@
 # ------------------------------------------------------------
 # Base stage — shared system dependencies
 # ------------------------------------------------------------
-FROM golang:1.25-alpine AS base
+FROM golang:1.25.13-alpine AS base
 
 RUN apk add --no-cache \
     git \
