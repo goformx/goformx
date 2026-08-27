@@ -16,7 +16,6 @@ import (
 	"github.com/goformx/goforms/internal/application/middleware/access"
 	"github.com/goformx/goforms/internal/application/middleware/assertion"
 	ctxmw "github.com/goformx/goforms/internal/application/middleware/context"
-	"github.com/goformx/goforms/internal/application/middleware/security"
 	"github.com/goformx/goforms/internal/application/response"
 	"github.com/goformx/goforms/internal/application/validation"
 	domainerrors "github.com/goformx/goforms/internal/domain/common/errors"
@@ -123,16 +122,15 @@ func (h *FormAPIHandler) RegisterPublicFormsRoutes(e *echo.Echo) {
 	formsPublic := e.Group(constants.PathFormsPublic)
 	formsPublic.Use(NewFormCORSMiddleware(h.FormService, h.Config.Security.CORS))
 
-	// Apply API key middleware if enabled (same as /api/v1/forms)
-	if h.Config.Security.APIKey.Enabled {
-		apiKeyAuth := security.NewAPIKeyAuth(h.Logger, h.Config)
-		formsPublic.Use(apiKeyAuth.Setup())
-	}
-
 	formsPublic.GET("/:id/schema", h.handleFormSchema)
 	formsPublic.GET("/:id/validation", h.handleFormValidationSchema)
 	formsPublic.POST("/:id/submit", h.handleFormSubmit)
 	formsPublic.GET("/:id/embed", h.handleFormEmbed)
+
+	publicV1 := e.Group("/v1/public/forms")
+	publicV1.Use(NewFormCORSMiddleware(h.FormService, h.Config.Security.CORS))
+	publicV1.GET("/:id/schema", h.handleFormSchema)
+	publicV1.POST("/:id/submissions", h.handleFormSubmit)
 }
 
 // Register registers the FormAPIHandler with the Echo instance.
@@ -654,6 +652,9 @@ func (h *FormAPIHandler) Stop(_ context.Context) error {
 
 // getFormOrError retrieves a form by ID and handles common error cases
 func (h *FormAPIHandler) getFormOrError(c echo.Context) (*model.Form, error) {
+	if !strings.HasPrefix(c.Param("id"), "gfpk_") {
+		return nil, h.wrapError("handle form not found", h.ErrorHandler.HandleFormNotFoundError(c, ""))
+	}
 	form, err := h.GetFormByID(c)
 	if err != nil {
 		return nil, h.HandleError(c, err, "Failed to get form")
@@ -662,6 +663,9 @@ func (h *FormAPIHandler) getFormOrError(c echo.Context) (*model.Form, error) {
 	if form == nil {
 		h.Logger.Error("form is nil after GetFormByID", "form_id", c.Param("id"))
 
+		return nil, h.wrapError("handle form not found", h.ErrorHandler.HandleFormNotFoundError(c, ""))
+	}
+	if form.Status != string(model.LifecyclePublished) || !form.Active {
 		return nil, h.wrapError("handle form not found", h.ErrorHandler.HandleFormNotFoundError(c, ""))
 	}
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -24,6 +25,18 @@ type Store struct {
 	logger logging.Logger
 }
 
+type schemaRecord struct {
+	ID          string     `gorm:"column:uuid;primaryKey"`
+	FormID      string     `gorm:"column:form_id"`
+	Schema      model.JSON `gorm:"type:jsonb"`
+	Version     int
+	State       string
+	CreatedAt   time.Time
+	PublishedAt *time.Time
+}
+
+func (schemaRecord) TableName() string { return "form_schemas" }
+
 // NewStore creates a new form store
 func NewStore(db database.DB, logger logging.Logger) form.Repository {
 	return &Store{
@@ -34,7 +47,15 @@ func NewStore(db database.DB, logger logging.Logger) form.Repository {
 
 // CreateForm creates a new form
 func (s *Store) CreateForm(ctx context.Context, formModel *model.Form) error {
-	if err := s.db.GetDB().WithContext(ctx).Create(formModel).Error; err != nil {
+	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(formModel).Error; err != nil {
+			return err
+		}
+		record := schemaRecord{ID: uuid.NewString(), FormID: formModel.ID, Schema: formModel.Schema,
+			Version: formModel.CurrentSchemaVersion, State: string(model.SchemaVersionDraft), CreatedAt: time.Now().UTC()}
+		return tx.Create(&record).Error
+	})
+	if err != nil {
 		s.logger.Error("failed to create form",
 			"form_id", formModel.ID,
 			"error", err,
@@ -86,7 +107,33 @@ func (s *Store) GetFormByID(ctx context.Context, id string) (*model.Form, error)
 		"id_length", len(normalizedID),
 		"form_title", formModel.Title)
 
+	if err := s.loadCurrentSchema(ctx, &formModel); err != nil {
+		return nil, err
+	}
 	return &formModel, nil
+}
+
+// GetFormByPublicKey resolves a browser-safe identifier without exposing internal IDs.
+func (s *Store) GetFormByPublicKey(ctx context.Context, publicKey string) (*model.Form, error) {
+	var formModel model.Form
+	if err := s.db.GetDB().WithContext(ctx).Where("public_key = ?", publicKey).First(&formModel).Error; err != nil {
+		return nil, fmt.Errorf("get form by public key: %w", err)
+	}
+	if err := s.loadCurrentSchema(ctx, &formModel); err != nil {
+		return nil, err
+	}
+	return &formModel, nil
+}
+
+func (s *Store) loadCurrentSchema(ctx context.Context, formModel *model.Form) error {
+	var record schemaRecord
+	err := s.db.GetDB().WithContext(ctx).Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).
+		First(&record).Error
+	if err != nil {
+		return fmt.Errorf("load current schema: %w", err)
+	}
+	formModel.Schema = record.Schema
+	return nil
 }
 
 // ListForms retrieves all forms for a user
@@ -109,16 +156,35 @@ func (s *Store) ListForms(ctx context.Context, userID string) ([]*model.Form, er
 
 // UpdateForm updates a form
 func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form) error {
-	result := s.db.GetDB().WithContext(ctx).Model(&model.Form{}).Where("uuid = ?", formModel.ID).Updates(formModel)
-	if result.Error != nil {
-		return fmt.Errorf("update form: %w", common.NewDatabaseError("update", "form", formModel.ID, result.Error))
-	}
-
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("update form: %w", common.NewNotFoundError("update", "form", formModel.ID))
-	}
-
-	return nil
+	return s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current schemaRecord
+		if err := tx.Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).First(&current).Error; err != nil {
+			return fmt.Errorf("load schema for update: %w", err)
+		}
+		if formModel.Schema != nil && !reflect.DeepEqual(map[string]any(formModel.Schema), map[string]any(current.Schema)) {
+			formModel.CurrentSchemaVersion++
+			next := schemaRecord{ID: uuid.NewString(), FormID: formModel.ID, Schema: formModel.Schema,
+				Version: formModel.CurrentSchemaVersion, State: string(model.SchemaVersionDraft), CreatedAt: time.Now().UTC()}
+			if err := tx.Create(&next).Error; err != nil {
+				return fmt.Errorf("create schema version: %w", err)
+			}
+		}
+		if formModel.Status == string(model.LifecyclePublished) {
+			now := time.Now().UTC()
+			if err := tx.Model(&schemaRecord{}).Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).
+				Updates(map[string]any{"state": string(model.SchemaVersionPublished), "published_at": now}).Error; err != nil {
+				return fmt.Errorf("publish schema version: %w", err)
+			}
+		}
+		result := tx.Model(&model.Form{}).Where("uuid = ?", formModel.ID).Updates(formModel)
+		if result.Error != nil {
+			return fmt.Errorf("update form: %w", common.NewDatabaseError("update", "form", formModel.ID, result.Error))
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("update form: %w", common.NewNotFoundError("update", "form", formModel.ID))
+		}
+		return nil
+	})
 }
 
 // DeleteForm deletes a form

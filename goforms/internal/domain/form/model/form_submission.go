@@ -13,14 +13,16 @@ import (
 
 // FormSubmission represents a form submission
 type FormSubmission struct {
-	ID          string           `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	FormID      string           `gorm:"not null;index;type:uuid"                                   json:"form_id"`
-	Data        JSON             `gorm:"type:jsonb;not null"                                        json:"data"`
-	SubmittedAt time.Time        `gorm:"not null"                                                   json:"submitted_at"`
-	Status      SubmissionStatus `gorm:"not null;size:20"                                           json:"status"`
-	Metadata    JSON             `gorm:"type:jsonb"                                                 json:"metadata"`
-	CreatedAt   time.Time        `gorm:"not null;autoCreateTime"                                    json:"created_at"`
-	UpdatedAt   time.Time        `gorm:"not null;autoUpdateTime"                                    json:"updated_at"`
+	ID             string           `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	FormID         string           `gorm:"not null;index;type:uuid"                                   json:"form_id"`
+	SchemaVersion  int              `gorm:"not null"                                                   json:"schema_version"`
+	IdempotencyKey string           `gorm:"column:idempotency_key"                                     json:"-"`
+	Data           JSON             `gorm:"type:jsonb;not null"                                        json:"data"`
+	SubmittedAt    time.Time        `gorm:"not null"                                                   json:"submitted_at"`
+	Status         SubmissionStatus `gorm:"not null;size:20"                                           json:"status"`
+	Metadata       JSON             `gorm:"type:jsonb"                                                 json:"metadata"`
+	CreatedAt      time.Time        `gorm:"not null;autoCreateTime"                                    json:"created_at"`
+	UpdatedAt      time.Time        `gorm:"not null;autoUpdateTime"                                    json:"updated_at"`
 }
 
 // GetID returns the submission's ID

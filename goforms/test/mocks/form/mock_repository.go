@@ -428,6 +428,45 @@ func (c *MockRepositoryGetFormByIDCall) DoAndReturn(f func(context.Context, stri
 	return c
 }
 
+// GetFormByPublicKey mocks base method.
+func (m *MockRepository) GetFormByPublicKey(ctx context.Context, publicKey string) (*model.Form, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFormByPublicKey", ctx, publicKey)
+	ret0, _ := ret[0].(*model.Form)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFormByPublicKey indicates an expected call of GetFormByPublicKey.
+func (mr *MockRepositoryMockRecorder) GetFormByPublicKey(ctx, publicKey any) *MockRepositoryGetFormByPublicKeyCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFormByPublicKey", reflect.TypeOf((*MockRepository)(nil).GetFormByPublicKey), ctx, publicKey)
+	return &MockRepositoryGetFormByPublicKeyCall{Call: call}
+}
+
+// MockRepositoryGetFormByPublicKeyCall wrap *gomock.Call
+type MockRepositoryGetFormByPublicKeyCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryGetFormByPublicKeyCall) Return(arg0 *model.Form, arg1 error) *MockRepositoryGetFormByPublicKeyCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryGetFormByPublicKeyCall) Do(f func(context.Context, string) (*model.Form, error)) *MockRepositoryGetFormByPublicKeyCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryGetFormByPublicKeyCall) DoAndReturn(f func(context.Context, string) (*model.Form, error)) *MockRepositoryGetFormByPublicKeyCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetFormsByStatus mocks base method.
 func (m *MockRepository) GetFormsByStatus(ctx context.Context, status string) ([]*model.Form, error) {
 	m.ctrl.T.Helper()

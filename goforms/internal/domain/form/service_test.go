@@ -488,6 +488,8 @@ func TestService_SubmitForm(t *testing.T) {
 			},
 		},
 	)
+	form.Status = string(model.LifecyclePublished)
+	form.CurrentSchemaVersion = 1
 
 	// Create test submission
 	submission := &model.FormSubmission{

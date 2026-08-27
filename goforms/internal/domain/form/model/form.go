@@ -56,18 +56,20 @@ func (f *Field) Validate() error {
 
 // Form represents a form in the system
 type Form struct {
-	ID          string         `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	UserID      string         `gorm:"not null;index;type:uuid"                                   json:"user_id"`
-	Title       string         `gorm:"not null;size:100"                                          json:"title"`
-	Description string         `gorm:"size:500"                                                   json:"description"`
-	Schema      JSON           `gorm:"type:jsonb;not null"                                        json:"schema"`
-	Active      bool           `gorm:"not null;default:true"                                      json:"active"`
-	CreatedAt   time.Time      `gorm:"not null;autoCreateTime"                                    json:"created_at"`
-	UpdatedAt   time.Time      `gorm:"not null;autoUpdateTime"                                    json:"updated_at"`
-	DeletedAt   gorm.DeletedAt `gorm:"index"                                                      json:"-"`
-	Fields      []Field        `gorm:"foreignKey:FormID"                                          json:"fields"`
-	Status      string         `gorm:"size:20;not null;default:'draft'"                           json:"status"`
-	PlanTier    string         `gorm:"size:20;not null;default:'free'"                            json:"plan_tier"`
+	ID                   string         `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	UserID               string         `gorm:"not null;index;type:uuid"                                   json:"user_id"`
+	Title                string         `gorm:"not null;size:100"                                          json:"title"`
+	Description          string         `gorm:"size:500"                                                   json:"description"`
+	Schema               JSON           `gorm:"-"                                                          json:"schema"`
+	Active               bool           `gorm:"not null;default:true"                                      json:"active"`
+	CreatedAt            time.Time      `gorm:"not null;autoCreateTime"                                    json:"created_at"`
+	UpdatedAt            time.Time      `gorm:"not null;autoUpdateTime"                                    json:"updated_at"`
+	DeletedAt            gorm.DeletedAt `gorm:"index"                                                      json:"-"`
+	Fields               []Field        `gorm:"foreignKey:FormID"                                          json:"fields"`
+	Status               string         `gorm:"size:20;not null;default:'draft'"                           json:"status"`
+	PlanTier             string         `gorm:"size:20;not null;default:'free'"                            json:"plan_tier"`
+	PublicKey            string         `gorm:"not null;uniqueIndex"                                       json:"public_key"`
+	CurrentSchemaVersion int            `gorm:"not null;default:1"                                         json:"current_schema_version"`
 
 	// CORS settings for form embedding
 	CorsOrigins JSON `gorm:"type:json" json:"cors_origins"`
@@ -102,6 +104,16 @@ func (f *Form) BeforeCreate(_ *gorm.DB) error {
 
 	if f.Status == "" {
 		f.Status = "draft"
+	}
+	if f.PublicKey == "" {
+		publicKey, err := NewPublicKey()
+		if err != nil {
+			return err
+		}
+		f.PublicKey = publicKey
+	}
+	if f.CurrentSchemaVersion == 0 {
+		f.CurrentSchemaVersion = 1
 	}
 
 	// Ensure CORS fields are properly initialized
