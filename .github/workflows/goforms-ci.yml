@@ -258,7 +258,8 @@ jobs:
     needs: [docker]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_dispatch'
+    # Production promotion is manual until the Pi deployment and rollback gates in #75 are complete.
+    if: github.event_name == 'workflow_dispatch'
     environment:
       name: production
       url: https://api.goformx.com/health
