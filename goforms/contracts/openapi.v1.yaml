@@ -44,8 +44,6 @@ paths:
       operationId: createForm
       tags: [Control plane]
       security: [{ serviceToken: [forms:write] }]
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -129,8 +127,6 @@ paths:
       operationId: createSchemaVersion
       tags: [Control plane]
       security: [{ serviceToken: [forms:write] }]
-      parameters:
-        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -292,7 +288,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: Replays with the same subject, operation, and body return the original result for 24 hours.
+      description: Public submission retries with the same form key and body return the original result.
       schema: { type: string, minLength: 16, maxLength: 128 }
   schemas:
     FormDefinition:
@@ -326,7 +322,7 @@ components:
         title: { type: string, minLength: 3, maxLength: 100 }
         description: { type: string, maxLength: 500 }
         publicKey: { type: string }
-        status: { type: string, enum: [draft, published, archived] }
+        status: { type: string, enum: [draft, published, disabled, archived] }
         currentVersion: { type: integer, minimum: 1 }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }

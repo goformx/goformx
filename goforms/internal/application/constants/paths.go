@@ -28,6 +28,8 @@ func NewPathManager() *PathManager {
 			PathAPIHealth,
 			PathAPIValidation,
 			PathAPIFormsLaravel, // Laravel assertion API: auth via X-User-Id/X-Signature on route group
+			PathV1Forms,         // Scoped service-token middleware authenticates control-plane routes.
+			PathV1PublicForms,   // Browser data plane uses an unguessable public key and origin policy.
 		},
 		StaticPaths: []string{
 			PathStatic,

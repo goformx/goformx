@@ -70,7 +70,7 @@ func RequireOwner(c echo.Context, ownerID string) error {
 
 func bearerToken(header string) (string, error) {
 	scheme, value, found := strings.Cut(strings.TrimSpace(header), " ")
-	if !found || !strings.EqualFold(scheme, "Bearer") || !strings.HasPrefix(value, "gfst_") {
+	if !found || !strings.EqualFold(scheme, "Bearer") || !strings.HasPrefix(value, auth.ServiceTokenPrefix) {
 		return "", errors.New("bearer service token is required")
 	}
 	return value, nil

@@ -356,7 +356,7 @@ func (c *middlewareConfig) getChainPaths(chainType core.ChainType) []string {
 	case core.ChainTypeDefault:
 		return []string{"/*"}
 	case core.ChainTypeAPI:
-		return []string{"/api/*"}
+		return []string{"/api/*", "/v1/*"}
 	case core.ChainTypeWeb:
 		return []string{"/dashboard/*", "/forms/*"}
 	case core.ChainTypeAuth:

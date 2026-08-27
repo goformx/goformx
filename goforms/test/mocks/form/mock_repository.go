@@ -158,6 +158,45 @@ func (c *MockRepositoryCreateFormCall) DoAndReturn(f func(context.Context, *mode
 	return c
 }
 
+// CreateSchemaVersion mocks base method.
+func (m *MockRepository) CreateSchemaVersion(ctx context.Context, formID string, schema model.JSON) (*model.SchemaVersion, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSchemaVersion", ctx, formID, schema)
+	ret0, _ := ret[0].(*model.SchemaVersion)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateSchemaVersion indicates an expected call of CreateSchemaVersion.
+func (mr *MockRepositoryMockRecorder) CreateSchemaVersion(ctx, formID, schema any) *MockRepositoryCreateSchemaVersionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchemaVersion", reflect.TypeOf((*MockRepository)(nil).CreateSchemaVersion), ctx, formID, schema)
+	return &MockRepositoryCreateSchemaVersionCall{Call: call}
+}
+
+// MockRepositoryCreateSchemaVersionCall wrap *gomock.Call
+type MockRepositoryCreateSchemaVersionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryCreateSchemaVersionCall) Return(arg0 *model.SchemaVersion, arg1 error) *MockRepositoryCreateSchemaVersionCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryCreateSchemaVersionCall) Do(f func(context.Context, string, model.JSON) (*model.SchemaVersion, error)) *MockRepositoryCreateSchemaVersionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryCreateSchemaVersionCall) DoAndReturn(f func(context.Context, string, model.JSON) (*model.SchemaVersion, error)) *MockRepositoryCreateSchemaVersionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // CreateSubmission mocks base method.
 func (m *MockRepository) CreateSubmission(ctx context.Context, submission *model.FormSubmission) error {
 	m.ctrl.T.Helper()
@@ -192,6 +231,46 @@ func (c *MockRepositoryCreateSubmissionCall) Do(f func(context.Context, *model.F
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockRepositoryCreateSubmissionCall) DoAndReturn(f func(context.Context, *model.FormSubmission) error) *MockRepositoryCreateSubmissionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// CreateSubmissionIdempotent mocks base method.
+func (m *MockRepository) CreateSubmissionIdempotent(ctx context.Context, submission *model.FormSubmission) (*model.FormSubmission, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSubmissionIdempotent", ctx, submission)
+	ret0, _ := ret[0].(*model.FormSubmission)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// CreateSubmissionIdempotent indicates an expected call of CreateSubmissionIdempotent.
+func (mr *MockRepositoryMockRecorder) CreateSubmissionIdempotent(ctx, submission any) *MockRepositoryCreateSubmissionIdempotentCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSubmissionIdempotent", reflect.TypeOf((*MockRepository)(nil).CreateSubmissionIdempotent), ctx, submission)
+	return &MockRepositoryCreateSubmissionIdempotentCall{Call: call}
+}
+
+// MockRepositoryCreateSubmissionIdempotentCall wrap *gomock.Call
+type MockRepositoryCreateSubmissionIdempotentCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryCreateSubmissionIdempotentCall) Return(arg0 *model.FormSubmission, arg1 bool, arg2 error) *MockRepositoryCreateSubmissionIdempotentCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryCreateSubmissionIdempotentCall) Do(f func(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)) *MockRepositoryCreateSubmissionIdempotentCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryCreateSubmissionIdempotentCall) DoAndReturn(f func(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)) *MockRepositoryCreateSubmissionIdempotentCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -506,6 +585,85 @@ func (c *MockRepositoryGetFormsByStatusCall) DoAndReturn(f func(context.Context,
 	return c
 }
 
+// GetPublishedSchemaVersion mocks base method.
+func (m *MockRepository) GetPublishedSchemaVersion(ctx context.Context, publicKey string, version int) (*model.Form, *model.SchemaVersion, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPublishedSchemaVersion", ctx, publicKey, version)
+	ret0, _ := ret[0].(*model.Form)
+	ret1, _ := ret[1].(*model.SchemaVersion)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// GetPublishedSchemaVersion indicates an expected call of GetPublishedSchemaVersion.
+func (mr *MockRepositoryMockRecorder) GetPublishedSchemaVersion(ctx, publicKey, version any) *MockRepositoryGetPublishedSchemaVersionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPublishedSchemaVersion", reflect.TypeOf((*MockRepository)(nil).GetPublishedSchemaVersion), ctx, publicKey, version)
+	return &MockRepositoryGetPublishedSchemaVersionCall{Call: call}
+}
+
+// MockRepositoryGetPublishedSchemaVersionCall wrap *gomock.Call
+type MockRepositoryGetPublishedSchemaVersionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryGetPublishedSchemaVersionCall) Return(arg0 *model.Form, arg1 *model.SchemaVersion, arg2 error) *MockRepositoryGetPublishedSchemaVersionCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryGetPublishedSchemaVersionCall) Do(f func(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)) *MockRepositoryGetPublishedSchemaVersionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryGetPublishedSchemaVersionCall) DoAndReturn(f func(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)) *MockRepositoryGetPublishedSchemaVersionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetSchemaVersion mocks base method.
+func (m *MockRepository) GetSchemaVersion(ctx context.Context, formID string, version int) (*model.SchemaVersion, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSchemaVersion", ctx, formID, version)
+	ret0, _ := ret[0].(*model.SchemaVersion)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSchemaVersion indicates an expected call of GetSchemaVersion.
+func (mr *MockRepositoryMockRecorder) GetSchemaVersion(ctx, formID, version any) *MockRepositoryGetSchemaVersionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaVersion", reflect.TypeOf((*MockRepository)(nil).GetSchemaVersion), ctx, formID, version)
+	return &MockRepositoryGetSchemaVersionCall{Call: call}
+}
+
+// MockRepositoryGetSchemaVersionCall wrap *gomock.Call
+type MockRepositoryGetSchemaVersionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryGetSchemaVersionCall) Return(arg0 *model.SchemaVersion, arg1 error) *MockRepositoryGetSchemaVersionCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryGetSchemaVersionCall) Do(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryGetSchemaVersionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryGetSchemaVersionCall) DoAndReturn(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryGetSchemaVersionCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // GetSubmissionByID mocks base method.
 func (m *MockRepository) GetSubmissionByID(ctx context.Context, id string) (*model.FormSubmission, error) {
 	m.ctrl.T.Helper()
@@ -658,6 +816,45 @@ func (c *MockRepositoryListSubmissionsCall) Do(f func(context.Context, string) (
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockRepositoryListSubmissionsCall) DoAndReturn(f func(context.Context, string) ([]*model.FormSubmission, error)) *MockRepositoryListSubmissionsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// PublishSchemaVersion mocks base method.
+func (m *MockRepository) PublishSchemaVersion(ctx context.Context, formID string, version int) (*model.SchemaVersion, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PublishSchemaVersion", ctx, formID, version)
+	ret0, _ := ret[0].(*model.SchemaVersion)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PublishSchemaVersion indicates an expected call of PublishSchemaVersion.
+func (mr *MockRepositoryMockRecorder) PublishSchemaVersion(ctx, formID, version any) *MockRepositoryPublishSchemaVersionCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishSchemaVersion", reflect.TypeOf((*MockRepository)(nil).PublishSchemaVersion), ctx, formID, version)
+	return &MockRepositoryPublishSchemaVersionCall{Call: call}
+}
+
+// MockRepositoryPublishSchemaVersionCall wrap *gomock.Call
+type MockRepositoryPublishSchemaVersionCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryPublishSchemaVersionCall) Return(arg0 *model.SchemaVersion, arg1 error) *MockRepositoryPublishSchemaVersionCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryPublishSchemaVersionCall) Do(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryPublishSchemaVersionCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryPublishSchemaVersionCall) DoAndReturn(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryPublishSchemaVersionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

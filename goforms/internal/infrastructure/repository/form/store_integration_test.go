@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"gorm.io/driver/postgres"
@@ -44,6 +45,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object",
 		"properties": map[string]any{"name": map[string]any{"type": "string"}}, "required": []any{"name"},
 	})
+	form.Name = "agent-contact-" + uuid.NewString()[:8]
 	require.NoError(t, store.CreateForm(t.Context(), form))
 	require.Regexp(t, `^gfpk_`, form.PublicKey)
 	require.Equal(t, 1, form.CurrentSchemaVersion)
@@ -60,13 +62,33 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		"properties": map[string]any{"email": map[string]any{"type": "string", "format": "email"}},
 		"required":   []any{"email"},
 	}
-	form.Status = string(model.LifecycleDraft)
-	require.NoError(t, store.UpdateForm(t.Context(), form))
-	require.Equal(t, 2, form.CurrentSchemaVersion)
+	version, err := store.CreateSchemaVersion(t.Context(), form.ID, form.Schema)
+	require.NoError(t, err)
+	require.Equal(t, 2, version.Version())
+	published, err := store.PublishSchemaVersion(t.Context(), form.ID, 2)
+	require.NoError(t, err)
+	require.Equal(t, model.SchemaVersionPublished, published.State())
+	publicForm, exactVersion, err := store.GetPublishedSchemaVersion(t.Context(), form.PublicKey, 2)
+	require.NoError(t, err)
+	require.Equal(t, form.ID, publicForm.ID)
+	require.Equal(t, 2, exactVersion.Version())
+	_, err = store.PublishSchemaVersion(t.Context(), form.ID, 1)
+	require.ErrorContains(t, err, "cannot move backwards")
 
 	submission := &model.FormSubmission{FormID: form.ID, SchemaVersion: 1,
-		Data: model.JSON{"name": "Ada"}, SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusPending}
-	require.NoError(t, store.CreateSubmission(t.Context(), submission))
+		IdempotencyKey: "repository-contact-0001", Data: model.JSON{"name": "Ada"},
+		SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusAccepted}
+	created, replayed, err := store.CreateSubmissionIdempotent(t.Context(), submission)
+	require.NoError(t, err)
+	require.False(t, replayed)
+	require.NotEmpty(t, created.ID)
+	retry := &model.FormSubmission{FormID: form.ID, SchemaVersion: 1,
+		IdempotencyKey: submission.IdempotencyKey, Data: model.JSON{"name": "Ada"},
+		SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusAccepted}
+	replayedSubmission, replayed, err := store.CreateSubmissionIdempotent(t.Context(), retry)
+	require.NoError(t, err)
+	require.True(t, replayed)
+	require.Equal(t, created.ID, replayedSubmission.ID)
 
 	var versions int64
 	require.NoError(t, db.Table("form_schemas").Where("form_id = ?", form.ID).Count(&versions).Error)

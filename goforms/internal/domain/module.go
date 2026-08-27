@@ -20,6 +20,7 @@ import (
 	"github.com/goformx/goforms/internal/infrastructure/database"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
 	formstore "github.com/goformx/goforms/internal/infrastructure/repository/form"
+	tokenstore "github.com/goformx/goforms/internal/infrastructure/repository/token"
 	userstore "github.com/goformx/goforms/internal/infrastructure/repository/user"
 )
 
@@ -130,6 +131,7 @@ var Module = fx.Module("domain",
 			fx.As(new(form.Service)),
 		),
 		NewStores,
+		tokenstore.NewStore,
 		// User ensurer (ensures Go user row exists for assertion-authenticated requests)
 		fx.Annotate(
 			userstore.NewUserEnsurer,

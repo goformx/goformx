@@ -57,7 +57,11 @@ var Module = fx.Module("middleware",
 					PublicPaths:   pathManager.PublicPaths,
 					StaticPaths:   pathManager.StaticPaths,
 					// Laravel assertion auth: no session cookie; auth via X-User-Id/X-Signature
-					ExemptPaths: []string{constants.PathAPIFormsLaravel},
+					ExemptPaths: []string{
+						constants.PathAPIFormsLaravel,
+						constants.PathV1Forms,
+						constants.PathV1PublicForms,
+					},
 				}
 
 				return session.NewManager(logger, sessionConfig, lc, accessManager)

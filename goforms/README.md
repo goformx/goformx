@@ -1,86 +1,63 @@
-# GoFormX (Go Forms API)
+# GoFormX API
 
-Forms API backend for GoFormX. Handles form CRUD, schema storage, submissions, and public embed/submit. The web UI (dashboard, form builder) lives in [goformx-laravel](https://github.com/goformx/goformx-laravel); this repo is API-only.
+GoFormX is an AI-first, schema-driven forms service. JSON Schema Draft 2020-12 is the form definition, OpenAPI 3.1 is the HTTP contract, and PostgreSQL stores immutable schema versions and the submissions validated against them.
 
-## Architecture
+The supported runtime is this Go service. A dashboard, Form.io, Laravel sessions, and browser-held API secrets are not required for the v1 contact-form path.
 
-- **Authenticated API** (`/api/forms`): Used by Laravel. Requires signed headers `X-User-Id`, `X-Timestamp`, `X-Signature` (HMAC-SHA256). Laravel sends these after authenticating the user.
-- **Public API** (`/forms/:id/...`): No auth. Embed page, schema, validation rules, and form submission for external sites. CORS and rate limiting apply.
-- **Database**: PostgreSQL. Go owns forms, submissions, and related tables; Laravel has its own DB for users and sessions.
+## v1 flow
 
-See the [split design doc](https://github.com/goformx/goformx-laravel/blob/main/docs/plans/2026-02-18-goformx-laravel-go-split-design.md) in goformx-laravel for the full architecture.
+1. A server-side caller uses a scoped `gfst_` service token to create a form and schema versions.
+2. Publishing a version makes its unguessable `gfpk_` public key and exact schema version available to approved browser origins.
+3. The browser fetches the published JSON Schema without a credential.
+4. The browser submits `{ "data": ... }` with an idempotency key and optional exact schema-version header.
+5. GoFormX validates, persists, and returns the accepted submission. A safe retry returns the same submission.
 
-## Features
+The machine-readable contract is [`contracts/openapi.v1.yaml`](contracts/openapi.v1.yaml).
 
-- Form CRUD and schema (Form.io–compatible)
-- Submissions and event bus
-- Laravel assertion auth (signed headers)
-- Public embed and submit with CORS
-- PostgreSQL, migrations (GORM)
-- Uber FX, Echo, Zap, Testify, Task
+## Development
 
-## Tech Stack
+Prerequisites are Go 1.25.13, PostgreSQL 17, Node.js 22, and Task.
 
-- Go 1.25+
-- PostgreSQL 17
-- Echo v4
-- Uber FX, GORM, Zap, Testify, Task
+```bash
+task bootstrap
+task migrate:up
+task verify
+task dev
+```
 
-## Quick Start
+`task verify` regenerates committed artifacts, checks module drift, vets and lints the code, runs the race-enabled test suite, and scans reachable dependencies.
 
-1. **Prerequisites**
+## Provision a service token
 
-   - Go 1.25+
-   - PostgreSQL
-   - Task (optional; see `Taskfile.yml`)
+Token plaintext is returned once; only its SHA-256 hash is stored. The owner must already exist in the `users` table.
 
-2. **Clone and setup**
+```bash
+export DATABASE_URL='postgres://goformx:password@localhost:5432/goformx?sslmode=disable'
+go run ./cmd/goformx-token issue \
+  --owner 11111111-1111-4111-8111-111111111111 \
+  --scopes forms:read,forms:write,forms:publish,submissions:read \
+  --ttl 24h
+```
 
-   ```bash
-   git clone https://github.com/goformx/goforms.git
-   cd goforms
-   cp .env.example .env
-   ```
+The command emits JSON suitable for a secret manager or an agent tool. Never place the returned token in browser JavaScript. Revoke it by its non-secret token ID:
 
-3. **Environment**
+```bash
+go run ./cmd/goformx-token revoke --token-id TOKEN_ID
+```
 
-   Set database and shared secret (must match Laravel):
+## API surface
 
-   ```bash
-   DATABASE_HOST=localhost
-   DATABASE_PORT=5432
-   DATABASE_NAME=goforms
-   DATABASE_USERNAME=goforms
-   DATABASE_PASSWORD=goforms
-   GOFORMS_SHARED_SECRET=your-shared-secret
-   ```
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `POST /v1/forms` | `forms:write` | Create a form and initial draft schema |
+| `POST /v1/forms/{id}/versions` | `forms:write` | Append an immutable draft version |
+| `POST /v1/forms/{id}/versions/{version}/publish` | `forms:publish` | Publish an exact version |
+| `GET /v1/forms/{id}/submissions` | `submissions:read` | Retrieve accepted submissions |
+| `GET /v1/public/forms/{publicKey}/schema` | Public key | Fetch a published schema |
+| `POST /v1/public/forms/{publicKey}/submissions` | Public key | Validate and accept an idempotent submission |
 
-4. **Run**
-
-   ```bash
-   task migrate:up
-   task dev:backend
-   ```
-
-   API: `http://localhost:8090`. Use with goformx-laravel (`GOFORMS_API_URL=http://localhost:8090`, same `GOFORMS_SHARED_SECRET`).
-
-## API Overview
-
-| Route | Auth | Purpose |
-|-------|------|---------|
-| `GET/POST /api/forms`, `GET/PUT/DELETE /api/forms/:id` | Assertion | Laravel form CRUD |
-| `GET /api/forms/:id/submissions` | Assertion | List/get submissions |
-| `GET /forms/:id/schema` | None | Public schema |
-| `POST /forms/:id/submit` | None | Public submit |
-| `GET /forms/:id/embed` | None | Embeddable form page |
-| `GET /health` | None | Health check |
-
-## Documentation
-
-- [CLAUDE.md](CLAUDE.md) — development and architecture notes
-- [API Documentation](docs/api/README.md) (if present)
-- [Development Guide](docs/development/README.md) (if present)
+Legacy assertion-auth and embed routes remain temporarily for migration work tracked in GitHub issues #73, #74, and #83. New integrations must use `/v1`.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+AGPL-3.0-or-later; see [`LICENSE`](LICENSE).

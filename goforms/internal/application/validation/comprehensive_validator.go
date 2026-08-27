@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	canonicalDialect = "https://json-schema.org/draft/2020-12/schema"
+	canonicalDialect = model.JSONSchemaDraft202012URI
 	resourceURL      = "https://goformx.com/runtime/form-definition.json"
 )
 

@@ -20,7 +20,7 @@ import (
 // Module provides web handler dependencies
 var Module = fx.Module("web-handlers",
 	// Core dependencies
-	fx.Provide(NewBaseHandler),
+	fx.Provide(NewBaseHandler, NewV1APIHandler),
 
 	// Handler providers
 	fx.Provide(
@@ -70,6 +70,9 @@ var Module = fx.Module("web-handlers",
 		},
 		fx.ParamTags(``, `group:"handlers"`),
 	)),
+	fx.Invoke(func(e *echo.Echo, handler *V1APIHandler) {
+		handler.RegisterRoutes(e)
+	}),
 )
 
 // RouteRegistrar handles route registration for all handlers

@@ -153,7 +153,7 @@ func (s *formService) DeleteForm(ctx context.Context, formID string) error {
 func (s *formService) GetForm(ctx context.Context, formID string) (*model.Form, error) {
 	var form *model.Form
 	var err error
-	if strings.HasPrefix(formID, "gfpk_") {
+	if strings.HasPrefix(formID, model.PublicKeyPrefix) {
 		form, err = s.repository.GetFormByPublicKey(ctx, formID)
 	} else {
 		form, err = s.repository.GetFormByID(ctx, formID)

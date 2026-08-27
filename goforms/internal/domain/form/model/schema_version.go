@@ -60,6 +60,25 @@ func (v *SchemaVersion) PublishedAt() *time.Time   { return v.publishedAt }
 // Schema returns a defensive copy so a version cannot be mutated after creation.
 func (v *SchemaVersion) Schema() JSON { return cloneJSON(v.schema) }
 
+// RestoreSchemaVersion reconstructs an immutable snapshot loaded from persistence.
+func RestoreSchemaVersion(
+	formID string,
+	version int,
+	schema JSON,
+	state SchemaVersionState,
+	createdAt time.Time,
+	publishedAt *time.Time,
+) (*SchemaVersion, error) {
+	if formID == "" || version < 1 || schema == nil {
+		return nil, errors.New("persisted schema version is invalid")
+	}
+	if state != SchemaVersionDraft && state != SchemaVersionPublished && state != SchemaVersionRetired {
+		return nil, errors.New("persisted schema version state is invalid")
+	}
+	return &SchemaVersion{formID: formID, version: version, schema: cloneJSON(schema), state: state,
+		createdAt: createdAt.UTC(), publishedAt: publishedAt}, nil
+}
+
 // Publish returns a published copy; the draft remains unchanged.
 func (v *SchemaVersion) Publish(now time.Time) (*SchemaVersion, error) {
 	if v.state != SchemaVersionDraft {
