@@ -36,7 +36,8 @@ func TestService_CreateForm_minimal(t *testing.T) {
 		"Test Form",
 		"Test Description",
 		model.JSON{
-			"type": "object",
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type":    "object",
 			"properties": map[string]any{
 				"name": map[string]any{
 					"type": "string",
@@ -79,7 +80,8 @@ func TestService_CreateForm_ExceedsFreeTierLimit(t *testing.T) {
 
 	userID := "user123"
 	form := model.NewForm(userID, "Test Form", "Desc", model.JSON{
-		"type": "object",
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type":    "object",
 		"properties": map[string]any{
 			"name": map[string]any{"type": "string"},
 		},
@@ -112,7 +114,8 @@ func TestService_CreateForm_UnderProTierLimit(t *testing.T) {
 
 	userID := "user123"
 	form := model.NewForm(userID, "Test Form", "Desc", model.JSON{
-		"type": "object",
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type":    "object",
 		"properties": map[string]any{
 			"name": map[string]any{"type": "string"},
 		},
@@ -143,7 +146,8 @@ func TestService_CreateForm_EnterpriseTier_NoLimit(t *testing.T) {
 
 	userID := "user123"
 	form := model.NewForm(userID, "Test Form", "Desc", model.JSON{
-		"type": "object",
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type":    "object",
 		"properties": map[string]any{
 			"name": map[string]any{"type": "string"},
 		},
@@ -250,7 +254,8 @@ func TestService_UpdateForm(t *testing.T) {
 		Status:      "draft",
 		Active:      true,
 		Schema: model.JSON{
-			"type": "object",
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type":    "object",
 			"properties": map[string]any{
 				"name": map[string]any{
 					"type": "string",
@@ -331,77 +336,6 @@ func TestService_UpdateForm(t *testing.T) {
 		err := svc.UpdateForm(ctx, form, plans.TierFree)
 		require.NoError(t, err) // Event bus errors are logged but don't fail the operation
 	})
-}
-
-func TestService_UpdateForm_WithGatedFeatureOnFreeTier_ReturnsError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
-
-	repo := mockform.NewMockRepository(ctrl)
-	eventBus := mockevents.NewMockEventBus(ctrl)
-	logger := mocklogging.NewMockLogger(ctrl)
-
-	form := &model.Form{
-		ID:     "form123",
-		UserID: "user123",
-		Title:  "Test Form",
-		Status: "draft",
-		Active: true,
-		Schema: model.JSON{
-			"display": "form",
-			"components": []any{
-				map[string]any{"type": "file", "key": "upload"},
-			},
-		},
-	}
-
-	svc := domainform.NewService(repo, eventBus, logger)
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-
-	err := svc.UpdateForm(ctx, form, plans.TierFree)
-	require.Error(t, err)
-
-	var domainErr *domainerrors.DomainError
-	require.ErrorAs(t, err, &domainErr)
-	assert.Equal(t, domainerrors.ErrCodeFeatureNotAvailable, domainErr.Code)
-	assert.Equal(t, "file", domainErr.Context["feature"])
-	assert.Equal(t, plans.TierPro, domainErr.Context["required_tier"])
-}
-
-func TestService_UpdateForm_WithGatedFeatureOnProTier_Succeeds(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
-
-	repo := mockform.NewMockRepository(ctrl)
-	eventBus := mockevents.NewMockEventBus(ctrl)
-	logger := mocklogging.NewMockLogger(ctrl)
-
-	form := &model.Form{
-		ID:     "form123",
-		UserID: "user123",
-		Title:  "Test Form",
-		Status: "draft",
-		Active: true,
-		Schema: model.JSON{
-			"display": "form",
-			"components": []any{
-				map[string]any{"type": "file", "key": "upload"},
-			},
-		},
-	}
-
-	repo.EXPECT().UpdateForm(gomock.Any(), gomock.Any()).Return(nil)
-	eventBus.EXPECT().Publish(gomock.Any(), gomock.Any()).Return(nil)
-
-	svc := domainform.NewService(repo, eventBus, logger)
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-
-	err := svc.UpdateForm(ctx, form, plans.TierPro)
-	require.NoError(t, err)
 }
 
 func TestService_DeleteForm(t *testing.T) {
@@ -542,7 +476,8 @@ func TestService_SubmitForm(t *testing.T) {
 		"Test Form",
 		"Test Description",
 		model.JSON{
-			"type": "object",
+			"$schema": "https://json-schema.org/draft/2020-12/schema",
+			"type":    "object",
 			"properties": map[string]any{
 				"name": map[string]any{
 					"type": "string",

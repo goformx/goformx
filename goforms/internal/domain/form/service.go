@@ -68,13 +68,6 @@ func (s *formService) CreateForm(ctx context.Context, form *model.Form, planTier
 		return err
 	}
 
-	// Validate schema features against plan tier
-	if form.Schema != nil {
-		if err := plans.ValidateSchemaFeatures(form.Schema, planTier); err != nil {
-			return err
-		}
-	}
-
 	form.PlanTier = planTier
 
 	// Set form ID if not already set
@@ -122,13 +115,6 @@ func (s *formService) enforcePlanLimits(ctx context.Context, userID, planTier st
 func (s *formService) UpdateForm(ctx context.Context, form *model.Form, planTier string) error {
 	if validateErr := form.Validate(); validateErr != nil {
 		return fmt.Errorf("validate form: %w", validateErr)
-	}
-
-	// Validate schema features against plan tier
-	if form.Schema != nil {
-		if err := plans.ValidateSchemaFeatures(form.Schema, planTier); err != nil {
-			return err
-		}
 	}
 
 	// Update the form

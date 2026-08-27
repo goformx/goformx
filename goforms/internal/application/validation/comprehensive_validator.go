@@ -1,104 +1,129 @@
-// Package validation provides comprehensive form validation utilities
-// for validating form schemas, submissions, and generating client-side rules.
+// Package validation validates canonical form definitions and submissions.
 package validation
 
 import (
 	"errors"
+	"fmt"
+	"strings"
+
+	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 
 	"github.com/goformx/goforms/internal/domain/form/model"
 )
 
-// ComprehensiveValidator provides comprehensive form validation
-type ComprehensiveValidator struct {
-	fieldValidator *FieldValidator
-	schemaParser   *SchemaParser
+const (
+	canonicalDialect = "https://json-schema.org/draft/2020-12/schema"
+	resourceURL      = "https://goformx.com/runtime/form-definition.json"
+)
+
+// ComprehensiveValidator wraps the maintained Draft 2020-12 implementation used by the core path.
+type ComprehensiveValidator struct{}
+
+// NewComprehensiveValidator creates a canonical JSON Schema validator.
+func NewComprehensiveValidator() *ComprehensiveValidator { return &ComprehensiveValidator{} }
+
+// ValidateDefinition implements the domain schema-compilation boundary.
+func (v *ComprehensiveValidator) ValidateDefinition(schema model.JSON) error {
+	result := v.ValidateSchema(schema)
+	if result.IsValid {
+		return nil
+	}
+	return fmt.Errorf("%s: %s", result.Errors[0].Code, result.Errors[0].Message)
 }
 
-// NewComprehensiveValidator creates a new comprehensive form validator
-func NewComprehensiveValidator() *ComprehensiveValidator {
-	return &ComprehensiveValidator{
-		fieldValidator: NewFieldValidator(),
-		schemaParser:   NewSchemaParser(),
+// ValidateVersion validates against the immutable version supplied by the caller.
+func (v *ComprehensiveValidator) ValidateVersion(version *model.SchemaVersion, submission model.JSON) Result {
+	if version == nil {
+		return invalidResult("/", "schema_version_required", "schema version is required")
 	}
+	return v.ValidateForm(version.Schema(), submission)
 }
 
-// ValidateForm validates a form submission against its schema
-func (v *ComprehensiveValidator) ValidateForm(schema, submission model.JSON) Result {
-	result := Result{
-		IsValid: true,
-		Errors:  []Error{},
-	}
-
-	// Extract components from schema
-	components, ok := v.schemaParser.ExtractComponents(schema)
-	if !ok {
-		result.IsValid = false
-		result.Errors = append(result.Errors, Error{
-			Field:   "schema",
-			Message: "Invalid form schema: missing components",
-			Rule:    "",
-		})
-
-		return result
-	}
-
-	// Validate each component
-	for _, component := range components {
-		if componentMap, componentOk := component.(map[string]any); componentOk {
-			fieldErrors := v.validateComponent(componentMap, submission)
-			result.Errors = append(result.Errors, fieldErrors...)
-		}
-	}
-
-	// Check if any errors occurred
-	if len(result.Errors) > 0 {
-		result.IsValid = false
-	}
-
+// ValidateSchema compiles a form definition without validating an instance.
+func (v *ComprehensiveValidator) ValidateSchema(schema model.JSON) Result {
+	_, result := v.compile(schema)
 	return result
 }
 
-// validateComponent validates a single form component
-func (v *ComprehensiveValidator) validateComponent(component map[string]any, submission model.JSON) []Error {
-	// Extract component key
-	key, ok := v.schemaParser.ExtractComponentKey(component)
-	if !ok {
-		return []Error{}
+// ValidateForm validates submission data against the exact schema supplied by the caller.
+func (v *ComprehensiveValidator) ValidateForm(schema, submission model.JSON) Result {
+	compiled, result := v.compile(schema)
+	if !result.IsValid {
+		return result
 	}
-
-	// Get field value from submission
-	fieldValue, exists := submission[key]
-	if !exists {
-		fieldValue = nil
+	if err := compiled.Validate(map[string]any(submission)); err != nil {
+		var validationErr *jsonschema.ValidationError
+		if !errors.As(err, &validationErr) {
+			return invalidResult("/", "validation_failed", err.Error())
+		}
+		return Result{IsValid: false, Errors: flattenValidationError(validationErr)}
 	}
-
-	// Extract validation rules
-	validation := v.schemaParser.ExtractValidationRules(component)
-
-	// Validate field using field validator
-	return v.fieldValidator.ValidateField(key, fieldValue, &validation)
+	return Result{IsValid: true, Errors: []Error{}}
 }
 
-// GenerateClientValidation generates client-side validation rules from schema
+// GenerateClientValidation returns the canonical schema itself. Renderers derive constraints from JSON Schema.
 func (v *ComprehensiveValidator) GenerateClientValidation(schema model.JSON) (map[string]any, error) {
-	clientRules := make(map[string]any)
-
-	components, ok := v.schemaParser.ExtractComponents(schema)
-	if !ok {
-		return nil, errors.New("invalid schema: missing components")
+	result := v.ValidateSchema(schema)
+	if !result.IsValid {
+		return nil, fmt.Errorf("invalid canonical schema: %s", result.Errors[0].Message)
 	}
+	return map[string]any{"dialect": canonicalDialect, "schema": map[string]any(schema)}, nil
+}
 
-	for _, component := range components {
-		if componentMap, componentOk := component.(map[string]any); componentOk {
-			key, keyOk := v.schemaParser.ExtractComponentKey(componentMap)
-			if !keyOk {
-				continue
-			}
+func (v *ComprehensiveValidator) compile(schema model.JSON) (*jsonschema.Schema, Result) {
+	if schema == nil {
+		return nil, invalidResult("/", "invalid_schema", "schema is required")
+	}
+	dialect, ok := schema["$schema"].(string)
+	if !ok || dialect != canonicalDialect {
+		return nil, invalidResult("/$schema", "invalid_dialect", "schema must declare JSON Schema Draft 2020-12")
+	}
+	if schemaType, ok := schema["type"].(string); !ok || schemaType != "object" {
+		return nil, invalidResult("/type", "invalid_type", "form schema type must be object")
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	compiler.AssertFormat()
+	if err := compiler.AddResource(resourceURL, map[string]any(schema)); err != nil {
+		return nil, invalidResult("/", "invalid_schema", err.Error())
+	}
+	compiled, err := compiler.Compile(resourceURL)
+	if err != nil {
+		return nil, invalidResult("/", "invalid_schema", err.Error())
+	}
+	return compiled, Result{IsValid: true, Errors: []Error{}}
+}
 
-			validation := v.schemaParser.ExtractValidationRules(componentMap)
-			clientRules[key] = v.schemaParser.ConvertToClientRules(&validation)
+func invalidResult(pointer, code, message string) Result {
+	return Result{IsValid: false, Errors: []Error{{Pointer: pointer, Code: code, Message: message}}}
+}
+
+func flattenValidationError(root *jsonschema.ValidationError) []Error {
+	if len(root.Causes) == 0 {
+		return []Error{toFieldError(root)}
+	}
+	errors := make([]Error, 0, len(root.Causes))
+	for _, cause := range root.Causes {
+		errors = append(errors, flattenValidationError(cause)...)
+	}
+	return errors
+}
+
+func toFieldError(err *jsonschema.ValidationError) Error {
+	code := "validation_failed"
+	if err.ErrorKind != nil {
+		path := err.ErrorKind.KeywordPath()
+		if len(path) > 0 {
+			code = path[len(path)-1]
 		}
 	}
-
-	return clientRules, nil
+	parts := make([]string, len(err.InstanceLocation))
+	for i, part := range err.InstanceLocation {
+		parts[i] = strings.ReplaceAll(strings.ReplaceAll(part, "~", "~0"), "/", "~1")
+	}
+	pointer := "/"
+	if len(parts) > 0 {
+		pointer += strings.Join(parts, "/")
+	}
+	return Error{Pointer: pointer, Code: code, Message: err.Error()}
 }

@@ -114,10 +114,10 @@ func TestForm_Validate(t *testing.T) {
 				},
 			),
 			wantErr:     true,
-			errContains: "invalid schema: must have 'type: object' or 'display: form'",
+			errContains: "invalid schema: type must be object",
 		},
 		{
-			name: "valid Form.io format schema",
+			name: "Form.io format is not canonical",
 			form: model.NewForm(
 				"user123",
 				"Test Form",
@@ -138,7 +138,8 @@ func TestForm_Validate(t *testing.T) {
 					},
 				},
 			),
-			wantErr: false,
+			wantErr:     true,
+			errContains: "schema must declare JSON Schema Draft 2020-12",
 		},
 		{
 			name: "missing schema properties",
@@ -151,7 +152,7 @@ func TestForm_Validate(t *testing.T) {
 				},
 			),
 			wantErr:     true,
-			errContains: "schema must contain either properties or components",
+			errContains: "schema must contain properties",
 		},
 		{
 			name: "invalid property type",
@@ -175,6 +176,9 @@ func TestForm_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.name != "Form.io format is not canonical" {
+				tt.form.Schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+			}
 			err := tt.form.Validate()
 			if tt.wantErr {
 				require.Error(t, err)
