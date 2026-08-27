@@ -1,11 +1,3 @@
-# =============================================
-# Go Generated Files
-# =============================================
-# Mock files
-mock_*.go
-*_mock.go
-test/mocks/
-
 # Go build artifacts
 bin/
 goforms

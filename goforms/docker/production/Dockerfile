@@ -16,9 +16,6 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Install build tools
-RUN go install go.uber.org/mock/mockgen@latest
-
 # Copy source code
 COPY . .
 

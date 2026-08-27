@@ -1,6 +1,6 @@
 // Package event defines domain events and event interfaces for form-related actions.
 //
-//go:generate mockgen -typed -source=event.go -destination=../../../../test/mocks/form/mock_publisher.go -package=form
+//go:generate go tool mockgen -typed -source=event.go -destination=../../../../test/mocks/form/mock_publisher.go -package=form
 package event
 
 import (

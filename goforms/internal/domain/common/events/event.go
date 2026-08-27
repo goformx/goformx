@@ -1,4 +1,4 @@
-//go:generate mockgen -typed -source=event.go -destination=../../../../test/mocks/events/mock_eventbus.go -package=events
+//go:generate go tool mockgen -typed -source=event.go -destination=../../../../test/mocks/events/mock_eventbus.go -package=events
 
 package events
 
