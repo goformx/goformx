@@ -1,0 +1,421 @@
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: GoFormX API
+  version: 1.0.0
+  license:
+    name: MIT
+    identifier: MIT
+  description: |
+    The control plane manages forms and immutable schema versions. The public
+    data plane exposes published schemas and accepts validated submissions.
+x-goformx-canonical-schema: ./schema/form-definition.schema.json
+servers:
+  - url: https://api.goformx.com
+    description: Production
+tags:
+  - name: Control plane
+    description: Authenticated management operations for forms and submissions.
+  - name: Public data plane
+    description: Browser-safe schema discovery and submission operations.
+paths:
+  /v1/forms:
+    get:
+      summary: List forms
+      operationId: listForms
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:read] }]
+      responses:
+        '200':
+          description: Forms visible to the token subject
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Form' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Create a form and its first schema version
+      operationId: createForm
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:write] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateForm' }
+            examples:
+              personalContact:
+                summary: Personal-site contact form
+                value:
+                  name: personal-contact
+                  title: Contact Russell
+                  schema:
+                    $schema: https://json-schema.org/draft/2020-12/schema
+                    title: Contact Russell
+                    type: object
+                    properties:
+                      name: { type: string, minLength: 1, maxLength: 100 }
+                      email: { type: string, format: email }
+                      message: { type: string, minLength: 1, maxLength: 5000 }
+                    required: [name, email, message]
+                    additionalProperties: false
+      responses:
+        '201':
+          description: Form and initial immutable draft version created
+          headers:
+            Location: { schema: { type: string, format: uri-reference } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+    get:
+      summary: Get form metadata
+      operationId: getForm
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:read] }]
+      responses:
+        '200':
+          description: Form metadata and version pointers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+    patch:
+      summary: Update mutable form metadata
+      operationId: updateForm
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:write] }]
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              type: object
+              minProperties: 1
+              additionalProperties: false
+              properties:
+                title: { type: string, minLength: 3, maxLength: 100 }
+                description: { type: string, maxLength: 500 }
+                allowedOrigins:
+                  type: array
+                  items: { type: string, format: uri }
+                  uniqueItems: true
+      responses:
+        '200':
+          description: Updated mutable form metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/versions:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+    post:
+      summary: Create an immutable schema version
+      operationId: createSchemaVersion
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:write] }]
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [schema]
+              additionalProperties: false
+              properties:
+                schema: { $ref: '#/components/schemas/FormDefinition' }
+      responses:
+        '201':
+          description: Immutable draft schema version created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchemaVersionEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/versions/{version}/publish:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+      - $ref: '#/components/parameters/Version'
+    post:
+      summary: Publish a schema version
+      operationId: publishSchemaVersion
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:publish] }]
+      responses:
+        '200':
+          description: Version atomically made public
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchemaVersionEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/submissions:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+    get:
+      summary: List form submissions
+      operationId: listSubmissions
+      tags: [Control plane]
+      security: [{ serviceToken: [submissions:read] }]
+      responses:
+        '200':
+          description: Submissions for the form; sensitive payloads require explicit scope
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Submission' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/public/forms/{publicKey}/schema:
+    parameters:
+      - $ref: '#/components/parameters/PublicKey'
+      - $ref: '#/components/parameters/SchemaVersionQuery'
+    get:
+      summary: Get a published form schema
+      operationId: getPublishedSchema
+      tags: [Public data plane]
+      security: []
+      responses:
+        '200':
+          description: Published schema; omitted version resolves to current
+          headers:
+            ETag: { schema: { type: string } }
+            X-GoFormX-Schema-Version: { schema: { type: integer, minimum: 1 } }
+          content:
+            application/schema+json:
+              schema: { $ref: '#/components/schemas/FormDefinition' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/public/forms/{publicKey}/submissions:
+    parameters:
+      - $ref: '#/components/parameters/PublicKey'
+    post:
+      summary: Submit data to a published form
+      operationId: createSubmission
+      tags: [Public data plane]
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/SchemaVersionHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data]
+              additionalProperties: false
+              properties:
+                data:
+                  type: object
+                  description: Validated against the selected published form schema.
+            examples:
+              personalContact:
+                value:
+                  data:
+                    name: Ada Lovelace
+                    email: ada@example.com
+                    message: I would like to discuss a project.
+      responses:
+        '202':
+          description: Submission validated, persisted, and accepted for processing
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubmissionEnvelope' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    serviceToken:
+      type: oauth2
+      description: Short-lived, server-side bearer token. Browsers must not receive it.
+      flows:
+        clientCredentials:
+          tokenUrl: https://api.goformx.com/oauth/token
+          scopes:
+            forms:read: Read form metadata and versions
+            forms:write: Create forms, versions, and mutable metadata
+            forms:publish: Publish immutable schema versions
+            submissions:read: Read submission payloads
+  parameters:
+    FormId:
+      name: formId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PublicKey:
+      name: publicKey
+      in: path
+      required: true
+      description: Rotatable, non-secret identifier safe for browser embeds.
+      schema: { type: string, pattern: '^gfpk_[A-Za-z0-9_-]{20,}$' }
+    Version:
+      name: version
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    SchemaVersionQuery:
+      name: version
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1 }
+    SchemaVersionHeader:
+      name: X-GoFormX-Schema-Version
+      in: header
+      required: false
+      description: Pins validation to a published version; omitted means current.
+      schema: { type: integer, minimum: 1 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Replays with the same subject, operation, and body return the original result for 24 hours.
+      schema: { type: string, minLength: 16, maxLength: 128 }
+  schemas:
+    FormDefinition:
+      type: object
+      description: A JSON Schema Draft 2020-12 object conforming to the canonical linked schema.
+      required: [$schema, type, properties]
+      properties:
+        $schema:
+          type: string
+          enum: [https://json-schema.org/draft/2020-12/schema]
+        $id: { type: string, format: uri }
+        title: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        type: { type: string, enum: [object] }
+        properties:
+          type: object
+          minProperties: 1
+          additionalProperties: true
+        required:
+          type: array
+          items: { type: string }
+          uniqueItems: true
+        additionalProperties: { type: boolean }
+      additionalProperties: true
+    Form:
+      type: object
+      required: [id, name, title, publicKey, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, pattern: '^[a-z][a-z0-9-]{2,62}$' }
+        title: { type: string, minLength: 3, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        publicKey: { type: string }
+        status: { type: string, enum: [draft, published, archived] }
+        currentVersion: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateForm:
+      type: object
+      required: [name, title, schema]
+      additionalProperties: false
+      properties:
+        name: { type: string, pattern: '^[a-z][a-z0-9-]{2,62}$' }
+        title: { type: string, minLength: 3, maxLength: 100 }
+        description: { type: string, maxLength: 500 }
+        schema: { $ref: '#/components/schemas/FormDefinition' }
+        allowedOrigins:
+          type: array
+          items: { type: string, format: uri }
+          uniqueItems: true
+    SchemaVersion:
+      type: object
+      required: [formId, version, state, schema, createdAt]
+      properties:
+        formId: { type: string, format: uuid }
+        version: { type: integer, minimum: 1 }
+        state: { type: string, enum: [draft, published, retired] }
+        schema: { $ref: '#/components/schemas/FormDefinition' }
+        createdAt: { type: string, format: date-time }
+        publishedAt: { type: string, format: date-time }
+    Submission:
+      type: object
+      required: [id, formId, schemaVersion, status, data, submittedAt]
+      properties:
+        id: { type: string, format: uuid }
+        formId: { type: string, format: uuid }
+        schemaVersion: { type: integer, minimum: 1 }
+        status: { type: string, enum: [accepted, processing, completed, failed] }
+        data: { type: object }
+        submittedAt: { type: string, format: date-time }
+    FormEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Form' }
+    SchemaVersionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SchemaVersion' }
+    SubmissionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Submission' }
+    FieldError:
+      type: object
+      required: [pointer, code, message]
+      properties:
+        pointer: { type: string, description: JSON Pointer into the request document }
+        code: { type: string }
+        message: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+            fields:
+              type: array
+              items: { $ref: '#/components/schemas/FieldError' }
+  responses:
+    Error:
+      description: Stable error envelope; status is determined by the HTTP response code
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: The request or submission failed schema validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: validation_failed
+              message: Submission does not match schema version 3.
+              requestId: req_01K4Q9X2JXQG67A4WZ8X9CEQ4G
+              fields:
+                - pointer: /data/email
+                  code: format
+                  message: Must be a valid email address.

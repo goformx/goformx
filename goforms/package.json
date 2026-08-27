@@ -1,6 +1,12 @@
 {
   "name": "goforms",
   "version": "1.0.0",
-  "description": "Go Forms API (frontend moved to goformx-laravel)",
-  "private": true
+  "description": "Schema-first GoFormX API contract tooling",
+  "private": true,
+  "scripts": {
+    "contract:lint": "redocly lint contracts/openapi.v1.yaml"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.49.0"
+  }
 }

@@ -29,6 +29,14 @@ tasks:
     dir: ./goforms
     cmd: go test -race ./...
 
+  contract:
+    desc: Validate the versioned OpenAPI and canonical JSON Schema contracts
+    dir: ./goforms
+    cmds:
+      - npm ci
+      - npm run contract:lint
+      - go test -race ./contracts/...
+
   lint:
     desc: Run static analysis with the pinned local golangci-lint
     dir: ./goforms

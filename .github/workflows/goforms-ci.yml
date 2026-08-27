@@ -51,8 +51,12 @@ jobs:
           filters: |
             code:
               - 'goforms/**.go'
+              - 'goforms/contracts/**'
               - 'goforms/go.mod'
               - 'goforms/go.sum'
+              - 'goforms/package.json'
+              - 'goforms/package-lock.json'
+              - 'goforms/Taskfile.yml'
               - 'goforms/Dockerfile'
               - 'goforms/docker/**'
 
@@ -67,6 +71,21 @@ jobs:
       - name: Download dependencies
         if: steps.changes.outputs.code == 'true'
         run: go mod download
+
+      - name: Set up Node for contract linting
+        if: steps.changes.outputs.code == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: goforms/package-lock.json
+
+      - name: Validate API contracts
+        if: steps.changes.outputs.code == 'true'
+        run: |
+          npm ci
+          npm run contract:lint
+          go test -race ./contracts/...
 
       - name: Verify generated code
         if: steps.changes.outputs.code == 'true'
