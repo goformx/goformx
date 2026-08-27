@@ -20,7 +20,6 @@ import (
 	"github.com/goformx/goforms/internal/infrastructure/database"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
 	formstore "github.com/goformx/goforms/internal/infrastructure/repository/form"
-	formsubmissionstore "github.com/goformx/goforms/internal/infrastructure/repository/form/submission"
 	userstore "github.com/goformx/goforms/internal/infrastructure/repository/user"
 )
 
@@ -81,9 +80,8 @@ type StoreParams struct {
 // Stores groups all store implementations
 type Stores struct {
 	fx.Out
-	UserRepository           user.Repository
-	FormRepository           form.Repository
-	FormSubmissionRepository form.SubmissionRepository
+	UserRepository user.Repository
+	FormRepository form.Repository
 }
 
 // NewStores creates new store instances with proper validation and error handling
@@ -99,13 +97,12 @@ func NewStores(p StoreParams) (Stores, error) {
 	// Initialize repositories using the interface
 	userRepo := userstore.NewStore(p.DB, p.Logger)
 	formRepo := formstore.NewStore(p.DB, p.Logger)
-	formSubmissionRepo := formsubmissionstore.NewStore(p.DB, p.Logger)
 
 	// Validate repository instances
-	if userRepo == nil || formRepo == nil || formSubmissionRepo == nil {
+	if userRepo == nil || formRepo == nil {
 		p.Logger.Error("failed to create repository",
 			"operation", "repository_initialization",
-			"repository_type", "user/form/submission",
+			"repository_type", "user/form",
 			"error_type", "nil_repository",
 		)
 
@@ -113,10 +110,9 @@ func NewStores(p StoreParams) (Stores, error) {
 	}
 
 	return Stores{
-		Out:                      fx.Out{},
-		UserRepository:           userRepo,
-		FormRepository:           formRepo,
-		FormSubmissionRepository: formSubmissionRepo,
+		Out:            fx.Out{},
+		UserRepository: userRepo,
+		FormRepository: formRepo,
 	}, nil
 }
 

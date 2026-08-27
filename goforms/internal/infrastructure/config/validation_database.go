@@ -23,7 +23,7 @@ func validateDatabaseConfigDriverPresence(cfg DatabaseConfig, result *Validation
 }
 
 func validateDatabaseConfigDriver(cfg DatabaseConfig, result *ValidationResult) {
-	supportedDrivers := []string{"postgres", "mysql", "mariadb"}
+	supportedDrivers := []string{"postgres"}
 	driverValid := false
 
 	for _, driver := range supportedDrivers {

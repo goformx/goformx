@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -125,9 +124,6 @@ func createDatabaseConnection(cfg *config.Config, gormConfig *gorm.Config) (*gor
 	case "postgres":
 		dsn := buildPostgresDSN(cfg)
 		db, err = gorm.Open(postgres.Open(dsn), gormConfig)
-	case "mariadb":
-		dsn := buildMariaDBDSN(cfg)
-		db, err = gorm.Open(mysql.Open(dsn), gormConfig)
 	default:
 		return nil, fmt.Errorf("unsupported database connection type: %s", cfg.Database.Driver)
 	}
@@ -148,17 +144,6 @@ func buildPostgresDSN(cfg *config.Config) string {
 		cfg.Database.Password,
 		cfg.Database.Name,
 		cfg.Database.SSLMode,
-	)
-}
-
-// buildMariaDBDSN builds the MariaDB connection string
-func buildMariaDBDSN(cfg *config.Config) string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=UTC",
-		cfg.Database.Username,
-		cfg.Database.Password,
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.Name,
 	)
 }
 

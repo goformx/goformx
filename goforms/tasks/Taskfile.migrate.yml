@@ -4,7 +4,6 @@ version: '3'
 vars:
   MIGRATIONS_DIR: migrations
   # Database variables (matches DB_* env vars from .env)
-  DB_CONNECTION: '{{.DB_DRIVER | default "postgres"}}'
   DB_HOST: '{{.DB_HOST | default "localhost"}}'
   DB_PORT: '{{.DB_PORT | default "5432"}}'
   DB_DATABASE: '{{.DB_NAME | default "goforms"}}'
@@ -13,10 +12,10 @@ vars:
   DB_SSLMODE: '{{.DB_SSLMODE | default "disable"}}'
 
   # Connection URLs
-  DB_URL: '{{if eq .DB_CONNECTION "postgres"}}postgresql://{{.DB_USERNAME}}:{{.DB_PASSWORD}}@{{.DB_HOST}}:{{.DB_PORT}}/{{.DB_DATABASE}}?sslmode={{.DB_SSLMODE}}{{else}}mysql://{{.DB_USERNAME}}:{{.DB_PASSWORD}}@{{.DB_HOST}}:{{.DB_PORT}}/{{.DB_DATABASE}}?multiStatements=true{{end}}'
+  DB_URL: 'postgresql://{{.DB_USERNAME}}:{{.DB_PASSWORD}}@{{.DB_HOST}}:{{.DB_PORT}}/{{.DB_DATABASE}}?sslmode={{.DB_SSLMODE}}'
 
   # Migration directory based on database type
-  MIGRATION_PATH: '{{if eq .DB_CONNECTION "postgres"}}{{.MIGRATIONS_DIR}}/postgresql{{else}}{{.MIGRATIONS_DIR}}/mariadb{{end}}'
+  MIGRATION_PATH: '{{.MIGRATIONS_DIR}}/postgresql'
 
 tasks:
   default:

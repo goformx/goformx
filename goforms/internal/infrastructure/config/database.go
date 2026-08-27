@@ -24,9 +24,6 @@ type DatabaseConfig struct {
 	// PostgreSQL specific settings
 	SSLMode string `json:"ssl_mode"`
 
-	// MariaDB specific settings
-	RootPassword string `json:"root_password"`
-
 	// Logging configuration
 	Logging DatabaseLoggingConfig `json:"logging"`
 }
@@ -101,8 +98,6 @@ func (c *DatabaseConfig) validateDriverSpecificFields() error {
 	switch c.Driver {
 	case "postgres":
 		return c.validatePostgresFields()
-	case "mariadb":
-		return c.validateMariaDBFields()
 	default:
 		return errors.New("unsupported database driver type")
 	}
@@ -112,15 +107,6 @@ func (c *DatabaseConfig) validateDriverSpecificFields() error {
 func (c *DatabaseConfig) validatePostgresFields() error {
 	if c.SSLMode == "" {
 		return errors.New("PostgreSQL SSL mode is required")
-	}
-
-	return nil
-}
-
-// validateMariaDBFields validates MariaDB-specific fields
-func (c *DatabaseConfig) validateMariaDBFields() error {
-	if c.RootPassword == "" {
-		return errors.New("MariaDB root password is required")
 	}
 
 	return nil

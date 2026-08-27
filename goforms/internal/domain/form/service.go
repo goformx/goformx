@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -150,7 +151,13 @@ func (s *formService) DeleteForm(ctx context.Context, formID string) error {
 
 // GetForm retrieves a form by ID
 func (s *formService) GetForm(ctx context.Context, formID string) (*model.Form, error) {
-	form, err := s.repository.GetFormByID(ctx, formID)
+	var form *model.Form
+	var err error
+	if strings.HasPrefix(formID, "gfpk_") {
+		form, err = s.repository.GetFormByPublicKey(ctx, formID)
+	} else {
+		form, err = s.repository.GetFormByID(ctx, formID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("get form by ID: %w", err)
 	}
@@ -184,6 +191,10 @@ func (s *formService) SubmitForm(ctx context.Context, submission *model.FormSubm
 	if form == nil {
 		return errors.New("form not found")
 	}
+	if form.Status != string(model.LifecyclePublished) || !form.Active {
+		return errors.New("form is not accepting public submissions")
+	}
+	submission.SchemaVersion = form.CurrentSchemaVersion
 
 	// Create the submission (validation already passed above)
 	if createErr := s.repository.CreateSubmission(ctx, submission); createErr != nil {

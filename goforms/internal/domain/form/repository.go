@@ -18,6 +18,7 @@ type Repository interface {
 	// Form operations
 	CreateForm(ctx context.Context, form *model.Form) error
 	GetFormByID(ctx context.Context, id string) (*model.Form, error)
+	GetFormByPublicKey(ctx context.Context, publicKey string) (*model.Form, error)
 	ListForms(ctx context.Context, userID string) ([]*model.Form, error)
 	UpdateForm(ctx context.Context, form *model.Form) error
 	DeleteForm(ctx context.Context, id string) error

@@ -1,0 +1,20 @@
+DROP TRIGGER IF EXISTS form_schemas_immutable_published ON form_schemas;
+DROP FUNCTION IF EXISTS prevent_published_schema_mutation();
+DROP TABLE IF EXISTS service_tokens;
+ALTER TABLE form_submissions DROP CONSTRAINT IF EXISTS form_submissions_schema_version_fk;
+DROP INDEX IF EXISTS form_submissions_idempotency_unique;
+ALTER TABLE form_submissions DROP COLUMN IF EXISTS idempotency_key;
+ALTER TABLE form_submissions DROP COLUMN IF EXISTS schema_version;
+ALTER TABLE forms ADD COLUMN IF NOT EXISTS schema JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE form_schemas ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE form_schemas ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE form_schemas ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
+DROP TRIGGER IF EXISTS update_form_schemas_updated_at ON form_schemas;
+CREATE TRIGGER update_form_schemas_updated_at BEFORE UPDATE ON form_schemas
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP INDEX IF EXISTS form_schemas_form_version_unique;
+ALTER TABLE form_schemas DROP COLUMN IF EXISTS published_at;
+ALTER TABLE form_schemas DROP COLUMN IF EXISTS state;
+ALTER TABLE forms DROP COLUMN IF EXISTS current_schema_version;
+DROP INDEX IF EXISTS forms_public_key_unique;
+ALTER TABLE forms DROP COLUMN IF EXISTS public_key;
