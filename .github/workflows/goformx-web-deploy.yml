@@ -1,10 +1,7 @@
 name: Deploy GoFormX Web
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'goformx-web/**'
+  # Legacy human-first runtime: retain a manual escape hatch, but never deploy it from main.
   workflow_dispatch:
 
 concurrency:
