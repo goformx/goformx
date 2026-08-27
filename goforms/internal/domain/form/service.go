@@ -194,7 +194,12 @@ func (s *formService) SubmitForm(ctx context.Context, submission *model.FormSubm
 	if form.Status != string(model.LifecyclePublished) || !form.Active {
 		return errors.New("form is not accepting public submissions")
 	}
-	submission.SchemaVersion = form.CurrentSchemaVersion
+	if submission.SchemaVersion == 0 {
+		submission.SchemaVersion = form.CurrentSchemaVersion
+	}
+	if submission.SchemaVersion > form.CurrentSchemaVersion {
+		return errors.New("submission schema version does not exist")
+	}
 
 	// Create the submission (validation already passed above)
 	if createErr := s.repository.CreateSubmission(ctx, submission); createErr != nil {

@@ -81,3 +81,9 @@ func (t *ServiceToken) Revoke(now time.Time) {
 	timestamp := now.UTC()
 	t.RevokedAt = &timestamp
 }
+
+// LookupID derives the non-secret lookup identifier from a presented token.
+func LookupID(plaintext string) string {
+	hash := sha256.Sum256([]byte(plaintext))
+	return base64.RawURLEncoding.EncodeToString(hash[:12])
+}

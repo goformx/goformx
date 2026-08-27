@@ -747,10 +747,11 @@ func (h *FormAPIHandler) createAndSubmitForm(
 	submissionData model.JSON,
 ) (*model.FormSubmission, error) {
 	submission := &model.FormSubmission{
-		FormID:      form.ID,
-		Data:        submissionData,
-		SubmittedAt: time.Now(),
-		Status:      model.SubmissionStatusPending,
+		FormID:        form.ID,
+		SchemaVersion: form.CurrentSchemaVersion,
+		Data:          submissionData,
+		SubmittedAt:   time.Now(),
+		Status:        model.SubmissionStatusPending,
 	}
 
 	err := h.FormService.SubmitForm(c.Request().Context(), submission)

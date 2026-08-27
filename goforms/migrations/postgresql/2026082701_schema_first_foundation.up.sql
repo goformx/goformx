@@ -8,12 +8,12 @@ CREATE TABLE IF NOT EXISTS service_tokens (
     token_id TEXT PRIMARY KEY,
     owner_id VARCHAR(36) NOT NULL REFERENCES users (uuid) ON DELETE CASCADE,
     token_hash BYTEA NOT NULL UNIQUE,
-    scopes TEXT[] NOT NULL,
+    scopes JSONB NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ,
     last_used_at TIMESTAMPTZ,
-    CHECK (cardinality(scopes) > 0),
+    CHECK (jsonb_typeof(scopes) = 'array' AND jsonb_array_length(scopes) > 0),
     CHECK (expires_at > created_at)
 );
 CREATE INDEX IF NOT EXISTS service_tokens_owner_id_idx ON service_tokens (owner_id);
