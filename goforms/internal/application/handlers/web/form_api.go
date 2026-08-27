@@ -127,10 +127,6 @@ func (h *FormAPIHandler) RegisterPublicFormsRoutes(e *echo.Echo) {
 	formsPublic.POST("/:id/submit", h.handleFormSubmit)
 	formsPublic.GET("/:id/embed", h.handleFormEmbed)
 
-	publicV1 := e.Group("/v1/public/forms")
-	publicV1.Use(NewFormCORSMiddleware(h.FormService, h.Config.Security.CORS))
-	publicV1.GET("/:id/schema", h.handleFormSchema)
-	publicV1.POST("/:id/submissions", h.handleFormSubmit)
 }
 
 // Register registers the FormAPIHandler with the Echo instance.
@@ -652,7 +648,7 @@ func (h *FormAPIHandler) Stop(_ context.Context) error {
 
 // getFormOrError retrieves a form by ID and handles common error cases
 func (h *FormAPIHandler) getFormOrError(c echo.Context) (*model.Form, error) {
-	if !strings.HasPrefix(c.Param("id"), "gfpk_") {
+	if !strings.HasPrefix(c.Param("id"), model.PublicKeyPrefix) {
 		return nil, h.wrapError("handle form not found", h.ErrorHandler.HandleFormNotFoundError(c, ""))
 	}
 	form, err := h.GetFormByID(c)

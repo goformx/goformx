@@ -12,6 +12,9 @@ import (
 
 type Scope string
 
+// ServiceTokenPrefix distinguishes server-side credentials from other identifiers.
+const ServiceTokenPrefix = "gfst_"
+
 const (
 	ScopeFormsRead       Scope = "forms:read"
 	ScopeFormsWrite      Scope = "forms:write"
@@ -45,7 +48,7 @@ func Issue(ownerID string, scopes []Scope, ttl time.Duration, now time.Time) (*S
 	if _, err := rand.Read(random); err != nil {
 		return nil, "", fmt.Errorf("generate token: %w", err)
 	}
-	plaintext := "gfst_" + base64.RawURLEncoding.EncodeToString(random)
+	plaintext := ServiceTokenPrefix + base64.RawURLEncoding.EncodeToString(random)
 	hash := sha256.Sum256([]byte(plaintext))
 	id := base64.RawURLEncoding.EncodeToString(hash[:12])
 	scopeSet := make(map[Scope]struct{}, len(scopes))

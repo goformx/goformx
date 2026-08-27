@@ -34,7 +34,7 @@ func (s *FormService) CreateForm(
 	planTier string,
 ) (*model.Form, error) {
 	schema := model.JSON{
-		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$schema": model.JSONSchemaDraft202012URI,
 		"type":    "object",
 		"properties": map[string]any{
 			"message": map[string]any{"type": "string", "minLength": 1},

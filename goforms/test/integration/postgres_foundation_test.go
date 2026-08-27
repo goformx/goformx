@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 )
@@ -49,16 +50,19 @@ func TestSchemaFirstPostgresFoundation(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, mutableSchemaColumns)
 
+	firstSubmissionID := uuid.NewString()
+	secondSubmissionID := uuid.NewString()
+	idempotencyKey := "integration-" + uuid.NewString()
 	_, err = pool.Exec(t.Context(), `
 		INSERT INTO form_submissions (uuid, form_id, schema_version, data, submitted_at, status, idempotency_key)
-		VALUES ('33333333-3333-4333-8333-333333333333', '22222222-2222-4222-8222-222222222222', 1,
-		        '{"email":"ada@example.com"}'::jsonb, now(), 'pending', 'integration-idempotency-key')
-	`)
+		VALUES ($1, '22222222-2222-4222-8222-222222222222', 1,
+		        '{"email":"ada@example.com"}'::jsonb, now(), 'pending', $2)
+	`, firstSubmissionID, idempotencyKey)
 	require.NoError(t, err)
 	_, err = pool.Exec(t.Context(), `
 		INSERT INTO form_submissions (uuid, form_id, schema_version, data, submitted_at, status, idempotency_key)
-		VALUES ('44444444-4444-4444-8444-444444444444', '22222222-2222-4222-8222-222222222222', 1,
-		        '{"email":"ada@example.com"}'::jsonb, now(), 'pending', 'integration-idempotency-key')
-	`)
+		VALUES ($1, '22222222-2222-4222-8222-222222222222', 1,
+		        '{"email":"ada@example.com"}'::jsonb, now(), 'pending', $2)
+	`, secondSubmissionID, idempotencyKey)
 	require.Error(t, err)
 }

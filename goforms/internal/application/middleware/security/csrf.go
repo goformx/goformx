@@ -260,7 +260,7 @@ func IsSafeMethod(method string) bool {
 
 // IsAPIRoute checks if the path is an API route
 func IsAPIRoute(path string) bool {
-	return strings.HasPrefix(path, "/api/")
+	return strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/v1/")
 }
 
 // IsHealthRoute checks if the path is a health check route
@@ -288,6 +288,11 @@ func IsFormSubmissionRoute(path string) bool {
 
 	// Match /forms/:id/submit (public embed routes)
 	if strings.HasPrefix(path, "/forms/") && strings.HasSuffix(path, "/submit") {
+		return true
+	}
+
+	// Match the schema-first browser data plane.
+	if strings.HasPrefix(path, "/v1/public/forms/") && strings.HasSuffix(path, "/submissions") {
 		return true
 	}
 

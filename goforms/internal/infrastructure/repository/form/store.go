@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
@@ -237,6 +238,143 @@ func (s *Store) GetFormsByStatus(ctx context.Context, status string) ([]*model.F
 	return forms, nil
 }
 
+// CreateSchemaVersion appends a draft without mutating any existing snapshot.
+func (s *Store) CreateSchemaVersion(
+	ctx context.Context,
+	formID string,
+	schema model.JSON,
+) (*model.SchemaVersion, error) {
+	var created *model.SchemaVersion
+	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var formModel model.Form
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid = ?", formID).First(&formModel).Error; err != nil {
+			return fmt.Errorf("lock form: %w", err)
+		}
+		var latest int
+		if err := tx.Model(&schemaRecord{}).Where("form_id = ?", formID).
+			Select("COALESCE(MAX(version), 0)").Scan(&latest).Error; err != nil {
+			return fmt.Errorf("find latest schema version: %w", err)
+		}
+		version, err := model.NewSchemaVersion(formID, latest+1, schema, schemaDefinitionValidator{})
+		if err != nil {
+			return err
+		}
+		record := schemaRecord{ID: uuid.NewString(), FormID: formID, Schema: version.Schema(),
+			Version: version.Version(), State: string(version.State()), CreatedAt: version.CreatedAt()}
+		if err := tx.Create(&record).Error; err != nil {
+			return fmt.Errorf("create schema version: %w", err)
+		}
+		created = version
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create schema version: %w", err)
+	}
+	return created, nil
+}
+
+// schemaDefinitionValidator only checks persistence-bound invariants. Canonical compilation occurs at the application boundary.
+type schemaDefinitionValidator struct{}
+
+func (schemaDefinitionValidator) ValidateDefinition(schema model.JSON) error {
+	if schema == nil {
+		return errors.New("schema is required")
+	}
+	return nil
+}
+
+func restoreSchema(record schemaRecord) (*model.SchemaVersion, error) {
+	return model.RestoreSchemaVersion(record.FormID, record.Version, record.Schema,
+		model.SchemaVersionState(record.State), record.CreatedAt, record.PublishedAt)
+}
+
+func (s *Store) GetSchemaVersion(ctx context.Context, formID string, version int) (*model.SchemaVersion, error) {
+	var record schemaRecord
+	if err := s.db.GetDB().WithContext(ctx).Where("form_id = ? AND version = ?", formID, version).
+		First(&record).Error; err != nil {
+		return nil, fmt.Errorf("get schema version: %w", err)
+	}
+	return restoreSchema(record)
+}
+
+// GetPublishedSchemaVersion resolves only an active published form and an explicitly published snapshot.
+func (s *Store) GetPublishedSchemaVersion(
+	ctx context.Context,
+	publicKey string,
+	version int,
+) (*model.Form, *model.SchemaVersion, error) {
+	var formModel model.Form
+	if err := s.db.GetDB().WithContext(ctx).Where(
+		"public_key = ? AND status = ? AND active = true", publicKey, string(model.LifecyclePublished),
+	).First(&formModel).Error; err != nil {
+		return nil, nil, fmt.Errorf("get published form: %w", err)
+	}
+	if version == 0 {
+		version = formModel.CurrentSchemaVersion
+	}
+	var record schemaRecord
+	if err := s.db.GetDB().WithContext(ctx).Where(
+		"form_id = ? AND version = ? AND state = ?", formModel.ID, version, string(model.SchemaVersionPublished),
+	).First(&record).Error; err != nil {
+		return nil, nil, fmt.Errorf("get published schema version: %w", err)
+	}
+	schemaVersion, err := restoreSchema(record)
+	if err != nil {
+		return nil, nil, err
+	}
+	formModel.Schema = schemaVersion.Schema()
+	return &formModel, schemaVersion, nil
+}
+
+func (s *Store) PublishSchemaVersion(
+	ctx context.Context,
+	formID string,
+	version int,
+) (*model.SchemaVersion, error) {
+	var published *model.SchemaVersion
+	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var formModel model.Form
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid = ?", formID).First(&formModel).Error; err != nil {
+			return fmt.Errorf("lock form: %w", err)
+		}
+		if formModel.Status == string(model.LifecyclePublished) && version < formModel.CurrentSchemaVersion {
+			return errors.New("published schema version cannot move backwards")
+		}
+		var record schemaRecord
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
+			"form_id = ? AND version = ?", formID, version,
+		).First(&record).Error; err != nil {
+			return fmt.Errorf("get schema version: %w", err)
+		}
+		existing, err := restoreSchema(record)
+		if err != nil {
+			return err
+		}
+		if existing.State() == model.SchemaVersionPublished {
+			published = existing
+		} else {
+			published, err = existing.Publish(time.Now().UTC())
+			if err != nil {
+				return err
+			}
+			if err := tx.Model(&schemaRecord{}).Where("form_id = ? AND version = ?", formID, version).
+				Updates(map[string]any{"state": string(model.SchemaVersionPublished), "published_at": published.PublishedAt()}).Error; err != nil {
+				return fmt.Errorf("publish schema record: %w", err)
+			}
+		}
+		if err := tx.Model(&model.Form{}).Where("uuid = ?", formID).Updates(map[string]any{
+			"status": string(model.LifecyclePublished), "active": true, "current_schema_version": version,
+		}).Error; err != nil {
+			return fmt.Errorf("publish form: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("publish schema version: %w", err)
+	}
+	return published, nil
+}
+
 // CreateSubmission creates a new form submission
 func (s *Store) CreateSubmission(ctx context.Context, submission *model.FormSubmission) error {
 	if err := s.db.GetDB().WithContext(ctx).Create(submission).Error; err != nil {
@@ -250,6 +388,34 @@ func (s *Store) CreateSubmission(ctx context.Context, submission *model.FormSubm
 	}
 
 	return nil
+}
+
+// CreateSubmissionIdempotent atomically inserts or returns the original submission for a replayed key.
+func (s *Store) CreateSubmissionIdempotent(
+	ctx context.Context,
+	submission *model.FormSubmission,
+) (*model.FormSubmission, bool, error) {
+	if submission == nil || submission.IdempotencyKey == "" {
+		return nil, false, errors.New("submission and idempotency key are required")
+	}
+	result := s.db.GetDB().WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:     []clause.Column{{Name: "form_id"}, {Name: "idempotency_key"}},
+		TargetWhere: clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "idempotency_key IS NOT NULL"}}},
+		DoNothing:   true,
+	}).Create(submission)
+	if result.Error != nil {
+		return nil, false, fmt.Errorf("create idempotent submission: %w", result.Error)
+	}
+	if result.RowsAffected == 1 {
+		return submission, false, nil
+	}
+	var existing model.FormSubmission
+	if err := s.db.GetDB().WithContext(ctx).Where(
+		"form_id = ? AND idempotency_key = ?", submission.FormID, submission.IdempotencyKey,
+	).First(&existing).Error; err != nil {
+		return nil, false, fmt.Errorf("load idempotent submission: %w", err)
+	}
+	return &existing, true, nil
 }
 
 // GetSubmissionByID retrieves a form submission by ID

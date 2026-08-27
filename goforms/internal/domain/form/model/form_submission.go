@@ -39,6 +39,8 @@ func (fs *FormSubmission) SetID(id string) {
 type SubmissionStatus string
 
 const (
+	// SubmissionStatusAccepted indicates the submission is durably accepted for delivery processing.
+	SubmissionStatusAccepted SubmissionStatus = "accepted"
 	// SubmissionStatusPending indicates the submission is pending processing
 	SubmissionStatusPending SubmissionStatus = "pending"
 	// SubmissionStatusProcessing indicates the submission is being processed

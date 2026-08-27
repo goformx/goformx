@@ -23,9 +23,14 @@ type Repository interface {
 	UpdateForm(ctx context.Context, form *model.Form) error
 	DeleteForm(ctx context.Context, id string) error
 	GetFormsByStatus(ctx context.Context, status string) ([]*model.Form, error)
+	CreateSchemaVersion(ctx context.Context, formID string, schema model.JSON) (*model.SchemaVersion, error)
+	GetSchemaVersion(ctx context.Context, formID string, version int) (*model.SchemaVersion, error)
+	GetPublishedSchemaVersion(ctx context.Context, publicKey string, version int) (*model.Form, *model.SchemaVersion, error)
+	PublishSchemaVersion(ctx context.Context, formID string, version int) (*model.SchemaVersion, error)
 
 	// Form submission operations
 	CreateSubmission(ctx context.Context, submission *model.FormSubmission) error
+	CreateSubmissionIdempotent(ctx context.Context, submission *model.FormSubmission) (*model.FormSubmission, bool, error)
 	GetSubmissionByID(ctx context.Context, id string) (*model.FormSubmission, error)
 	ListSubmissions(ctx context.Context, formID string) ([]*model.FormSubmission, error)
 	UpdateSubmission(ctx context.Context, submission *model.FormSubmission) error

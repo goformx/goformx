@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"database/sql/driver"
@@ -58,6 +59,7 @@ func (f *Field) Validate() error {
 type Form struct {
 	ID                   string         `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
 	UserID               string         `gorm:"not null;index;type:uuid"                                   json:"user_id"`
+	Name                 string         `gorm:"not null;size:63"                                           json:"name"`
 	Title                string         `gorm:"not null;size:100"                                          json:"title"`
 	Description          string         `gorm:"size:500"                                                   json:"description"`
 	Schema               JSON           `gorm:"-"                                                          json:"schema"`
@@ -105,6 +107,9 @@ func (f *Form) BeforeCreate(_ *gorm.DB) error {
 	if f.Status == "" {
 		f.Status = "draft"
 	}
+	if f.Name == "" {
+		f.Name = slugifyName(f.Title)
+	}
 	if f.PublicKey == "" {
 		publicKey, err := NewPublicKey()
 		if err != nil {
@@ -130,6 +135,29 @@ func (f *Form) BeforeCreate(_ *gorm.DB) error {
 	}
 
 	return nil
+}
+
+func slugifyName(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	var builder strings.Builder
+	lastDash := false
+	for _, character := range value {
+		if (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') {
+			builder.WriteRune(character)
+			lastDash = false
+		} else if builder.Len() > 0 && !lastDash {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+	name := strings.Trim(builder.String(), "-")
+	if len(name) > 63 {
+		name = strings.TrimRight(name[:63], "-")
+	}
+	if len(name) < 3 {
+		name = "form-" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+	}
+	return name
 }
 
 // BeforeUpdate is a GORM hook that runs before updating a form
@@ -317,7 +345,7 @@ func (f *Form) validateSchema() error {
 
 // validateRequiredSchemaFields validates that all required schema fields are present
 func (f *Form) validateRequiredSchemaFields() error {
-	if f.Schema["$schema"] != "https://json-schema.org/draft/2020-12/schema" {
+	if f.Schema["$schema"] != JSONSchemaDraft202012URI {
 		return errors.New("schema must declare JSON Schema Draft 2020-12")
 	}
 	if _, hasType := f.Schema["type"]; !hasType {
@@ -441,6 +469,9 @@ func extractStringSlice(data JSON, key string) []string {
 
 		return result
 	}
+	if arr, ok := data[key].([]string); ok {
+		return append(result, arr...)
+	}
 
 	// If not found by key, check if the data itself is an array (stored under "data" key)
 	if arr, ok := data["data"].([]any); ok {
@@ -451,6 +482,9 @@ func extractStringSlice(data JSON, key string) []string {
 		}
 
 		return result
+	}
+	if arr, ok := data["data"].([]string); ok {
+		return append(result, arr...)
 	}
 
 	return result

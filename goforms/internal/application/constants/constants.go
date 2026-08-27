@@ -67,6 +67,8 @@ const (
 	PathAPIForms            = "/api/v1/forms"
 	PathAPIFormsLaravel     = "/api/forms"
 	PathFormsPublic         = "/forms" // Public embed routes: /forms/:id/embed, schema, submit
+	PathV1Forms             = "/v1/forms"
+	PathV1PublicForms       = "/v1/public/forms"
 	PathAPIAdmin            = "/api/v1/admin"
 	PathAPIAdminUsers       = "/api/v1/admin/users"
 	PathAPIAdminForms       = "/api/v1/admin/forms"
@@ -111,15 +113,19 @@ const (
 	HeaderUserAgent      = "User-Agent"
 	HeaderXForwardedFor  = "X-Forwarded-For"
 	HeaderXRealIP        = "X-Real-IP"
+	HeaderIdempotencyKey = "Idempotency-Key"
+	HeaderSchemaVersion  = "X-GoFormX-Schema-Version"
+	HeaderReplay         = "Idempotency-Replayed"
 )
 
 // Content Types
 const (
-	ContentTypeJSON = "application/json"
-	ContentTypeForm = "application/x-www-form-urlencoded"
-	ContentTypeHTML = "text/html"
-	ContentTypeText = "text/plain"
-	ContentTypeIcon = "image/x-icon"
+	ContentTypeJSON       = "application/json"
+	ContentTypeForm       = "application/x-www-form-urlencoded"
+	ContentTypeHTML       = "text/html"
+	ContentTypeJSONSchema = "application/schema+json"
+	ContentTypeText       = "text/plain"
+	ContentTypeIcon       = "image/x-icon"
 )
 
 // Cookie Names

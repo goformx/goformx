@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+const (
+	// JSONSchemaDraft202012URI is the immutable canonical schema dialect for GoFormX v1.
+	JSONSchemaDraft202012URI = "https://json-schema.org/draft/2020-12/schema"
+	// PublicKeyPrefix distinguishes browser-safe form identifiers from internal UUIDs.
+	PublicKeyPrefix = "gfpk_"
+)
+
 type LifecycleStatus string
 
 const (
@@ -26,7 +33,7 @@ func newPublicKey(source io.Reader) (string, error) {
 	if _, err := io.ReadFull(source, bytes); err != nil {
 		return "", fmt.Errorf("generate public key: %w", err)
 	}
-	return "gfpk_" + base64.RawURLEncoding.EncodeToString(bytes), nil
+	return PublicKeyPrefix + base64.RawURLEncoding.EncodeToString(bytes), nil
 }
 
 // Lifecycle enforces public visibility independently from persistence and HTTP.
@@ -37,7 +44,7 @@ type Lifecycle struct {
 }
 
 func NewLifecycle(publicKey string) (*Lifecycle, error) {
-	if !strings.HasPrefix(publicKey, "gfpk_") || len(publicKey) < 25 {
+	if !strings.HasPrefix(publicKey, PublicKeyPrefix) || len(publicKey) < 25 {
 		return nil, errors.New("invalid public form key")
 	}
 	return &Lifecycle{status: LifecycleDraft, publicKey: publicKey}, nil

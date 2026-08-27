@@ -55,7 +55,7 @@ func NewPathChecker() *PathChecker {
 		authPaths:   []string{"/login", "/signup", "/forgot-password", "/reset-password"},
 		formPaths:   []string{"/forms/new", "/forms/", "/submit"},
 		staticPaths: []string{"/assets/", "/static/", "/public/", "/favicon.ico"},
-		apiPaths:    []string{"/api/"},
+		apiPaths:    []string{"/api/", "/v1/"},
 		healthPaths: []string{"/health", "/health/", "/healthz", "/healthz/"},
 	}
 }
@@ -348,7 +348,9 @@ func shouldSkipGlobalCORS(c echo.Context) bool {
 func isPublicFormCORSPath(method, requestPath string) bool {
 	apiPrefix := constants.PathAPIForms + "/"
 	publicPrefix := constants.PathFormsPublic + "/"
-	if !strings.HasPrefix(requestPath, apiPrefix) && !strings.HasPrefix(requestPath, publicPrefix) {
+	v1PublicPrefix := constants.PathV1PublicForms + "/"
+	if !strings.HasPrefix(requestPath, apiPrefix) && !strings.HasPrefix(requestPath, publicPrefix) &&
+		!strings.HasPrefix(requestPath, v1PublicPrefix) {
 		return false
 	}
 
@@ -358,6 +360,8 @@ func isPublicFormCORSPath(method, requestPath string) bool {
 	case strings.HasSuffix(requestPath, "/validation"):
 		return method == http.MethodGet || method == http.MethodOptions
 	case strings.HasSuffix(requestPath, "/submit"):
+		return method == http.MethodPost || method == http.MethodOptions
+	case strings.HasSuffix(requestPath, "/submissions"):
 		return method == http.MethodPost || method == http.MethodOptions
 	case strings.HasSuffix(requestPath, "/embed"):
 		return method == http.MethodGet || method == http.MethodOptions

@@ -66,6 +66,7 @@ jobs:
             code:
               - 'goforms/**.go'
               - 'goforms/contracts/**'
+              - 'goforms/migrations/postgresql/**'
               - 'goforms/go.mod'
               - 'goforms/go.sum'
               - 'goforms/package.json'
