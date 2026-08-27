@@ -148,9 +148,9 @@ func (b *FormResponseBuilderImpl) BuildMultipleErrorResponse(
 	errorData := make([]map[string]any, len(errors))
 	for i, err := range errors {
 		errorData[i] = map[string]any{
-			"field":   err.Field,
+			"pointer": err.Pointer,
+			"code":    err.Code,
 			"message": err.Message,
-			"rule":    err.Rule,
 		}
 	}
 

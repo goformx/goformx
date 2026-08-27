@@ -78,13 +78,16 @@ func (fv *FormValidator) ValidateFormSchema(schema map[string]any) error {
 		return errors.New("schema cannot be nil")
 	}
 
-	// Check if schema has basic form structure
-	if _, hasType := schema["type"]; !hasType {
-		return errors.New("schema must have a type field")
+	if schema["$schema"] != canonicalDialect {
+		return errors.New("schema must declare JSON Schema Draft 2020-12")
 	}
 
-	if _, hasComponents := schema["components"]; !hasComponents {
-		return errors.New("schema must have a components field")
+	if schema["type"] != "object" {
+		return errors.New("schema type must be object")
+	}
+
+	if _, hasProperties := schema["properties"].(map[string]any); !hasProperties {
+		return errors.New("schema must have a properties object")
 	}
 
 	return nil

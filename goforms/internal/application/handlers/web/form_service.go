@@ -34,15 +34,13 @@ func (s *FormService) CreateForm(
 	planTier string,
 ) (*model.Form, error) {
 	schema := model.JSON{
-		"type": "object",
-		"components": []any{
-			map[string]any{
-				"type":  "button",
-				"key":   "submit",
-				"label": "Submit",
-				"input": true,
-			},
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"type":    "object",
+		"properties": map[string]any{
+			"message": map[string]any{"type": "string", "minLength": 1},
 		},
+		"required":             []any{"message"},
+		"additionalProperties": false,
 	}
 
 	form := model.NewForm(userID, req.Title, "", schema)
