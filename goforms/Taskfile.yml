@@ -72,6 +72,13 @@ tasks:
     deps: [generate]
     cmd: go test -race ./...
 
+  contract:
+    desc: Validate the versioned OpenAPI and canonical JSON Schema contracts
+    cmds:
+      - npm ci
+      - npm run contract:lint
+      - go test -race ./contracts/...
+
   test:cover:
     desc: Generate race-enabled coverage for all supported packages
     deps: [generate]
