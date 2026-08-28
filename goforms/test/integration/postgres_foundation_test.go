@@ -13,7 +13,7 @@ import (
 func TestSchemaFirstPostgresFoundation(t *testing.T) {
 	databaseURL := os.Getenv("GOFORMX_TEST_DATABASE_URL")
 	if databaseURL == "" {
-		t.Skip("GOFORMX_TEST_DATABASE_URL is not set")
+		t.Skip("PostgreSQL integration is run by the canonical task verify command")
 	}
 
 	pool, err := pgxpool.New(t.Context(), databaseURL)

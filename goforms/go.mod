@@ -1,6 +1,6 @@
 module github.com/goformx/goforms
 
-go 1.25.13
+go 1.26.7
 
 require (
 	github.com/go-playground/validator/v10 v10.30.3

@@ -16,7 +16,7 @@ The machine-readable contract is [`contracts/openapi.v1.yaml`](contracts/openapi
 
 ## Development
 
-Prerequisites are Go 1.25.13, PostgreSQL 17, Node.js 22, and Task.
+Prerequisites are Go 1.26.7, Node.js 22, Docker Compose, and Task. PostgreSQL is disposable and provisioned by verification.
 
 ```bash
 task bootstrap
@@ -25,7 +25,7 @@ task verify
 task dev
 ```
 
-`task verify` regenerates committed artifacts, checks module drift, vets and lints the code, runs the race-enabled test suite, and scans reachable dependencies.
+`task verify` is the same complete gate used by CI. It starts a disposable PostgreSQL 17.11 instance, verifies migrations, lints the OpenAPI contract, checks generated/module drift, vets and lints Go, runs race and behavioral-coverage gates, scans reachable dependencies, and removes the database even after failure. It does not deploy, alter DNS, or touch development/production data.
 
 ## Provision a service token
 
