@@ -1,7 +1,11 @@
 // Package config provides default configuration values.
 package config
 
-import "time"
+import (
+	"time"
+
+	domainform "github.com/goformx/goforms/internal/domain/form"
+)
 
 // Default ports
 const (
@@ -32,12 +36,15 @@ const (
 
 // Default security settings
 const (
-	DefaultCSRFTokenLength = 32
-	DefaultCookieMaxAge    = 86400 // 24 hours in seconds
-	DefaultRateLimitRPS    = 100
-	DefaultRateLimitBurst  = 200
-	DefaultAPIRateLimitRPS = 1000
-	DefaultAPIRateBurst    = 2000
+	DefaultCSRFTokenLength       = 32
+	DefaultCookieMaxAge          = 86400 // 24 hours in seconds
+	DefaultRateLimitRPS          = 100
+	DefaultRateLimitBurst        = 200
+	DefaultAPIRateLimitRPS       = 1000
+	DefaultAPIRateBurst          = 2000
+	DefaultPublicSubmissionRPS   = domainform.DefaultPublicSubmissionRPS
+	DefaultPublicSubmissionBurst = domainform.DefaultPublicSubmissionBurst
+	DefaultSubmissionsPerDay     = domainform.DefaultSubmissionsPerDay
 )
 
 // Default size limits

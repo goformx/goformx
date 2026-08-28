@@ -277,12 +277,15 @@ func (vc *ViperConfig) loadAPIKeyConfig() APIKeyConfig {
 // loadRateLimitConfig loads rate limit configuration from viper
 func (vc *ViperConfig) loadRateLimitConfig() RateLimitConfig {
 	return RateLimitConfig{
-		Enabled:  vc.viper.GetBool("security.rate_limit.enabled"),
-		RPS:      vc.viper.GetInt("security.rate_limit.rps"),
-		Requests: vc.viper.GetInt("security.rate_limit.rps"),
-		Burst:    vc.viper.GetInt("security.rate_limit.burst"),
-		Window:   vc.viper.GetDuration("security.rate_limit.window"),
-		PerIP:    vc.viper.GetBool("security.rate_limit.per_ip"),
+		Enabled:               vc.viper.GetBool("security.rate_limit.enabled"),
+		RPS:                   vc.viper.GetInt("security.rate_limit.rps"),
+		Requests:              vc.viper.GetInt("security.rate_limit.rps"),
+		Burst:                 vc.viper.GetInt("security.rate_limit.burst"),
+		PublicSubmissionRPS:   vc.viper.GetFloat64("security.rate_limit.public_submission_rps"),
+		PublicSubmissionBurst: vc.viper.GetInt("security.rate_limit.public_submission_burst"),
+		SubmissionsPerDay:     vc.viper.GetInt("security.rate_limit.submissions_per_day"),
+		Window:                vc.viper.GetDuration("security.rate_limit.window"),
+		PerIP:                 vc.viper.GetBool("security.rate_limit.per_ip"),
 		SkipPaths: []string{
 			"/health",
 			"/metrics",
@@ -529,6 +532,9 @@ func setSecurityDefaults(v *viper.Viper) {
 	v.SetDefault("security.rate_limit.enabled", true)
 	v.SetDefault("security.rate_limit.rps", DefaultRateLimitRPS)
 	v.SetDefault("security.rate_limit.burst", DefaultRateLimitBurst)
+	v.SetDefault("security.rate_limit.public_submission_rps", DefaultPublicSubmissionRPS)
+	v.SetDefault("security.rate_limit.public_submission_burst", DefaultPublicSubmissionBurst)
+	v.SetDefault("security.rate_limit.submissions_per_day", DefaultSubmissionsPerDay)
 	v.SetDefault("security.rate_limit.window", "1m")
 	v.SetDefault("security.rate_limit.per_ip", false)
 	setCSPDefaults(v)

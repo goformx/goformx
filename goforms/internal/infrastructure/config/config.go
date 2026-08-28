@@ -57,6 +57,15 @@ func (c *Config) validateSchemaFirstAPIConfig() error {
 		if c.Security.RateLimit.Burst <= 0 {
 			errs = append(errs, "rate limit burst must be positive")
 		}
+		if c.Security.RateLimit.PublicSubmissionRPS <= 0 {
+			errs = append(errs, "public submission rate limit RPS must be positive")
+		}
+		if c.Security.RateLimit.PublicSubmissionBurst <= 0 {
+			errs = append(errs, "public submission rate limit burst must be positive")
+		}
+		if c.Security.RateLimit.SubmissionsPerDay <= 0 {
+			errs = append(errs, "daily submission limit must be positive")
+		}
 	}
 
 	if len(errs) > 0 {

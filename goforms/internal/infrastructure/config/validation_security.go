@@ -51,6 +51,21 @@ func validateSecurityRateLimit(cfg SecurityConfig, result *ValidationResult) {
 			"rate limit burst must be positive", cfg.RateLimit.Burst)
 	}
 
+	if cfg.RateLimit.PublicSubmissionRPS <= 0 {
+		result.AddError("security.rate_limit.public_submission_rps",
+			"public submission rate limit RPS must be positive", cfg.RateLimit.PublicSubmissionRPS)
+	}
+
+	if cfg.RateLimit.PublicSubmissionBurst <= 0 {
+		result.AddError("security.rate_limit.public_submission_burst",
+			"public submission rate limit burst must be positive", cfg.RateLimit.PublicSubmissionBurst)
+	}
+
+	if cfg.RateLimit.SubmissionsPerDay <= 0 {
+		result.AddError("security.rate_limit.submissions_per_day",
+			"daily submission limit must be positive", cfg.RateLimit.SubmissionsPerDay)
+	}
+
 	if cfg.RateLimit.Window <= 0 {
 		result.AddError("security.rate_limit.window",
 			"rate limit window must be positive", cfg.RateLimit.Window)

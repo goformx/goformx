@@ -15,6 +15,7 @@ import (
 
 	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/auth"
+	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	mockform "github.com/goformx/goforms/test/mocks/form"
 )
@@ -104,9 +105,9 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			return candidate, false, nil
 		},
 	).Times(3)
-	repository.EXPECT().ListSubmissions(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(context.Context, string) ([]*model.FormSubmission, error) {
-			return []*model.FormSubmission{submissions["contact-submit-0001"]}, nil
+	repository.EXPECT().ListSubmissionsPage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), 25).DoAndReturn(
+		func(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error) {
+			return []*model.FormSubmission{submissions["contact-submit-0001"]}, false, nil
 		},
 	)
 
@@ -207,8 +208,90 @@ func TestControlPlaneRejectsCrossOwnerFormAccess(t *testing.T) {
 
 	response := requestJSON(t, router, http.MethodGet, "/v1/forms/form-owned-by-b",
 		nil, plaintext, "", nil)
-	require.Equal(t, http.StatusForbidden, response.Code)
-	require.Contains(t, response.Body.String(), `"code":"forbidden"`)
+	require.Equal(t, http.StatusNotFound, response.Code)
+	require.Contains(t, response.Body.String(), `"code":"not_found"`)
+}
+
+func TestSubmissionPaginationInputsAreBoundedAndOpaque(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, defaultSubmissionPageSize, mustSubmissionLimit(t, ""))
+	require.Equal(t, maxSubmissionPageSize, mustSubmissionLimit(t, "100"))
+	_, err := submissionPageLimit("101")
+	require.Error(t, err)
+
+	submission := &model.FormSubmission{ID: "11111111-1111-4111-8111-111111111111", SubmittedAt: time.Now().UTC()}
+	cursor := encodeSubmissionCursor(submission)
+	before, beforeID, err := decodeSubmissionCursor(cursor)
+	require.NoError(t, err)
+	require.True(t, submission.SubmittedAt.Equal(before))
+	require.Equal(t, submission.ID, beforeID)
+	_, _, err = decodeSubmissionCursor("not-a-cursor")
+	require.Error(t, err)
+}
+
+func mustSubmissionLimit(t *testing.T, value string) int {
+	t.Helper()
+	limit, err := submissionPageLimit(value)
+	require.NoError(t, err)
+	return limit
+}
+
+func TestPublicSubmissionAdmissionIsScopedPerForm(t *testing.T) {
+	t.Parallel()
+	repository := mockform.NewMockRepository(gomock.NewController(t))
+	validator := validation.NewComprehensiveValidator()
+	formModel := &model.Form{ID: "11111111-1111-4111-8111-111111111111", PublicKey: formPublicKey()}
+	version, err := model.NewSchemaVersion(formModel.ID, 1, contactSchema("email"), validator)
+	require.NoError(t, err)
+	published, err := version.Publish(time.Now().UTC())
+	require.NoError(t, err)
+	repository.EXPECT().GetPublishedSchemaVersion(gomock.Any(), formPublicKey(), gomock.Any()).Return(
+		formModel, published, nil,
+	).Times(2)
+	repository.EXPECT().CreateSubmissionIdempotent(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, submission *model.FormSubmission) (*model.FormSubmission, bool, error) {
+			submission.ID = "22222222-2222-4222-8222-222222222222"
+			return submission, false, nil
+		},
+	)
+
+	router := echo.New()
+	newV1APIHandlerWithLimits(repository, fixedTokenRepository{}, validator, nil,
+		V1Limits{PublicSubmissionRPS: 0.001, PublicSubmissionBurst: 1}).RegisterRoutes(router)
+	payload := map[string]any{"data": map[string]any{"email": "ada@example.com"}}
+	first := requestJSON(t, router, http.MethodPost, "/v1/public/forms/"+formPublicKey()+"/submissions",
+		payload, "", "admission-submit-0001", nil)
+	require.Equal(t, http.StatusAccepted, first.Code, first.Body.String())
+	second := requestJSON(t, router, http.MethodPost, "/v1/public/forms/"+formPublicKey()+"/submissions",
+		payload, "", "admission-submit-0002", nil)
+	require.Equal(t, http.StatusTooManyRequests, second.Code, second.Body.String())
+	require.Equal(t, "1", second.Header().Get(echo.HeaderRetryAfter))
+}
+
+func TestDailySubmissionLimitReturnsRetryablePublicError(t *testing.T) {
+	t.Parallel()
+	repository := mockform.NewMockRepository(gomock.NewController(t))
+	validator := validation.NewComprehensiveValidator()
+	formModel := &model.Form{ID: "11111111-1111-4111-8111-111111111111", PublicKey: formPublicKey()}
+	version, err := model.NewSchemaVersion(formModel.ID, 1, contactSchema("email"), validator)
+	require.NoError(t, err)
+	published, err := version.Publish(time.Now().UTC())
+	require.NoError(t, err)
+	repository.EXPECT().GetPublishedSchemaVersion(gomock.Any(), formPublicKey(), gomock.Any()).Return(
+		formModel, published, nil,
+	)
+	repository.EXPECT().CreateSubmissionIdempotent(gomock.Any(), gomock.Any()).Return(
+		nil, false, domainform.ErrSubmissionLimitExceeded,
+	)
+
+	router := echo.New()
+	newV1APIHandler(repository, fixedTokenRepository{}, validator, nil).RegisterRoutes(router)
+	response := requestJSON(t, router, http.MethodPost, "/v1/public/forms/"+formPublicKey()+"/submissions",
+		map[string]any{"data": map[string]any{"email": "ada@example.com"}},
+		"", "daily-limit-00001", nil)
+	require.Equal(t, http.StatusTooManyRequests, response.Code, response.Body.String())
+	require.Equal(t, "86400", response.Header().Get(echo.HeaderRetryAfter))
+	require.Contains(t, response.Body.String(), `"code":"submission_limit_reached"`)
 }
 
 func formPublicKey() string { return "gfpk_abcdefghijklmnopqrstuvwxyz123456" }

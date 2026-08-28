@@ -56,7 +56,7 @@ func run(ctx context.Context) error {
 		}
 	}()
 
-	forms := formstore.NewStore(db, logger)
+	forms := formstore.NewStoreWithDailySubmissionLimit(db, logger, cfg.Security.RateLimit.SubmissionsPerDay)
 	tokens := tokenstore.NewStore(db)
 	router := newRouter(cfg, forms, tokens, logger)
 	server := &http.Server{
@@ -123,7 +123,10 @@ func newRouter(
 	}
 	router.GET("/health", health)
 	router.HEAD("/health", health)
-	web.NewV1APIHandler(forms, tokens, logger).RegisterRoutes(router)
+	web.NewV1APIHandlerWithLimits(forms, tokens, logger, web.V1Limits{
+		PublicSubmissionRPS:   cfg.Security.RateLimit.PublicSubmissionRPS,
+		PublicSubmissionBurst: cfg.Security.RateLimit.PublicSubmissionBurst,
+	}).RegisterRoutes(router)
 	return router
 }
 

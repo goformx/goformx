@@ -22,8 +22,10 @@ import (
 
 // Store implements form.Repository interface
 type Store struct {
-	db     database.DB
-	logger logging.Logger
+	db                   database.DB
+	logger               logging.Logger
+	dailySubmissionLimit int
+	now                  func() time.Time
 }
 
 type schemaRecord struct {
@@ -40,10 +42,15 @@ func (schemaRecord) TableName() string { return "form_schemas" }
 
 // NewStore creates a new form store
 func NewStore(db database.DB, logger logging.Logger) form.Repository {
-	return &Store{
-		db:     db,
-		logger: logger,
+	return NewStoreWithDailySubmissionLimit(db, logger, form.DefaultSubmissionsPerDay)
+}
+
+// NewStoreWithDailySubmissionLimit creates a store with a transactionally enforced rolling quota.
+func NewStoreWithDailySubmissionLimit(db database.DB, logger logging.Logger, limit int) *Store {
+	if limit <= 0 {
+		limit = form.DefaultSubmissionsPerDay
 	}
+	return &Store{db: db, logger: logger, dailySubmissionLimit: limit, now: time.Now}
 }
 
 // CreateForm creates a new form
@@ -398,22 +405,73 @@ func (s *Store) CreateSubmissionIdempotent(
 	if submission == nil || submission.IdempotencyKey == "" {
 		return nil, false, errors.New("submission and idempotency key are required")
 	}
-	result := s.db.GetDB().WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:     []clause.Column{{Name: "form_id"}, {Name: "idempotency_key"}},
-		TargetWhere: clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "idempotency_key IS NOT NULL"}}},
-		DoNothing:   true,
-	}).Create(submission)
-	if result.Error != nil {
-		return nil, false, fmt.Errorf("create idempotent submission: %w", result.Error)
+	var stored *model.FormSubmission
+	replayed := false
+	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if existing, found, err := findIdempotentSubmission(tx, submission.FormID, submission.IdempotencyKey); err != nil {
+			return err
+		} else if found {
+			stored, replayed = existing, true
+			return nil
+		}
+
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", submission.FormID).Error; err != nil {
+			return fmt.Errorf("lock form submission admission: %w", err)
+		}
+		if existing, found, err := findIdempotentSubmission(tx, submission.FormID, submission.IdempotencyKey); err != nil {
+			return err
+		} else if found {
+			stored, replayed = existing, true
+			return nil
+		}
+
+		var recent int64
+		windowStart := s.now().UTC().Add(-24 * time.Hour)
+		if err := tx.Model(&model.FormSubmission{}).Where(
+			"form_id = ? AND submitted_at >= ?", submission.FormID, windowStart,
+		).Count(&recent).Error; err != nil {
+			return fmt.Errorf("count recent form submissions: %w", err)
+		}
+		if recent >= int64(s.dailySubmissionLimit) {
+			return form.ErrSubmissionLimitExceeded
+		}
+
+		result := tx.Clauses(clause.OnConflict{
+			Columns:     []clause.Column{{Name: "form_id"}, {Name: "idempotency_key"}},
+			TargetWhere: clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "idempotency_key IS NOT NULL"}}},
+			DoNothing:   true,
+		}).Create(submission)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 1 {
+			stored = submission
+			return nil
+		}
+		existing, found, err := findIdempotentSubmission(tx, submission.FormID, submission.IdempotencyKey)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return errors.New("idempotent submission conflict did not return an existing row")
+		}
+		stored, replayed = existing, true
+		return nil
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("create idempotent submission: %w", err)
 	}
-	if result.RowsAffected == 1 {
-		return submission, false, nil
-	}
+	return stored, replayed, nil
+}
+
+func findIdempotentSubmission(tx *gorm.DB, formID, idempotencyKey string) (*model.FormSubmission, bool, error) {
 	var existing model.FormSubmission
-	if err := s.db.GetDB().WithContext(ctx).Where(
-		"form_id = ? AND idempotency_key = ?", submission.FormID, submission.IdempotencyKey,
-	).First(&existing).Error; err != nil {
-		return nil, false, fmt.Errorf("load idempotent submission: %w", err)
+	result := tx.Where("form_id = ? AND idempotency_key = ?", formID, idempotencyKey).Limit(1).Find(&existing)
+	if result.Error != nil {
+		return nil, false, fmt.Errorf("load idempotent submission: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, false, nil
 	}
 	return &existing, true, nil
 }
@@ -447,6 +505,32 @@ func (s *Store) ListSubmissions(ctx context.Context, formID string) ([]*model.Fo
 	}
 
 	return submissions, nil
+}
+
+// ListSubmissionsPage returns one deterministic, bounded cursor page.
+func (s *Store) ListSubmissionsPage(
+	ctx context.Context,
+	formID string,
+	before time.Time,
+	beforeID string,
+	limit int,
+) ([]*model.FormSubmission, bool, error) {
+	if limit < 1 || limit > 100 {
+		return nil, false, errors.New("submission page limit must be between 1 and 100")
+	}
+	query := s.db.GetDB().WithContext(ctx).Where("form_id = ?", formID)
+	if !before.IsZero() {
+		query = query.Where("(submitted_at < ? OR (submitted_at = ? AND uuid < ?))", before, before, beforeID)
+	}
+	var submissions []*model.FormSubmission
+	if err := query.Order("submitted_at DESC, uuid DESC").Limit(limit + 1).Find(&submissions).Error; err != nil {
+		return nil, false, fmt.Errorf("list submission page: %w", err)
+	}
+	hasMore := len(submissions) > limit
+	if hasMore {
+		submissions = submissions[:limit]
+	}
+	return submissions, hasMore, nil
 }
 
 // UpdateSubmission updates a form submission

@@ -2,9 +2,12 @@
 package validation
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 
@@ -14,13 +17,23 @@ import (
 const (
 	canonicalDialect = model.JSONSchemaDraft202012URI
 	resourceURL      = "https://goformx.com/runtime/form-definition.json"
+	maxSchemaDepth   = 32
+	maxSchemaNodes   = 4096
+	maxPatternLength = 512
+	maxCompiledCache = 128
 )
 
 // ComprehensiveValidator wraps the maintained Draft 2020-12 implementation used by the core path.
-type ComprehensiveValidator struct{}
+type ComprehensiveValidator struct {
+	cacheMu    sync.RWMutex
+	compiled   map[[sha256.Size]byte]*jsonschema.Schema
+	cacheOrder [][sha256.Size]byte
+}
 
 // NewComprehensiveValidator creates a canonical JSON Schema validator.
-func NewComprehensiveValidator() *ComprehensiveValidator { return &ComprehensiveValidator{} }
+func NewComprehensiveValidator() *ComprehensiveValidator {
+	return &ComprehensiveValidator{compiled: make(map[[sha256.Size]byte]*jsonschema.Schema)}
+}
 
 // ValidateDefinition implements the domain schema-compilation boundary.
 func (v *ComprehensiveValidator) ValidateDefinition(schema model.JSON) error {
@@ -81,6 +94,17 @@ func (v *ComprehensiveValidator) compile(schema model.JSON) (*jsonschema.Schema,
 	if schemaType, ok := schema["type"].(string); !ok || schemaType != "object" {
 		return nil, invalidResult("/type", "invalid_type", "form schema type must be object")
 	}
+	if policyError := inspectSchemaPolicy(map[string]any(schema), "", 0, new(int)); policyError != nil {
+		return nil, Result{IsValid: false, Errors: []Error{*policyError}}
+	}
+	digestSource, err := json.Marshal(schema)
+	if err != nil {
+		return nil, invalidResult("/", "invalid_schema", "schema must contain JSON-compatible values")
+	}
+	digest := sha256.Sum256(digestSource)
+	if compiled := v.cached(digest); compiled != nil {
+		return compiled, Result{IsValid: true, Errors: []Error{}}
+	}
 	compiler := jsonschema.NewCompiler()
 	compiler.DefaultDraft(jsonschema.Draft2020)
 	compiler.AssertFormat()
@@ -91,7 +115,89 @@ func (v *ComprehensiveValidator) compile(schema model.JSON) (*jsonschema.Schema,
 	if err != nil {
 		return nil, invalidResult("/", "invalid_schema", err.Error())
 	}
+	v.remember(digest, compiled)
 	return compiled, Result{IsValid: true, Errors: []Error{}}
+}
+
+func (v *ComprehensiveValidator) cached(digest [sha256.Size]byte) *jsonschema.Schema {
+	v.cacheMu.RLock()
+	defer v.cacheMu.RUnlock()
+	return v.compiled[digest]
+}
+
+func (v *ComprehensiveValidator) remember(digest [sha256.Size]byte, compiled *jsonschema.Schema) {
+	v.cacheMu.Lock()
+	defer v.cacheMu.Unlock()
+	if _, exists := v.compiled[digest]; exists {
+		return
+	}
+	if len(v.cacheOrder) == maxCompiledCache {
+		delete(v.compiled, v.cacheOrder[0])
+		v.cacheOrder = v.cacheOrder[1:]
+	}
+	v.compiled[digest] = compiled
+	v.cacheOrder = append(v.cacheOrder, digest)
+}
+
+func inspectSchemaPolicy(value any, pointer string, depth int, nodes *int) *Error {
+	if depth > maxSchemaDepth {
+		return &Error{Pointer: schemaPointer(pointer), Code: "schema_too_deep",
+			Message: fmt.Sprintf("schema nesting must not exceed %d levels", maxSchemaDepth)}
+	}
+	*nodes++
+	if *nodes > maxSchemaNodes {
+		return &Error{Pointer: schemaPointer(pointer), Code: "schema_too_complex",
+			Message: fmt.Sprintf("schema must not exceed %d nodes", maxSchemaNodes)}
+	}
+
+	switch typed := value.(type) {
+	case model.JSON:
+		return inspectSchemaObject(map[string]any(typed), pointer, depth, nodes)
+	case map[string]any:
+		return inspectSchemaObject(typed, pointer, depth, nodes)
+	case []any:
+		for index, item := range typed {
+			if policyError := inspectSchemaPolicy(item, pointer+"/"+fmt.Sprint(index), depth+1, nodes); policyError != nil {
+				return policyError
+			}
+		}
+	}
+	return nil
+}
+
+func inspectSchemaObject(object map[string]any, pointer string, depth int, nodes *int) *Error {
+	for key, value := range object {
+		childPointer := pointer + "/" + escapePointerToken(key)
+		if key == "$ref" || key == "$dynamicRef" || key == "$recursiveRef" {
+			reference, ok := value.(string)
+			if !ok || !strings.HasPrefix(reference, "#") {
+				return &Error{Pointer: schemaPointer(childPointer), Code: "external_reference",
+					Message: "schema references must use a local JSON Pointer fragment"}
+			}
+		}
+		if key == "pattern" {
+			pattern, ok := value.(string)
+			if !ok || len(pattern) > maxPatternLength {
+				return &Error{Pointer: schemaPointer(childPointer), Code: "pattern_too_long",
+					Message: fmt.Sprintf("schema patterns must not exceed %d bytes", maxPatternLength)}
+			}
+		}
+		if policyError := inspectSchemaPolicy(value, childPointer, depth+1, nodes); policyError != nil {
+			return policyError
+		}
+	}
+	return nil
+}
+
+func escapePointerToken(value string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(value, "~", "~0"), "/", "~1")
+}
+
+func schemaPointer(pointer string) string {
+	if pointer == "" {
+		return "/"
+	}
+	return pointer
 }
 
 func invalidResult(pointer, code, message string) Result {

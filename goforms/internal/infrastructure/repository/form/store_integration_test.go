@@ -2,7 +2,10 @@ package repository_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	formrepository "github.com/goformx/goforms/internal/infrastructure/repository/form"
 	mocklogging "github.com/goformx/goforms/test/mocks/logging"
@@ -89,6 +93,74 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, replayed)
 	require.Equal(t, created.ID, replayedSubmission.ID)
+
+	limitedStore := formrepository.NewStoreWithDailySubmissionLimit(
+		&integrationDB{db: db}, mocklogging.NewMockLogger(ctrl), 1,
+	)
+	overLimit := &model.FormSubmission{FormID: form.ID, SchemaVersion: 1,
+		IdempotencyKey: "repository-contact-0002", Data: model.JSON{"name": "Grace"},
+		SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusAccepted}
+	_, _, err = limitedStore.CreateSubmissionIdempotent(t.Context(), overLimit)
+	require.ErrorIs(t, err, domainform.ErrSubmissionLimitExceeded)
+	replayedSubmission, replayed, err = limitedStore.CreateSubmissionIdempotent(t.Context(), retry)
+	require.NoError(t, err)
+	require.True(t, replayed)
+	require.Equal(t, created.ID, replayedSubmission.ID)
+	second, replayed, err := store.CreateSubmissionIdempotent(t.Context(), overLimit)
+	require.NoError(t, err)
+	require.False(t, replayed)
+	require.NotEmpty(t, second.ID)
+
+	page, hasMore, err := store.ListSubmissionsPage(t.Context(), form.ID, time.Time{}, "", 1)
+	require.NoError(t, err)
+	require.True(t, hasMore)
+	require.Len(t, page, 1)
+	nextPage, hasMore, err := store.ListSubmissionsPage(
+		t.Context(), form.ID, page[0].SubmittedAt, page[0].ID, 1,
+	)
+	require.NoError(t, err)
+	require.False(t, hasMore)
+	require.Len(t, nextPage, 1)
+	require.NotEqual(t, page[0].ID, nextPage[0].ID)
+
+	concurrentForm := model.NewForm("11111111-1111-4111-8111-111111111111", "Concurrent Admission", "", model.JSON{
+		"$schema": model.JSONSchemaDraft202012URI, "type": "object",
+		"properties": map[string]any{"name": map[string]any{"type": "string"}},
+	})
+	concurrentForm.Name = "concurrent-admission-" + uuid.NewString()[:8]
+	require.NoError(t, store.CreateForm(t.Context(), concurrentForm))
+	concurrentStore := formrepository.NewStoreWithDailySubmissionLimit(
+		&integrationDB{db: db}, mocklogging.NewMockLogger(ctrl), 1,
+	)
+	results := make(chan error, 2)
+	var wait sync.WaitGroup
+	for index := 0; index < 2; index++ {
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			_, _, createErr := concurrentStore.CreateSubmissionIdempotent(t.Context(), &model.FormSubmission{
+				FormID: concurrentForm.ID, SchemaVersion: 1,
+				IdempotencyKey: fmt.Sprintf("concurrent-submit-%04d", index),
+				Data:           model.JSON{"name": "Ada"}, SubmittedAt: time.Now().UTC(),
+				Status: model.SubmissionStatusAccepted,
+			})
+			results <- createErr
+		}(index)
+	}
+	wait.Wait()
+	close(results)
+	accepted, rejected := 0, 0
+	for createErr := range results {
+		if createErr == nil {
+			accepted++
+		} else if errors.Is(createErr, domainform.ErrSubmissionLimitExceeded) {
+			rejected++
+		} else {
+			require.NoError(t, createErr)
+		}
+	}
+	require.Equal(t, 1, accepted)
+	require.Equal(t, 1, rejected)
 
 	var versions int64
 	require.NoError(t, db.Table("form_schemas").Where("form_id = ?", form.ID).Count(&versions).Error)

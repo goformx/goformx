@@ -25,6 +25,7 @@ import (
 	"github.com/goformx/goforms/internal/application/middleware/serviceauth"
 	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/auth"
+	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 )
 
@@ -35,6 +36,7 @@ type V1APIHandler struct {
 	repository V1Repository
 	auth       *serviceauth.Middleware
 	validator  *validation.ComprehensiveValidator
+	admission  *submissionLimiter
 	logger     RequestLogger
 	requests   atomic.Uint64
 	errors     atomic.Uint64
@@ -50,7 +52,7 @@ type V1Repository interface {
 	CreateSchemaVersion(context.Context, string, model.JSON) (*model.SchemaVersion, error)
 	GetSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
 	PublishSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
-	ListSubmissions(context.Context, string) ([]*model.FormSubmission, error)
+	ListSubmissionsPage(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)
 	GetPublishedSchemaVersion(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)
 	CreateSubmissionIdempotent(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)
 }
@@ -67,7 +69,17 @@ func NewV1APIHandler(
 	tokens serviceauth.Repository,
 	logger RequestLogger,
 ) *V1APIHandler {
-	return newV1APIHandler(repository, tokens, validation.NewComprehensiveValidator(), logger)
+	return NewV1APIHandlerWithLimits(repository, tokens, logger, DefaultV1Limits())
+}
+
+// NewV1APIHandlerWithLimits wires the v1 API with explicit public-write admission limits.
+func NewV1APIHandlerWithLimits(
+	repository V1Repository,
+	tokens serviceauth.Repository,
+	logger RequestLogger,
+	limits V1Limits,
+) *V1APIHandler {
+	return newV1APIHandlerWithLimits(repository, tokens, validation.NewComprehensiveValidator(), logger, limits)
 }
 
 func newV1APIHandler(
@@ -76,7 +88,18 @@ func newV1APIHandler(
 	validator *validation.ComprehensiveValidator,
 	logger RequestLogger,
 ) *V1APIHandler {
-	return &V1APIHandler{repository: repository, auth: serviceauth.New(tokens), validator: validator, logger: logger}
+	return newV1APIHandlerWithLimits(repository, tokens, validator, logger, DefaultV1Limits())
+}
+
+func newV1APIHandlerWithLimits(
+	repository V1Repository,
+	tokens serviceauth.Repository,
+	validator *validation.ComprehensiveValidator,
+	logger RequestLogger,
+	limits V1Limits,
+) *V1APIHandler {
+	return &V1APIHandler{repository: repository, auth: serviceauth.New(tokens), validator: validator,
+		admission: newSubmissionLimiter(limits), logger: logger}
 }
 
 func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
@@ -244,7 +267,7 @@ func (h *V1APIHandler) ownedForm(c echo.Context) (*model.Form, bool) {
 		return nil, false
 	}
 	if err := serviceauth.RequireOwner(c, formModel.UserID); err != nil {
-		_ = h.writeError(c, http.StatusForbidden, "forbidden", "The service token cannot access this form.", nil)
+		_ = h.writeError(c, http.StatusNotFound, "not_found", "The requested resource was not found.", nil)
 		return nil, false
 	}
 	return formModel, true
@@ -354,7 +377,17 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	if !ok {
 		return nil
 	}
-	submissions, err := h.repository.ListSubmissions(c.Request().Context(), formModel.ID)
+	limit, err := submissionPageLimit(c.QueryParam("limit"))
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	before, beforeID, err := decodeSubmissionCursor(c.QueryParam("cursor"))
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	submissions, hasMore, err := h.repository.ListSubmissionsPage(
+		c.Request().Context(), formModel.ID, before, beforeID, limit,
+	)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
@@ -362,7 +395,57 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	for _, submission := range submissions {
 		data = append(data, submissionResource(submission))
 	}
-	return c.JSON(http.StatusOK, map[string]any{"data": data})
+	var nextCursor any
+	if hasMore && len(submissions) > 0 {
+		nextCursor = encodeSubmissionCursor(submissions[len(submissions)-1])
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{
+		"limit": limit, "nextCursor": nextCursor,
+	}})
+}
+
+const (
+	defaultSubmissionPageSize = 25
+	maxSubmissionPageSize     = 100
+)
+
+type submissionCursor struct {
+	SubmittedAt time.Time `json:"submittedAt"`
+	ID          string    `json:"id"`
+}
+
+func submissionPageLimit(value string) (int, error) {
+	if value == "" {
+		return defaultSubmissionPageSize, nil
+	}
+	limit, err := positiveInt(value)
+	if err != nil || limit > maxSubmissionPageSize {
+		return 0, fmt.Errorf("limit must be between 1 and %d", maxSubmissionPageSize)
+	}
+	return limit, nil
+}
+
+func decodeSubmissionCursor(value string) (time.Time, string, error) {
+	if value == "" {
+		return time.Time{}, "", nil
+	}
+	encoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return time.Time{}, "", errors.New("cursor is invalid")
+	}
+	var cursor submissionCursor
+	if err := json.Unmarshal(encoded, &cursor); err != nil || cursor.SubmittedAt.IsZero() {
+		return time.Time{}, "", errors.New("cursor is invalid")
+	}
+	if _, err := uuid.Parse(cursor.ID); err != nil {
+		return time.Time{}, "", errors.New("cursor is invalid")
+	}
+	return cursor.SubmittedAt.UTC(), cursor.ID, nil
+}
+
+func encodeSubmissionCursor(submission *model.FormSubmission) string {
+	encoded, _ := json.Marshal(submissionCursor{SubmittedAt: submission.SubmittedAt.UTC(), ID: submission.ID})
+	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
 func (h *V1APIHandler) getPublishedSchema(c echo.Context) error {
@@ -409,6 +492,10 @@ func (h *V1APIHandler) createSubmission(c echo.Context) error {
 	if err != nil {
 		return h.writeError(c, http.StatusNotFound, "not_found", "Published form schema was not found.", nil)
 	}
+	if !h.admission.allow(formModel.ID) {
+		c.Response().Header().Set(echo.HeaderRetryAfter, "1")
+		return h.writeError(c, http.StatusTooManyRequests, "rate_limited", "This form is receiving too many submissions.", nil)
+	}
 	var request submissionRequest
 	if err := decodeJSON(c, &request); err != nil {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
@@ -424,6 +511,11 @@ func (h *V1APIHandler) createSubmission(c echo.Context) error {
 		Status: model.SubmissionStatusAccepted, Metadata: model.JSON{}}
 	stored, replayed, err := h.repository.CreateSubmissionIdempotent(c.Request().Context(), submission)
 	if err != nil {
+		if errors.Is(err, domainform.ErrSubmissionLimitExceeded) {
+			c.Response().Header().Set(echo.HeaderRetryAfter, "86400")
+			return h.writeError(c, http.StatusTooManyRequests, "submission_limit_reached",
+				"This form has reached its rolling submission limit.", nil)
+		}
 		return h.writeRepositoryError(c, err)
 	}
 	if replayed && (stored.SchemaVersion != submission.SchemaVersion || !reflect.DeepEqual(stored.Data, submission.Data)) {
