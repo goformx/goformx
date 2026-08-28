@@ -49,11 +49,6 @@ services:
       - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS}
       - CORS_MAX_AGE=${CORS_MAX_AGE}
 
-      # API Key Configuration
-      - API_KEY_ENABLED=${API_KEY_ENABLED}
-      - API_KEYS=${API_KEYS}
-      - API_KEY_HEADER_NAME=${API_KEY_HEADER_NAME}
-
       # Timeouts
       - READ_TIMEOUT=${READ_TIMEOUT}
       - WRITE_TIMEOUT=${WRITE_TIMEOUT}
@@ -66,7 +61,6 @@ services:
       - goforms-dev-network
     volumes:
       - .:/app
-      - goforms-dev-logs:/app/logs
       - go-cache:/go
     healthcheck:
       test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8090/health" ]
@@ -90,7 +84,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres-dev-data:/var/lib/postgresql/data
-      - ./migrations:/docker-entrypoint-initdb.d
     networks:
       - goforms-dev-network
     healthcheck:
@@ -106,8 +99,6 @@ networks:
 
 volumes:
   postgres-dev-data:
-    driver: local
-  goforms-dev-logs:
     driver: local
   go-cache:
     driver: local

@@ -1,7 +1,7 @@
 # ------------------------------------------------------------
 # Base stage — shared system dependencies
 # ------------------------------------------------------------
-FROM golang:1.26.7-alpine AS base
+FROM golang:1.26.7-alpine@sha256:28d89ee9cc0ff9fec75c82ca201e6bf7fdf9a679d4b7b24dfa04f2bb766bb468 AS base
 
 RUN apk add --no-cache \
     git \
@@ -30,9 +30,6 @@ RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 \
     && go install golang.org/x/tools/cmd/goimports@v0.49.0 \
     && go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0 \
     && go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
-
-# Create runtime dirs
-RUN mkdir -p logs
 
 # Note: Source code is mounted via bind mount in docker-compose.yml
 # No need to COPY source here - bind mount provides live code for development
