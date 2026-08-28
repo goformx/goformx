@@ -24,13 +24,16 @@ const (
 
 // ServiceToken is the persisted token metadata. Only Hash is stored; Plaintext is returned once.
 type ServiceToken struct {
-	ID        string
-	OwnerID   string
-	Hash      [sha256.Size]byte
-	Scopes    map[Scope]struct{}
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	RevokedAt *time.Time
+	ID                string
+	OwnerID           string
+	Hash              [sha256.Size]byte
+	Scopes            map[Scope]struct{}
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
+	LastUsedAt        *time.Time
+	ReplacedByTokenID string
+	RevocationReason  string
 }
 
 func Issue(ownerID string, scopes []Scope, ttl time.Duration, now time.Time) (*ServiceToken, string, error) {

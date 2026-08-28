@@ -1,90 +1,53 @@
-# Cross-Service Authentication Spec
+# Cross-service authentication and trust boundaries
 
-**Owns:** HMAC assertion auth between Waaseyaa frontend and Go API backend
+**Status:** Active for the schema-first v1 API. The former HMAC assertion, shadow-user, and plan-header design is retired and must not be used by production routes.
 
----
+## Planes and credentials
 
-## Overview
+GoFormX exposes two deliberately different trust boundaries:
 
-GoFormX uses a two-service architecture where the Waaseyaa frontend authenticates users and asserts their identity to the Go backend via HMAC-signed headers. The Go API never handles user authentication directly — it trusts assertions from the frontend after cryptographic verification.
+| Caller | Plane | Credential | Authority |
+| --- | --- | --- | --- |
+| Public browser | Data | Rotatable gfpk_ public form key | Read one published schema and submit against it from an allowed origin |
+| Anokii or Waaseyaa server | Control | Scoped gfst_ bearer token | Only the owner and scopes stored with that token |
+| Trusted automation or agent | Control | Scoped gfst_ bearer token | Same as any server integration; there is no agent superuser |
+| GoFormX operator | Operations | Database access through the token CLI | Issue, rotate, and revoke service tokens |
 
----
+Public form keys are identifiers, not secrets. They may appear in browser JavaScript. A reusable bearer token must remain in a server-side secret store and must never use a VITE_-prefixed variable or be returned to a browser.
 
-## Authentication Flow
+## Service-token lifecycle
 
-```
-1. User authenticates via Waaseyaa (session-based, AuthManager)
-2. Frontend reads $_SESSION['waaseyaa_uid'] to get authenticated user ID
-3. GoFormsClient signs each request with HMAC headers:
-   - X-User-Id: authenticated user's UUID
-   - X-Timestamp: current UTC timestamp (ISO 8601)
-   - X-Signature: HMAC-SHA256(user_id:timestamp, shared_secret)
-4. Go assertion middleware verifies:
-   - Signature matches recomputed HMAC
-   - Timestamp within 60-second skew tolerance
-   - Extracts user ID for downstream ownership checks
-```
+Service tokens:
 
----
+- are random, prefixed with gfst_, and returned in plaintext exactly once;
+- persist only a SHA-256 hash plus a non-secret lookup ID;
+- belong to one owner and contain an explicit set of supported scopes;
+- have creation and expiry timestamps;
+- fail closed when expired, revoked, under-scoped, invalid, or used for another owner;
+- record last_used_at after successful authentication;
+- can be rotated atomically, revoking the previous token with revocation_reason=rotated and a replaced_by_token_id lineage;
+- can be revoked directly by non-secret token ID.
 
-## Shared Secret
+The supported scopes are forms:read, forms:write, forms:publish, and submissions:read. Adding a scope changes the authorization contract and requires tests and documentation in the same change.
 
-- **Config key (Waaseyaa):** `goforms_shared_secret` in `config/waaseyaa.php`
-- **Config key (Go):** `GOFORMS_SHARED_SECRET` env var
-- **Critical invariant:** Both values MUST match. Mismatched secrets cause silent 401s on every API call.
+## Rotation procedure
 
----
+    go run ./cmd/goformx-token rotate --token-id TOKEN_ID --ttl 24h
 
-## GoFormsClient (Waaseyaa → Go)
+Store the returned replacement token before restarting its caller. Rotation revokes the old credential in the same database transaction; there is no overlap window. If an integration needs an overlap window, issue a second token first and revoke the original after the caller has switched.
 
-**Location:** `goformx-web/src/Service/GoFormsClient.php`
+## Rejected legacy headers
 
-- Implements `GoFormsClientInterface`
-- Constructor: `(string $baseUrl, string $sharedSecret)`
-- All requests include HMAC assertion headers
-- Methods: `get()`, `post()`, `put()`, `delete()` — each takes path, userId, planTier
-- Throws `\RuntimeException` on HTTP errors (caught by controllers)
+The v1 control plane accepts only Authorization: Bearer gfst_.... It does not authenticate X-User-Id, X-Timestamp, X-Signature, plan-tier headers, browser sessions, or CSRF tokens. Public data-plane routes accept no reusable credential.
 
----
+Legacy /api/* routes remain isolated reference code pending deletion under issue #83. They are not part of the v1 OpenAPI contract and must not be mounted by the supported production runtime after issue #73.
 
-## Go Assertion Middleware
+## Failure behavior
 
-**Location:** `goforms/internal/application/middleware/assertion/`
-
-- Verifies `X-Signature` against recomputed HMAC-SHA256
-- Rejects requests with expired timestamps (>60s skew)
-- Extracts user ID and attaches to request context
-- Used by all `/api/*` routes (authenticated endpoints)
-
----
-
-## Public Endpoints (No Auth)
-
-These Go endpoints require NO assertion headers:
-
-- `GET /forms/:id/schema` — returns form JSON schema
-- `POST /forms/:id/submit` — accepts public form submissions
-- `GET /forms/:id/embed` — returns embeddable form HTML
-
-Rate limiting is applied at the Go level for public endpoints.
-
----
-
-## Security Considerations
-
-- HMAC secret must be cryptographically random (minimum 32 bytes)
-- Timestamp skew tolerance prevents replay attacks beyond 60 seconds
-- The frontend MUST NOT expose the shared secret to the browser
-- Go API should log failed assertion attempts for monitoring
-- Plan tier is passed as a header but NOT cryptographically verified — it's advisory for rate limiting, not access control
-
----
-
-## Failure Modes
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| All API calls return 401 | Mismatched `GOFORMS_SHARED_SECRET` | Verify both `.env` files have identical values |
-| Intermittent 401s | Clock drift between services | Ensure NTP sync; check 60s skew tolerance |
-| Forms load but submissions fail | Public endpoints work, auth endpoints don't | Check assertion middleware is only on `/api/*` routes |
-| "Connection refused" from GoFormsClient | Go API not running | Verify `GOFORMS_API_URL` and container health |
+| Condition | Result |
+| --- | --- |
+| Missing or unknown bearer token | 401 unauthorized |
+| Invalid, expired, revoked, or under-scoped token | 403 forbidden |
+| Token owner differs from the requested form owner | 403 forbidden |
+| Usage-audit persistence is unavailable | 503 service unavailable; the request does not proceed |
+| Public key is unknown or has no published schema | 404 not found |

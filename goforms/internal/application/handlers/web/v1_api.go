@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -24,38 +25,56 @@ import (
 	"github.com/goformx/goforms/internal/application/middleware/serviceauth"
 	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/auth"
-	formdomain "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
-	"github.com/goformx/goforms/internal/infrastructure/logging"
-	tokenstore "github.com/goformx/goforms/internal/infrastructure/repository/token"
 )
 
 var formNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{2,62}$`)
 
 // V1APIHandler implements the schema-first control and public data planes.
 type V1APIHandler struct {
-	repository formdomain.Repository
+	repository V1Repository
 	auth       *serviceauth.Middleware
 	validator  *validation.ComprehensiveValidator
-	logger     logging.Logger
+	logger     RequestLogger
 	requests   atomic.Uint64
 	errors     atomic.Uint64
 }
 
+// V1Repository is the persistence boundary used by the schema-first API.
+// It intentionally excludes legacy users, plans, pagination, and browser sessions.
+type V1Repository interface {
+	CreateForm(context.Context, *model.Form) error
+	ListForms(context.Context, string) ([]*model.Form, error)
+	GetFormByID(context.Context, string) (*model.Form, error)
+	UpdateForm(context.Context, *model.Form) error
+	CreateSchemaVersion(context.Context, string, model.JSON) (*model.SchemaVersion, error)
+	GetSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
+	PublishSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
+	ListSubmissions(context.Context, string) ([]*model.FormSubmission, error)
+	GetPublishedSchemaVersion(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)
+	CreateSubmissionIdempotent(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)
+}
+
+// RequestLogger keeps the HTTP application boundary independent of logging implementations.
+type RequestLogger interface {
+	Info(string, ...any)
+	Error(string, ...any)
+}
+
 // NewV1APIHandler wires the v1 API to the canonical repository and scoped service-token store.
 func NewV1APIHandler(
-	repository formdomain.Repository,
-	tokens *tokenstore.Store,
-	logger logging.Logger,
+	repository V1Repository,
+	tokens serviceauth.Repository,
+	logger RequestLogger,
 ) *V1APIHandler {
 	return newV1APIHandler(repository, tokens, validation.NewComprehensiveValidator(), logger)
 }
 
 func newV1APIHandler(
-	repository formdomain.Repository,
+	repository V1Repository,
 	tokens serviceauth.Repository,
 	validator *validation.ComprehensiveValidator,
-	logger logging.Logger,
+	logger RequestLogger,
 ) *V1APIHandler {
 	return &V1APIHandler{repository: repository, auth: serviceauth.New(tokens), validator: validator, logger: logger}
 }
@@ -150,8 +169,11 @@ func (h *V1APIHandler) require(scope auth.Scope) echo.MiddlewareFunc {
 					status = httpErr.Code
 					message = fmt.Sprint(httpErr.Message)
 				}
-				if status == http.StatusForbidden {
+				switch status {
+				case http.StatusForbidden:
 					code = "forbidden"
+				case http.StatusServiceUnavailable:
+					code = "service_unavailable"
 				}
 				return h.writeError(c, status, code, message, nil)
 			}

@@ -4,7 +4,7 @@ tmp_dir = "tmp"
 
 [build]
   # Build command - match Taskfile build command
-  cmd = "go build -ldflags '-s -w -X github.com/goformx/goforms/internal/infrastructure/version.Version=dev -X github.com/goformx/goforms/internal/infrastructure/version.BuildTime=dev -X github.com/goformx/goforms/internal/infrastructure/version.GitCommit=dev -X github.com/goformx/goforms/internal/infrastructure/version.GoVersion=dev' -o ./tmp/main main.go"
+  cmd = "go build -ldflags '-s -w -X github.com/goformx/goforms/internal/infrastructure/version.Version=dev -X github.com/goformx/goforms/internal/infrastructure/version.BuildTime=dev -X github.com/goformx/goforms/internal/infrastructure/version.GitCommit=dev -X github.com/goformx/goforms/internal/infrastructure/version.GoVersion=dev' -o ./tmp/main ./cmd/api"
   # Binary file yields from `cmd`
   entrypoint = "./tmp/main"
   # Full binary path
