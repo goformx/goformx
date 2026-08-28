@@ -28,6 +28,10 @@ func (r fixedTokenRepository) FindByID(_ context.Context, tokenID string) (*auth
 	return nil, nil
 }
 
+func (r fixedTokenRepository) MarkUsed(_ context.Context, _ string, _ time.Time) error {
+	return nil
+}
+
 func TestV1ContactFormVerticalSlice(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repository := mockform.NewMockRepository(ctrl)
@@ -186,6 +190,25 @@ func TestValidateOriginsAcceptsOriginsAndRejectsURLsOrDuplicates(t *testing.T) {
 	require.Equal(t, "/allowedOrigins/0", errors[0].Pointer)
 	require.Equal(t, "uniqueItems", errors[1].Code)
 	require.Equal(t, "format", errors[2].Code)
+}
+
+func TestControlPlaneRejectsCrossOwnerFormAccess(t *testing.T) {
+	t.Parallel()
+	repository := mockform.NewMockRepository(gomock.NewController(t))
+	repository.EXPECT().GetFormByID(gomock.Any(), "form-owned-by-b").Return(
+		&model.Form{ID: "form-owned-by-b", UserID: "owner-b"}, nil,
+	)
+	now := time.Now()
+	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeFormsRead}, time.Hour, now)
+	require.NoError(t, err)
+	router := echo.New()
+	newV1APIHandler(repository, fixedTokenRepository{token: token},
+		validation.NewComprehensiveValidator(), nil).RegisterRoutes(router)
+
+	response := requestJSON(t, router, http.MethodGet, "/v1/forms/form-owned-by-b",
+		nil, plaintext, "", nil)
+	require.Equal(t, http.StatusForbidden, response.Code)
+	require.Contains(t, response.Body.String(), `"code":"forbidden"`)
 }
 
 func formPublicKey() string { return "gfpk_abcdefghijklmnopqrstuvwxyz123456" }

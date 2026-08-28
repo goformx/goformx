@@ -49,6 +49,12 @@ The command emits JSON suitable for a secret manager or an agent tool. Never pla
 go run ./cmd/goformx-token revoke --token-id TOKEN_ID
 ```
 
+Rotate an active token atomically. The replacement inherits the owner's scopes, the previous token is revoked with auditable lineage, and the replacement plaintext is emitted only once:
+
+```bash
+go run ./cmd/goformx-token rotate --token-id TOKEN_ID --ttl 24h
+```
+
 ## API surface
 
 | Route | Access | Purpose |

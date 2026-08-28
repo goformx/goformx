@@ -29,16 +29,104 @@ func main() {
 
 func run(ctx context.Context, arguments []string) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: goformx-token <issue|revoke> [flags]")
+		return errors.New("usage: goformx-token <issue|rotate|revoke> [flags]")
 	}
 	switch arguments[0] {
 	case "issue":
 		return issue(ctx, arguments[1:])
 	case "revoke":
 		return revoke(ctx, arguments[1:])
+	case "rotate":
+		return rotate(ctx, arguments[1:])
 	default:
 		return fmt.Errorf("unknown command %q", arguments[0])
 	}
+}
+
+func rotate(ctx context.Context, arguments []string) error {
+	flags := flag.NewFlagSet("rotate", flag.ContinueOnError)
+	tokenID := flags.String("token-id", "", "non-secret token ID to replace")
+	ttl := flags.Duration("ttl", 24*time.Hour, "replacement token lifetime")
+	databaseURLFlag := flags.String("database-url", "", "PostgreSQL URL (defaults to DATABASE_URL)")
+	if err := flags.Parse(arguments); err != nil {
+		return err
+	}
+	databaseURL := resolveDatabaseURL(*databaseURLFlag)
+	if databaseURL == "" || *tokenID == "" {
+		return errors.New("DATABASE_URL and --token-id are required")
+	}
+	if *ttl <= 0 {
+		return errors.New("token TTL must be positive")
+	}
+	connection, err := pgx.Connect(ctx, databaseURL)
+	if err != nil {
+		return fmt.Errorf("connect to PostgreSQL: %w", err)
+	}
+	defer func() { _ = connection.Close(ctx) }()
+	transaction, err := connection.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin token rotation: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	var ownerID string
+	var encodedScopes []byte
+	err = transaction.QueryRow(ctx, `
+		SELECT owner_id, scopes
+		FROM service_tokens
+		WHERE token_id = $1 AND revoked_at IS NULL AND expires_at > now()
+		FOR UPDATE
+	`, *tokenID).Scan(&ownerID, &encodedScopes)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errors.New("active service token was not found")
+		}
+		return fmt.Errorf("load service token for rotation: %w", err)
+	}
+	var names []string
+	if err := json.Unmarshal(encodedScopes, &names); err != nil {
+		return fmt.Errorf("decode existing token scopes: %w", err)
+	}
+	scopes, err := parseScopes(strings.Join(names, ","))
+	if err != nil {
+		return fmt.Errorf("validate existing token scopes: %w", err)
+	}
+	now := time.Now().UTC()
+	replacement, plaintext, err := auth.Issue(ownerID, scopes, *ttl, now)
+	if err != nil {
+		return err
+	}
+	replacementScopes, err := json.Marshal(scopeNames(scopes))
+	if err != nil {
+		return fmt.Errorf("encode replacement scopes: %w", err)
+	}
+	_, err = transaction.Exec(ctx, `
+		INSERT INTO service_tokens (token_id, owner_id, token_hash, scopes, created_at, expires_at)
+		VALUES ($1, $2, $3, $4::jsonb, $5, $6)
+	`, replacement.ID, replacement.OwnerID, replacement.Hash[:], string(replacementScopes),
+		replacement.CreatedAt, replacement.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("persist replacement service token: %w", err)
+	}
+	result, err := transaction.Exec(ctx, `
+		UPDATE service_tokens
+		SET revoked_at = $2, revocation_reason = 'rotated', replaced_by_token_id = $3
+		WHERE token_id = $1 AND revoked_at IS NULL
+	`, *tokenID, now, replacement.ID)
+	if err != nil {
+		return fmt.Errorf("revoke rotated service token: %w", err)
+	}
+	if result.RowsAffected() != 1 {
+		return errors.New("active service token was not found")
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("commit token rotation: %w", err)
+	}
+	return json.NewEncoder(os.Stdout).Encode(map[string]any{
+		"token": plaintext, "tokenId": replacement.ID, "ownerId": replacement.OwnerID,
+		"scopes": scopeNames(scopes), "expiresAt": replacement.ExpiresAt.Format(time.RFC3339),
+		"rotatedTokenId": *tokenID,
+	})
 }
 
 func issue(ctx context.Context, arguments []string) error {
@@ -100,7 +188,11 @@ func revoke(ctx context.Context, arguments []string) error {
 		return fmt.Errorf("connect to PostgreSQL: %w", err)
 	}
 	defer func() { _ = connection.Close(ctx) }()
-	result, err := connection.Exec(ctx, `UPDATE service_tokens SET revoked_at = now() WHERE token_id = $1 AND revoked_at IS NULL`, *tokenID)
+	result, err := connection.Exec(ctx, `
+		UPDATE service_tokens
+		SET revoked_at = now(), revocation_reason = 'operator_revoked'
+		WHERE token_id = $1 AND revoked_at IS NULL
+	`, *tokenID)
 	if err != nil {
 		return fmt.Errorf("revoke service token: %w", err)
 	}

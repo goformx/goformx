@@ -55,7 +55,7 @@ tasks:
 
   build:backend:
     desc: Build the API binary
-    cmd: go build -ldflags "{{.LDFLAGS}}" -o bin/goforms main.go
+    cmd: go build -ldflags "{{.LDFLAGS}}" -o bin/goforms ./cmd/api
 
   dev:
     desc: Run the API with pinned Air installed by task install
