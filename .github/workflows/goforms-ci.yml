@@ -17,7 +17,7 @@ on:
 
 env:
   GO_VERSION_FILE: 'goforms/go.mod'
-  TASK_VERSION: '3.x'
+  TASK_VERSION: '3.53.1'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
@@ -32,21 +32,7 @@ jobs:
   test:
     name: Test & Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: goformx
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: goformx
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U goformx -d goformx"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: ./goforms
@@ -71,9 +57,11 @@ jobs:
               - 'goforms/go.sum'
               - 'goforms/package.json'
               - 'goforms/package-lock.json'
+              - 'goforms/docker-compose.verify.yml'
               - 'goforms/Taskfile.yml'
               - 'goforms/Dockerfile'
               - 'goforms/docker/**'
+              - 'Taskfile.yml'
 
       - name: Set up Go
         if: steps.changes.outputs.code == 'true'
@@ -87,15 +75,6 @@ jobs:
         if: steps.changes.outputs.code == 'true'
         run: go mod download
 
-      - name: Verify PostgreSQL migrations
-        if: steps.changes.outputs.code == 'true'
-        env:
-          DATABASE_URL: postgres://goformx:testpass@localhost:5432/goformx?sslmode=disable
-        run: |
-          go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1 -path migrations/postgresql -database "$DATABASE_URL" up
-          go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1 -path migrations/postgresql -database "$DATABASE_URL" down 1
-          go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1 -path migrations/postgresql -database "$DATABASE_URL" up 1
-
       - name: Set up Node for contract linting
         if: steps.changes.outputs.code == 'true'
         uses: actions/setup-node@v6
@@ -104,43 +83,17 @@ jobs:
           cache: npm
           cache-dependency-path: goforms/package-lock.json
 
-      - name: Validate API contracts
+      - name: Set up Task
         if: steps.changes.outputs.code == 'true'
-        run: |
-          npm ci
-          npm run contract:lint
-          go test -race ./contracts/...
-
-      - name: Verify generated code
-        if: steps.changes.outputs.code == 'true'
-        run: |
-          go generate ./...
-          git diff --exit-code -- test/mocks
-
-      - name: Verify module files
-        if: steps.changes.outputs.code == 'true'
-        run: |
-          go mod tidy
-          git diff --exit-code -- go.mod go.sum
-
-      - name: Lint
-        if: steps.changes.outputs.code == 'true'
-        uses: golangci/golangci-lint-action@v9
+        uses: arduino/setup-task@v3
         with:
-          version: v2.12.2
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          only-new-issues: ${{ github.event_name == 'pull_request' }}
-          working-directory: ./goforms
+          version: ${{ env.TASK_VERSION }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run tests
+      - name: Run canonical verification
         if: steps.changes.outputs.code == 'true'
-        env:
-          GOFORMX_TEST_DATABASE_URL: postgres://goformx:testpass@localhost:5432/goformx?sslmode=disable
-        run: go test -race ./...
-
-      - name: Scan reachable vulnerabilities
-        if: steps.changes.outputs.code == 'true'
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+        working-directory: .
+        run: task verify
 
   build:
     name: Build Application

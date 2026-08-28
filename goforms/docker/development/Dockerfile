@@ -1,7 +1,7 @@
 # ------------------------------------------------------------
 # Base stage — shared system dependencies
 # ------------------------------------------------------------
-FROM golang:1.25.13-alpine AS base
+FROM golang:1.26.7-alpine AS base
 
 RUN apk add --no-cache \
     git \
@@ -22,7 +22,7 @@ ENV PATH="/go/bin:/root/go/bin:/usr/local/bin:${PATH}"
 FROM base AS dev
 
 # Install Go tooling
-RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2 \
+RUN go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 \
     && go install github.com/air-verse/air@v1.67.4 \
     && go install github.com/bombsimon/wsl/v4/cmd/wsl@v4.7.0 \
     && go install golang.org/x/tools/gopls@v0.23.0 \

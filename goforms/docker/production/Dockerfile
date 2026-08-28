@@ -1,5 +1,5 @@
 # Go build stage
-FROM golang:1.25.13-alpine AS go-builder
+FROM golang:1.26.7-alpine AS go-builder
 
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o bin/goforms main.go
 
 # Production stage
-FROM alpine:3.19
+FROM alpine:3.24
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata wget
