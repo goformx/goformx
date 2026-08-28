@@ -2,6 +2,8 @@ package repository_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -17,6 +19,7 @@ import (
 
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	formrepository "github.com/goformx/goforms/internal/infrastructure/repository/form"
 	mocklogging "github.com/goformx/goforms/test/mocks/logging"
 )
@@ -161,6 +164,97 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	}
 	require.Equal(t, 1, accepted)
 	require.Equal(t, 1, rejected)
+
+	webhookKey := sha256.Sum256([]byte("repository webhook encryption key"))
+	webhookCipher, err := domainwebhook.NewCipher(base64.RawStdEncoding.EncodeToString(webhookKey[:]))
+	require.NoError(t, err)
+	webhookStore := formrepository.NewStoreWithOptions(&integrationDB{db: db}, mocklogging.NewMockLogger(ctrl),
+		formrepository.StoreOptions{DailySubmissionLimit: 100, WebhookCipher: webhookCipher})
+	webhookForm := model.NewForm("11111111-1111-4111-8111-111111111111", "Webhook Atomicity", "", model.JSON{
+		"$schema": model.JSONSchemaDraft202012URI, "type": "object",
+		"properties": map[string]any{"name": map[string]any{"type": "string"}},
+	})
+	webhookForm.Name = "webhook-atomicity-" + uuid.NewString()[:8]
+	require.NoError(t, webhookStore.CreateForm(t.Context(), webhookForm))
+	t.Cleanup(func() {
+		_ = db.Unscoped().Where("uuid = ?", webhookForm.ID).Delete(&model.Form{}).Error
+	})
+	_, err = webhookStore.PutWebhookEndpoint(t.Context(), webhookForm.ID, "https://hooks.example/receive",
+		domainwebhook.SecretConfig{Headers: map[string]string{"Authorization": "Bearer encrypted"},
+			SigningSecret: "repository-signing-secret-long-enough"}, true)
+	require.NoError(t, err)
+	webhookSubmission := &model.FormSubmission{FormID: webhookForm.ID, SchemaVersion: 1,
+		IdempotencyKey: "webhook-atomic-submit-0001", Data: model.JSON{"name": "Ada"},
+		SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusAccepted}
+	storedWebhookSubmission, replayed, err := webhookStore.CreateSubmissionIdempotent(t.Context(), webhookSubmission)
+	require.NoError(t, err)
+	require.False(t, replayed)
+	deliveries, err := webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	require.NoError(t, err)
+	require.Len(t, deliveries, 1)
+	require.Equal(t, storedWebhookSubmission.ID, deliveries[0].SubmissionID)
+	require.Equal(t, "https://hooks.example", deliveries[0].DestinationOrigin)
+	require.NotContains(t, string(deliveries[0].EncryptedConfig), "/receive")
+	decrypted, err := webhookCipher.Decrypt(deliveries[0].EncryptedConfig, webhookForm.ID)
+	require.NoError(t, err)
+	require.Equal(t, "https://hooks.example/receive", decrypted.DestinationURL)
+	require.Equal(t, "Bearer encrypted", decrypted.Headers["Authorization"])
+
+	_, replayed, err = webhookStore.CreateSubmissionIdempotent(t.Context(), &model.FormSubmission{
+		FormID: webhookForm.ID, SchemaVersion: 1, IdempotencyKey: webhookSubmission.IdempotencyKey,
+		Data: model.JSON{"name": "Ada"}, SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusAccepted,
+	})
+	require.NoError(t, err)
+	require.True(t, replayed)
+	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	require.NoError(t, err)
+	require.Len(t, deliveries, 1)
+
+	claimed, event, err := webhookStore.ClaimDelivery(t.Context(), time.Minute)
+	require.NoError(t, err)
+	require.Equal(t, deliveries[0].ID, claimed.ID)
+	require.Equal(t, storedWebhookSubmission.ID, event.SubmissionID)
+	require.NoError(t, webhookStore.MarkDeliveryFailed(t.Context(), claimed.ID, "network", nil,
+		true, 1, time.Second, time.Minute, time.Now().UTC()))
+	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	require.NoError(t, err)
+	require.Equal(t, domainwebhook.DeliveryDeadLetter, deliveries[0].Status)
+	require.NoError(t, webhookStore.ReplayWebhookDelivery(t.Context(), webhookForm.ID, claimed.ID))
+	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	require.NoError(t, err)
+	require.Equal(t, domainwebhook.DeliveryPending, deliveries[0].Status)
+	require.Zero(t, deliveries[0].AttemptCount)
+
+	require.NoError(t, db.Exec(`
+		CREATE OR REPLACE FUNCTION goformx_test_reject_outbox() RETURNS trigger AS $$
+		BEGIN
+			IF NEW.destination_origin = 'https://reject.example' THEN
+				RAISE EXCEPTION 'intentional outbox failure';
+			END IF;
+			RETURN NEW;
+		END;
+		$$ LANGUAGE plpgsql;
+		CREATE TRIGGER goformx_test_reject_outbox
+		BEFORE INSERT ON webhook_deliveries
+		FOR EACH ROW EXECUTE FUNCTION goformx_test_reject_outbox();
+	`).Error)
+	t.Cleanup(func() {
+		_ = db.Exec("DROP TRIGGER IF EXISTS goformx_test_reject_outbox ON webhook_deliveries").Error
+		_ = db.Exec("DROP FUNCTION IF EXISTS goformx_test_reject_outbox()").Error
+	})
+	_, err = webhookStore.PutWebhookEndpoint(t.Context(), webhookForm.ID, "https://reject.example/hooks",
+		domainwebhook.SecretConfig{SigningSecret: "repository-signing-secret-long-enough"}, true)
+	require.NoError(t, err)
+	rollbackKey := "webhook-rollback-submit-0002"
+	_, _, err = webhookStore.CreateSubmissionIdempotent(t.Context(), &model.FormSubmission{
+		FormID: webhookForm.ID, SchemaVersion: 1, IdempotencyKey: rollbackKey,
+		Data: model.JSON{"name": "Grace"}, SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusAccepted,
+	})
+	require.ErrorContains(t, err, "intentional outbox failure")
+	var rolledBack int64
+	require.NoError(t, db.Model(&model.FormSubmission{}).
+		Where("form_id = ? AND idempotency_key = ?", webhookForm.ID, rollbackKey).Count(&rolledBack).Error)
+	require.Zero(t, rolledBack)
 
 	var versions int64
 	require.NoError(t, db.Table("form_schemas").Where("form_id = ?", form.ID).Count(&versions).Error)

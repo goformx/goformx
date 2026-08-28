@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
@@ -68,6 +69,14 @@ func NewViperConfig() *ViperConfig {
 	_ = v.BindEnv("session.secret", "SESSION_SECRET")
 	_ = v.BindEnv("security.csrf.secret", "SECURITY_CSRF_SECRET")
 	_ = v.BindEnv("security.secure_cookie", "SECURITY_SECURE_COOKIE")
+	_ = v.BindEnv("webhook.enabled", "WEBHOOK_ENABLED")
+	_ = v.BindEnv("webhook.encryption_key", "WEBHOOK_ENCRYPTION_KEY")
+	_ = v.BindEnv("webhook.poll_interval", "WEBHOOK_POLL_INTERVAL")
+	_ = v.BindEnv("webhook.request_timeout", "WEBHOOK_REQUEST_TIMEOUT")
+	_ = v.BindEnv("webhook.lock_timeout", "WEBHOOK_LOCK_TIMEOUT")
+	_ = v.BindEnv("webhook.max_attempts", "WEBHOOK_MAX_ATTEMPTS")
+	_ = v.BindEnv("webhook.backoff_base", "WEBHOOK_BACKOFF_BASE")
+	_ = v.BindEnv("webhook.backoff_max", "WEBHOOK_BACKOFF_MAX")
 
 	// Bind GOFORMS_SHARED_SECRET for Laravel-Go assertion verification
 	_ = v.BindEnv("security.assertion.secret", "GOFORMS_SHARED_SECRET")
@@ -153,6 +162,7 @@ func (vc *ViperConfig) loadAllConfigSections(config *Config) error {
 		vc.loadDatabaseConfig,
 		vc.loadSecurityConfig,
 		vc.loadSessionConfig,
+		vc.loadWebhookConfig,
 	}
 
 	for _, loader := range loaders {
@@ -161,6 +171,20 @@ func (vc *ViperConfig) loadAllConfigSections(config *Config) error {
 		}
 	}
 
+	return nil
+}
+
+func (vc *ViperConfig) loadWebhookConfig(config *Config) error {
+	config.Webhook = WebhookConfig{
+		Enabled:        vc.viper.GetBool("webhook.enabled"),
+		EncryptionKey:  vc.viper.GetString("webhook.encryption_key"),
+		PollInterval:   vc.viper.GetDuration("webhook.poll_interval"),
+		RequestTimeout: vc.viper.GetDuration("webhook.request_timeout"),
+		LockTimeout:    vc.viper.GetDuration("webhook.lock_timeout"),
+		MaxAttempts:    vc.viper.GetInt("webhook.max_attempts"),
+		BackoffBase:    vc.viper.GetDuration("webhook.backoff_base"),
+		BackoffMax:     vc.viper.GetDuration("webhook.backoff_max"),
+	}
 	return nil
 }
 
@@ -417,6 +441,18 @@ func setDefaults(v *viper.Viper) {
 	setDatabaseDefaults(v)
 	setSecurityDefaults(v)
 	setSessionDefaults(v)
+	setWebhookDefaults(v)
+}
+
+func setWebhookDefaults(v *viper.Viper) {
+	v.SetDefault("webhook.enabled", false)
+	v.SetDefault("webhook.encryption_key", "")
+	v.SetDefault("webhook.poll_interval", time.Second)
+	v.SetDefault("webhook.request_timeout", 10*time.Second)
+	v.SetDefault("webhook.lock_timeout", 30*time.Second)
+	v.SetDefault("webhook.max_attempts", 8)
+	v.SetDefault("webhook.backoff_base", 5*time.Second)
+	v.SetDefault("webhook.backoff_max", time.Hour)
 }
 
 // setAppDefaults sets application default values

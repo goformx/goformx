@@ -14,6 +14,7 @@ type Config struct {
 	Database DatabaseConfig `json:"database"`
 	Security SecurityConfig `json:"security"`
 	Session  SessionConfig  `json:"session"`
+	Webhook  WebhookConfig  `json:"webhook"`
 }
 
 // validateConfig validates the configuration
@@ -67,6 +68,9 @@ func (c *Config) validateSchemaFirstAPIConfig() error {
 			errs = append(errs, "daily submission limit must be positive")
 		}
 	}
+	if err := c.Webhook.Validate(); err != nil {
+		errs = append(errs, err.Error())
+	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("validation errors: %s", strings.Join(errs, "; "))
@@ -91,6 +95,9 @@ func (c *Config) validateCoreConfig() error {
 
 	// Validate Security config
 	if err := c.Security.Validate(); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if err := c.Webhook.Validate(); err != nil {
 		errs = append(errs, err.Error())
 	}
 

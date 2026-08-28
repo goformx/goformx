@@ -15,6 +15,7 @@ import (
 
 	"github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	"github.com/goformx/goforms/internal/infrastructure/database"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
 	"github.com/goformx/goforms/internal/infrastructure/repository/common"
@@ -25,6 +26,7 @@ type Store struct {
 	db                   database.DB
 	logger               logging.Logger
 	dailySubmissionLimit int
+	webhookCipher        *domainwebhook.Cipher
 	now                  func() time.Time
 }
 
@@ -47,10 +49,21 @@ func NewStore(db database.DB, logger logging.Logger) form.Repository {
 
 // NewStoreWithDailySubmissionLimit creates a store with a transactionally enforced rolling quota.
 func NewStoreWithDailySubmissionLimit(db database.DB, logger logging.Logger, limit int) *Store {
+	return NewStoreWithOptions(db, logger, StoreOptions{DailySubmissionLimit: limit})
+}
+
+type StoreOptions struct {
+	DailySubmissionLimit int
+	WebhookCipher        *domainwebhook.Cipher
+}
+
+func NewStoreWithOptions(db database.DB, logger logging.Logger, options StoreOptions) *Store {
+	limit := options.DailySubmissionLimit
 	if limit <= 0 {
 		limit = form.DefaultSubmissionsPerDay
 	}
-	return &Store{db: db, logger: logger, dailySubmissionLimit: limit, now: time.Now}
+	return &Store{db: db, logger: logger, dailySubmissionLimit: limit,
+		webhookCipher: options.WebhookCipher, now: time.Now}
 }
 
 // CreateForm creates a new form
@@ -446,7 +459,7 @@ func (s *Store) CreateSubmissionIdempotent(
 		}
 		if result.RowsAffected == 1 {
 			stored = submission
-			return nil
+			return enqueueWebhookDelivery(tx, submission, s.now().UTC())
 		}
 		existing, found, err := findIdempotentSubmission(tx, submission.FormID, submission.IdempotencyKey)
 		if err != nil {

@@ -189,6 +189,104 @@ paths:
                     $ref: '#/components/schemas/CursorPageMeta'
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/webhook:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+    get:
+      summary: Get the form webhook endpoint without secret material
+      operationId: getWebhookEndpoint
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:read] }]
+      responses:
+        '200':
+          description: Webhook endpoint metadata
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpointEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+    put:
+      summary: Create or replace the form webhook endpoint and write-only secrets
+      operationId: putWebhookEndpoint
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:write] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PutWebhookEndpoint' }
+      responses:
+        '200':
+          description: Webhook endpoint configured; headers and signing secret are never returned
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpointEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+    delete:
+      summary: Disable future delivery by deleting the endpoint
+      operationId: deleteWebhookEndpoint
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:write] }]
+      responses:
+        '204': { description: Endpoint deleted; already-enqueued deliveries retain their encrypted snapshot }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/deliveries:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+    get:
+      summary: List recent webhook delivery status
+      operationId: listWebhookDeliveries
+      tags: [Control plane]
+      security: [{ serviceToken: [submissions:read] }]
+      parameters:
+        - $ref: '#/components/parameters/SubmissionLimit'
+      responses:
+        '200':
+          description: Recent delivery attempts without payloads or secrets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookDelivery' }
+                  meta:
+                    type: object
+                    required: [limit]
+                    properties:
+                      limit: { type: integer, minimum: 1, maximum: 100 }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/deliveries/{deliveryId}/replay:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+      - $ref: '#/components/parameters/DeliveryId'
+    post:
+      summary: Requeue a dead-letter webhook delivery
+      operationId: replayWebhookDelivery
+      tags: [Control plane]
+      security: [{ serviceToken: [forms:write] }]
+      responses:
+        '202':
+          description: Dead-letter delivery requeued with the same delivery identifier and payload
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [id, status]
+                    properties:
+                      id: { type: string, format: uuid }
+                      status: { type: string, enum: [pending] }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
   /v1/public/forms/{publicKey}/schema:
     parameters:
       - $ref: '#/components/parameters/PublicKey'
@@ -285,6 +383,11 @@ components:
       in: path
       required: true
       schema: { type: integer, minimum: 1 }
+    DeliveryId:
+      name: deliveryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     SchemaVersionQuery:
       name: version
       in: query
@@ -398,6 +501,61 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/Submission' }
+    PutWebhookEndpoint:
+      type: object
+      required: [url, signingSecret]
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: Public HTTPS destination on port 443, without credentials, query, or fragment.
+        headers:
+          type: object
+          maxProperties: 20
+          additionalProperties: { type: string, maxLength: 1024 }
+          writeOnly: true
+        signingSecret:
+          type: string
+          minLength: 32
+          maxLength: 256
+          writeOnly: true
+        enabled: { type: boolean, default: true }
+    WebhookEndpoint:
+      type: object
+      required: [id, formId, origin, enabled, createdAt, updatedAt]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        formId: { type: string, format: uuid }
+        origin:
+          type: string
+          format: uri
+          description: Destination origin only; the encrypted path is never returned.
+        enabled: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    WebhookEndpointEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/WebhookEndpoint' }
+    WebhookDelivery:
+      type: object
+      required: [id, submissionId, status, attemptCount, nextAttemptAt, createdAt, updatedAt]
+      additionalProperties: false
+      properties:
+        id: { type: string, format: uuid }
+        submissionId: { type: string, format: uuid }
+        status: { type: string, enum: [pending, processing, delivered, dead_letter] }
+        attemptCount: { type: integer, minimum: 0 }
+        nextAttemptAt: { type: string, format: date-time }
+        deliveredAt: { type: [string, 'null'], format: date-time }
+        lastHttpStatus: { type: [integer, 'null'], minimum: 100, maximum: 599 }
+        lastErrorCategory: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     CursorPageMeta:
       type: object
       required: [limit, nextCursor]
