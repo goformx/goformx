@@ -137,14 +137,6 @@ func NewLoggerFactory(p LoggerFactoryParams) (*logging.Factory, error) {
 	// Determine log level based on configuration
 	logLevel := determineLogLevel(p.Config)
 
-	// Set output paths based on environment
-	var outputPaths []string
-	if p.Config.App.IsDevelopment() {
-		outputPaths = []string{"stdout"}
-	} else {
-		outputPaths = []string{"stdout", "/var/log/app.log"}
-	}
-
 	factoryConfig := logging.FactoryConfig{
 		AppName:     p.Config.App.Name,
 		Version:     version.Version,
@@ -155,7 +147,7 @@ func NewLoggerFactory(p LoggerFactoryParams) (*logging.Factory, error) {
 			"env":     p.Config.App.Environment,
 		},
 		LogLevel:         logLevel,
-		OutputPaths:      outputPaths,
+		OutputPaths:      []string{"stdout"},
 		ErrorOutputPaths: []string{"stderr"},
 	}
 

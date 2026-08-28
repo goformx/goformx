@@ -27,6 +27,10 @@ task dev
 
 `task verify` is the same complete gate used by CI. It starts a disposable PostgreSQL 17.11 instance, verifies migrations, lints the OpenAPI contract, checks generated/module drift, vets and lints Go, runs race and behavioral-coverage gates, scans reachable dependencies, and removes the database even after failure. It does not deploy, alter DNS, or touch development/production data.
 
+## Delivery and production ownership
+
+This repository builds and attests multi-architecture GHCR images; it does not deploy them. Production Compose, secrets, migrations, reverse-proxy configuration, external smoke tests, backup/restore, and rollback are owned by [`jonesrussell/waaseyaa-infra`](https://github.com/jonesrussell/waaseyaa-infra). The retired SSH, Supervisor, Nginx, and in-repository Compose deploy paths were removed so there is only one operational source of truth.
+
 ## Provision a service token
 
 Token plaintext is returned once; only its SHA-256 hash is stored. The owner must already exist in the `users` table.

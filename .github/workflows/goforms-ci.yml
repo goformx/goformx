@@ -40,32 +40,35 @@ jobs:
       should-build: ${{ steps.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 1
 
       - name: Check for code changes
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         id: changes
         with:
           filters: |
             code:
-              - 'goforms/**.go'
+              - 'goforms/**/*.go'
               - 'goforms/contracts/**'
               - 'goforms/migrations/postgresql/**'
               - 'goforms/go.mod'
               - 'goforms/go.sum'
               - 'goforms/package.json'
               - 'goforms/package-lock.json'
-              - 'goforms/docker-compose.verify.yml'
+              - 'goforms/docker-compose*.yml'
               - 'goforms/Taskfile.yml'
               - 'goforms/Dockerfile'
               - 'goforms/docker/**'
               - 'Taskfile.yml'
+              - '.github/workflows/goforms-ci.yml'
+              - '.github/workflows/security.yml'
+              - '.github/dependabot.yml'
 
       - name: Set up Go
         if: steps.changes.outputs.code == 'true'
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache: true
@@ -77,7 +80,7 @@ jobs:
 
       - name: Set up Node for contract linting
         if: steps.changes.outputs.code == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
           cache: npm
@@ -85,7 +88,7 @@ jobs:
 
       - name: Set up Task
         if: steps.changes.outputs.code == 'true'
-        uses: arduino/setup-task@v3
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3
         with:
           version: ${{ env.TASK_VERSION }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -111,19 +114,19 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 1
 
       - name: Set up Go
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: ${{ env.GO_VERSION_FILE }}
           cache: true
           cache-dependency-path: goforms/go.sum
 
       - name: Install Task
-        uses: arduino/setup-task@v3
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3
         with:
           version: ${{ env.TASK_VERSION }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -145,7 +148,7 @@ jobs:
           task build:backend
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: goformx-binary
           path: |
@@ -168,16 +171,16 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -185,7 +188,7 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -212,7 +215,7 @@ jobs:
 
       - name: Build and push Docker image
         id: push
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: ./goforms
           file: ./goforms/docker/production/Dockerfile
@@ -229,54 +232,11 @@ jobs:
 
       - name: Generate attestation
         if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-
-  deploy:
-    name: Deploy to Production
-    needs: [docker]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    # Production promotion is manual until the Pi deployment and rollback gates in #75 are complete.
-    if: github.event_name == 'workflow_dispatch'
-    environment:
-      name: production
-      url: https://api.goformx.com/health
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: GHCR_TOKEN,GITHUB_ACTOR
-          script: |
-            set -euo pipefail
-            cd /home/deployer/goforms
-
-            if [ -n "$GHCR_TOKEN" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-            fi
-
-            docker compose pull goforms
-            docker compose up -d --no-deps goforms
-
-            # Wait up to 60s for health check
-            for i in $(seq 1 12); do
-              if curl -fsS http://127.0.0.1:8090/health >/dev/null 2>&1; then
-                echo "Health check passed"; break
-              fi
-              [ "$i" -eq 12 ] && { docker compose logs --tail=50 goforms; exit 1; }
-              sleep 5
-            done
-
-            docker image prune -f --filter "until=24h"
 
   release:
     name: Create Release
@@ -288,12 +248,12 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 1
 
       - name: Download build artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: goformx-binary
           path: release/
@@ -304,7 +264,7 @@ jobs:
           tar -czf ../goformx-${{ needs.build.outputs.version }}.tar.gz .
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
         with:
           files: goformx-${{ needs.build.outputs.version }}.tar.gz
           draft: false
