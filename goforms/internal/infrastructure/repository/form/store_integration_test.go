@@ -50,7 +50,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.Regexp(t, `^gfpk_`, form.PublicKey)
 	require.Equal(t, 1, form.CurrentSchemaVersion)
 
-	form.Status = string(model.LifecyclePublished)
+	form.Status = model.LifecyclePublished
 	require.NoError(t, store.UpdateForm(t.Context(), form))
 	publicForm, err := store.GetFormByPublicKey(t.Context(), form.PublicKey)
 	require.NoError(t, err)

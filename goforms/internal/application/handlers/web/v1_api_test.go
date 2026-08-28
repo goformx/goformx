@@ -47,7 +47,7 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			candidate.ID = "11111111-1111-4111-8111-111111111111"
 			candidate.PublicKey = "gfpk_abcdefghijklmnopqrstuvwxyz123456"
 			candidate.CurrentSchemaVersion = 1
-			candidate.Status = string(model.LifecycleDraft)
+			candidate.Status = model.LifecycleDraft
 			candidate.CreatedAt, candidate.UpdatedAt = now, now
 			formModel = candidate
 			version, createErr := model.NewSchemaVersion(candidate.ID, 1, candidate.Schema, validator)
@@ -76,7 +76,7 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			published, publishErr := versions[2].Publish(now)
 			if publishErr == nil {
 				versions[2] = published
-				formModel.Status = string(model.LifecyclePublished)
+				formModel.Status = model.LifecyclePublished
 				formModel.CurrentSchemaVersion = 2
 			}
 			return published, publishErr

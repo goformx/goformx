@@ -191,7 +191,7 @@ func (s *formService) SubmitForm(ctx context.Context, submission *model.FormSubm
 	if form == nil {
 		return errors.New("form not found")
 	}
-	if form.Status != string(model.LifecyclePublished) || !form.Active {
+	if form.Status != model.LifecyclePublished || !form.Active {
 		return errors.New("form is not accepting public submissions")
 	}
 	if submission.SchemaVersion == 0 {
@@ -257,7 +257,7 @@ func (s *formService) UpdateFormState(ctx context.Context, formID, state string)
 		return fmt.Errorf("failed to get form: %w", getErr)
 	}
 
-	form.Status = state
+	form.Status = model.LifecycleStatus(state)
 	if updateErr := s.repository.UpdateForm(ctx, form); updateErr != nil {
 		return fmt.Errorf("failed to update form state: %w", updateErr)
 	}

@@ -61,7 +61,7 @@ func (s *FormService) UpdateForm(
 ) error {
 	form.Title = req.Title
 	form.Description = req.Description
-	form.Status = req.Status
+	form.Status = model.LifecycleStatus(req.Status)
 
 	if req.CorsOrigins != "" {
 		form.CorsOrigins = model.JSON{"origins": parseCSV(req.CorsOrigins)}

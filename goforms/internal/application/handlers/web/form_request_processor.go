@@ -82,7 +82,7 @@ func (p *FormRequestProcessorImpl) ProcessUpdateRequest(c echo.Context) (*FormUp
 	}
 
 	// Validate CORS origins when publishing
-	if req.Status == "published" && strings.TrimSpace(req.CorsOrigins) == "" {
+	if req.Status == string(model.LifecyclePublished) && strings.TrimSpace(req.CorsOrigins) == "" {
 		return nil, errors.New("CORS origins are required when publishing a form")
 	}
 
@@ -165,23 +165,13 @@ func (p *FormRequestProcessorImpl) validateUpdateRequest(req *FormUpdateRequest)
 
 	// Validate status if provided
 	if req.Status != "" {
-		validStatuses := []string{"draft", "published", "archived"}
-		isValid := false
-
-		for _, status := range validStatuses {
-			if req.Status == status {
-				isValid = true
-
-				break
-			}
-		}
-
-		if !isValid {
+		status := model.LifecycleStatus(req.Status)
+		if !status.IsValid() || status == model.LifecycleDisabled {
 			return errors.New("invalid form status")
 		}
 
 		// Require CORS origins when publishing
-		if req.Status == "published" && req.CorsOrigins == "" {
+		if status == model.LifecyclePublished && req.CorsOrigins == "" {
 			return errors.New("CORS origins are required when publishing a form")
 		}
 	}

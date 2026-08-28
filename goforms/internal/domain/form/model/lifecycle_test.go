@@ -55,6 +55,20 @@ func TestLifecycleBlocksNonPublishedFormsAndResolvesExactVersion(t *testing.T) {
 	require.Error(t, lifecycle.Publish(3))
 }
 
+func TestLifecycleStatusRejectsInventedPersistenceValues(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []model.LifecycleStatus{
+		model.LifecycleDraft,
+		model.LifecyclePublished,
+		model.LifecycleDisabled,
+		model.LifecycleArchived,
+	} {
+		require.True(t, status.IsValid())
+	}
+	require.False(t, model.LifecycleStatus("publishing").IsValid())
+}
+
 func TestSubmissionValidationUsesSuppliedImmutableVersion(t *testing.T) {
 	t.Parallel()
 	validator := validation.NewComprehensiveValidator()

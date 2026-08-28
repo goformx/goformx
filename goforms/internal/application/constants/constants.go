@@ -86,7 +86,6 @@ const (
 	PathLoginPost  = "/login"
 	PathSignupPost = "/signup"
 	PathLogout     = "/logout"
-	PathAPIV1      = "/api/v1"
 	PathValidation = "/validation"
 )
 

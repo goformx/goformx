@@ -61,7 +61,7 @@ func newV1APIHandler(
 }
 
 func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
-	control := e.Group("/v1/forms")
+	control := e.Group(constants.PathV1Forms)
 	control.GET("", h.instrument("list_forms", h.listForms), h.require(auth.ScopeFormsRead))
 	control.POST("", h.instrument("create_form", h.createForm), h.require(auth.ScopeFormsWrite))
 	control.GET("/:formId", h.instrument("get_form", h.getForm), h.require(auth.ScopeFormsRead))
@@ -70,7 +70,7 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead))
 
-	public := e.Group("/v1/public/forms")
+	public := e.Group(constants.PathV1PublicForms)
 	public.Use(h.publicCORS())
 	public.OPTIONS("/:publicKey/schema", func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
 	public.OPTIONS("/:publicKey/submissions", func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
@@ -198,7 +198,7 @@ func (h *V1APIHandler) createForm(c echo.Context) error {
 	if err := h.repository.CreateForm(c.Request().Context(), formModel); err != nil {
 		return h.writeRepositoryError(c, err)
 	}
-	c.Response().Header().Set(echo.HeaderLocation, "/v1/forms/"+formModel.ID)
+	c.Response().Header().Set(echo.HeaderLocation, constants.PathV1Forms+"/"+formModel.ID)
 	return c.JSON(http.StatusCreated, map[string]any{"data": formResource(formModel)})
 }
 

@@ -170,7 +170,7 @@ func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form) error {
 				return fmt.Errorf("create schema version: %w", err)
 			}
 		}
-		if formModel.Status == string(model.LifecyclePublished) {
+		if formModel.Status == model.LifecyclePublished {
 			now := time.Now().UTC()
 			if err := tx.Model(&schemaRecord{}).Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).
 				Updates(map[string]any{"state": string(model.SchemaVersionPublished), "published_at": now}).Error; err != nil {
@@ -337,7 +337,7 @@ func (s *Store) PublishSchemaVersion(
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid = ?", formID).First(&formModel).Error; err != nil {
 			return fmt.Errorf("lock form: %w", err)
 		}
-		if formModel.Status == string(model.LifecyclePublished) && version < formModel.CurrentSchemaVersion {
+		if formModel.Status == model.LifecyclePublished && version < formModel.CurrentSchemaVersion {
 			return errors.New("published schema version cannot move backwards")
 		}
 		var record schemaRecord

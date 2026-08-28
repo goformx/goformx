@@ -25,6 +25,16 @@ const (
 	LifecycleArchived  LifecycleStatus = "archived"
 )
 
+// IsValid reports whether the value is a supported persisted lifecycle state.
+func (s LifecycleStatus) IsValid() bool {
+	switch s {
+	case LifecycleDraft, LifecyclePublished, LifecycleDisabled, LifecycleArchived:
+		return true
+	default:
+		return false
+	}
+}
+
 // NewPublicKey returns a browser-safe, unguessable identifier distinct from internal IDs.
 func NewPublicKey() (string, error) { return newPublicKey(rand.Reader) }
 
