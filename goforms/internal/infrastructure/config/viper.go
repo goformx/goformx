@@ -87,6 +87,16 @@ func NewViperConfig() *ViperConfig {
 
 // Load loads configuration using Viper with improved error handling
 func (vc *ViperConfig) Load() (*Config, error) {
+	return vc.load((*Config).validateConfig)
+}
+
+// LoadSchemaFirstAPI loads the supported API configuration without requiring
+// secrets and settings that are used only by the quarantined legacy runtime.
+func (vc *ViperConfig) LoadSchemaFirstAPI() (*Config, error) {
+	return vc.load((*Config).validateSchemaFirstAPIConfig)
+}
+
+func (vc *ViperConfig) load(validate func(*Config) error) (*Config, error) {
 	if err := vc.loadConfigFiles(); err != nil {
 		return nil, fmt.Errorf("failed to load configuration files: %w", err)
 	}
@@ -98,7 +108,7 @@ func (vc *ViperConfig) Load() (*Config, error) {
 	}
 
 	// Validate configuration with detailed error reporting
-	if err := config.validateConfig(); err != nil {
+	if err := validate(config); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
@@ -539,7 +549,9 @@ func setSecurityDefaults(v *viper.Viper) {
 
 // setSessionDefaults sets session default values
 func setSessionDefaults(v *viper.Viper) {
-	v.SetDefault("session.type", "cookie")
+	// The supported schema-first API has no browser session. Legacy runtimes
+	// must opt in explicitly while they remain isolated for issue #83.
+	v.SetDefault("session.type", "none")
 	v.SetDefault("session.secret", "")
 	v.SetDefault("session.max_age", DefaultSessionMaxAge)
 	v.SetDefault("session.path", "/")

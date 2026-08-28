@@ -37,6 +37,35 @@ func (c *Config) validateConfig() error {
 	return nil
 }
 
+// validateSchemaFirstAPIConfig validates only the settings consumed by the
+// supported schema-first API. Legacy browser-session, CSRF, assertion, CORS,
+// API-key, cookie, and in-process TLS settings belong to the quarantined web
+// runtime and must not become production API requirements.
+func (c *Config) validateSchemaFirstAPIConfig() error {
+	var errs []string
+
+	if err := c.App.Validate(); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if err := c.Database.Validate(); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if c.Security.RateLimit.Enabled {
+		if c.Security.RateLimit.RPS <= 0 {
+			errs = append(errs, "rate limit RPS must be positive")
+		}
+		if c.Security.RateLimit.Burst <= 0 {
+			errs = append(errs, "rate limit burst must be positive")
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("validation errors: %s", strings.Join(errs, "; "))
+	}
+
+	return nil
+}
+
 // validateCoreConfig validates the core configuration sections
 func (c *Config) validateCoreConfig() error {
 	var errs []string

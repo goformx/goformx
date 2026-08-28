@@ -25,7 +25,7 @@ RUN go generate ./...
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w -X github.com/goformx/goforms/internal/infrastructure/version.Version=${VERSION} -X github.com/goformx/goforms/internal/infrastructure/version.BuildTime=${BUILD_TIME} -X github.com/goformx/goforms/internal/infrastructure/version.GitCommit=${GIT_COMMIT} -X github.com/goformx/goforms/internal/infrastructure/version.GoVersion=${GO_VERSION}" \
-    -o bin/goforms main.go
+    -o bin/goforms ./cmd/api
 
 # Production stage
 FROM alpine:3.24

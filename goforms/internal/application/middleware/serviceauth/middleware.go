@@ -16,6 +16,7 @@ const principalContextKey = "service_token_principal"
 
 type Repository interface {
 	FindByID(ctx context.Context, tokenID string) (*auth.ServiceToken, error)
+	MarkUsed(ctx context.Context, tokenID string, now time.Time) error
 }
 
 type Principal struct {
@@ -45,8 +46,12 @@ func (m *Middleware) Require(scope auth.Scope) echo.MiddlewareFunc {
 			if err != nil || token == nil {
 				return echo.NewHTTPError(http.StatusUnauthorized, "invalid service token")
 			}
-			if err := token.Authorize(plaintext, token.OwnerID, scope, m.now()); err != nil {
+			now := m.now()
+			if err := token.Authorize(plaintext, token.OwnerID, scope, now); err != nil {
 				return echo.NewHTTPError(http.StatusForbidden, "service token is not authorized")
+			}
+			if err := m.repository.MarkUsed(c.Request().Context(), token.ID, now); err != nil {
+				return echo.NewHTTPError(http.StatusServiceUnavailable, "service token audit update failed")
 			}
 			c.Set(principalContextKey, Principal{TokenID: token.ID, OwnerID: token.OwnerID})
 			return next(c)

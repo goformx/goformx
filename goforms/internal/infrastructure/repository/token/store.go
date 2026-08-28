@@ -17,13 +17,16 @@ type Store struct{ db database.DB }
 func NewStore(db database.DB) *Store { return &Store{db: db} }
 
 type record struct {
-	TokenID   string       `gorm:"column:token_id;primaryKey"`
-	OwnerID   string       `gorm:"column:owner_id"`
-	TokenHash []byte       `gorm:"column:token_hash"`
-	Scopes    []auth.Scope `gorm:"serializer:json;type:jsonb"`
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	RevokedAt *time.Time
+	TokenID           string       `gorm:"column:token_id;primaryKey"`
+	OwnerID           string       `gorm:"column:owner_id"`
+	TokenHash         []byte       `gorm:"column:token_hash"`
+	Scopes            []auth.Scope `gorm:"serializer:json;type:jsonb"`
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
+	LastUsedAt        *time.Time
+	ReplacedByTokenID *string `gorm:"column:replaced_by_token_id"`
+	RevocationReason  *string `gorm:"column:revocation_reason"`
 }
 
 func (record) TableName() string { return "service_tokens" }
@@ -58,13 +61,34 @@ func (s *Store) FindByID(ctx context.Context, tokenID string) (*auth.ServiceToke
 	for _, scope := range row.Scopes {
 		scopes[scope] = struct{}{}
 	}
-	return &auth.ServiceToken{ID: row.TokenID, OwnerID: row.OwnerID, Hash: hash, Scopes: scopes,
-		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt}, nil
+	loaded := &auth.ServiceToken{ID: row.TokenID, OwnerID: row.OwnerID, Hash: hash, Scopes: scopes,
+		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
+		LastUsedAt: row.LastUsedAt}
+	if row.ReplacedByTokenID != nil {
+		loaded.ReplacedByTokenID = *row.ReplacedByTokenID
+	}
+	if row.RevocationReason != nil {
+		loaded.RevocationReason = *row.RevocationReason
+	}
+	return loaded, nil
+}
+
+func (s *Store) MarkUsed(ctx context.Context, tokenID string, now time.Time) error {
+	result := s.db.GetDB().WithContext(ctx).Model(&record{}).Where(
+		"token_id = ? AND revoked_at IS NULL AND expires_at > ?", tokenID, now.UTC(),
+	).Update("last_used_at", now.UTC())
+	if result.Error != nil {
+		return fmt.Errorf("mark service token used: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (s *Store) Revoke(ctx context.Context, tokenID string, now time.Time) error {
 	result := s.db.GetDB().WithContext(ctx).Model(&record{}).Where("token_id = ?", tokenID).
-		Update("revoked_at", now.UTC())
+		Updates(map[string]any{"revoked_at": now.UTC(), "revocation_reason": "operator_revoked"})
 	if result.Error != nil {
 		return fmt.Errorf("revoke service token: %w", result.Error)
 	}
