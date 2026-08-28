@@ -49,3 +49,17 @@ func TestLoadSchemaFirstAPIRejectsInvalidRateLimit(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "rate limit RPS must be positive")
 }
+
+func TestLoadSchemaFirstAPIRequiresPublicSubmissionBudgets(t *testing.T) {
+	loader := schemaFirstLoader()
+	loader.viper.Set("security.rate_limit.public_submission_rps", 0)
+	loader.viper.Set("security.rate_limit.public_submission_burst", 0)
+	loader.viper.Set("security.rate_limit.submissions_per_day", 0)
+
+	_, err := loader.LoadSchemaFirstAPI()
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "public submission rate limit RPS must be positive")
+	assert.ErrorContains(t, err, "public submission rate limit burst must be positive")
+	assert.ErrorContains(t, err, "daily submission limit must be positive")
+}

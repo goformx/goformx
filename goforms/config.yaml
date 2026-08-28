@@ -59,6 +59,9 @@ security:
     enabled: true  # Enable in production
     rps: 100
     burst: 200
+    public_submission_rps: 1
+    public_submission_burst: 10
+    submissions_per_day: 1000
     window: "1m"
     per_ip: true  # Rate limit per IP
     # Skip rate limiting for certain paths

@@ -67,17 +67,20 @@ type CORSConfig struct {
 
 // RateLimitConfig represents enhanced rate limiting configuration
 type RateLimitConfig struct {
-	Enabled        bool                     `json:"enabled"`
-	RPS            int                      `json:"rps"`
-	Requests       int                      `json:"requests"` // Alias for RPS
-	Burst          int                      `json:"burst"`
-	Window         time.Duration            `json:"window"`
-	PerIP          bool                     `json:"per_ip"`
-	SkipPaths      []string                 `json:"skip_paths"`
-	SkipMethods    []string                 `json:"skip_methods"`
-	EndpointLimits map[string]EndpointLimit `json:"endpoint_limits"`
-	Store          string                   `json:"store"` // memory, redis
-	KeyGenerator   string                   `json:"key_generator"`
+	Enabled               bool                     `json:"enabled"`
+	RPS                   int                      `json:"rps"`
+	Requests              int                      `json:"requests"` // Alias for RPS
+	Burst                 int                      `json:"burst"`
+	PublicSubmissionRPS   float64                  `json:"public_submission_rps"`
+	PublicSubmissionBurst int                      `json:"public_submission_burst"`
+	SubmissionsPerDay     int                      `json:"submissions_per_day"`
+	Window                time.Duration            `json:"window"`
+	PerIP                 bool                     `json:"per_ip"`
+	SkipPaths             []string                 `json:"skip_paths"`
+	SkipMethods           []string                 `json:"skip_methods"`
+	EndpointLimits        map[string]EndpointLimit `json:"endpoint_limits"`
+	Store                 string                   `json:"store"` // memory, redis
+	KeyGenerator          string                   `json:"key_generator"`
 }
 
 // EndpointLimit represents specific rate limits for endpoints

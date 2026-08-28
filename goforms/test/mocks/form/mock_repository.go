@@ -12,6 +12,7 @@ package form
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	model "github.com/goformx/goforms/internal/domain/form/model"
 	common "github.com/goformx/goforms/internal/infrastructure/repository/common"
@@ -816,6 +817,46 @@ func (c *MockRepositoryListSubmissionsCall) Do(f func(context.Context, string) (
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockRepositoryListSubmissionsCall) DoAndReturn(f func(context.Context, string) ([]*model.FormSubmission, error)) *MockRepositoryListSubmissionsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ListSubmissionsPage mocks base method.
+func (m *MockRepository) ListSubmissionsPage(ctx context.Context, formID string, before time.Time, beforeID string, limit int) ([]*model.FormSubmission, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSubmissionsPage", ctx, formID, before, beforeID, limit)
+	ret0, _ := ret[0].([]*model.FormSubmission)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListSubmissionsPage indicates an expected call of ListSubmissionsPage.
+func (mr *MockRepositoryMockRecorder) ListSubmissionsPage(ctx, formID, before, beforeID, limit any) *MockRepositoryListSubmissionsPageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSubmissionsPage", reflect.TypeOf((*MockRepository)(nil).ListSubmissionsPage), ctx, formID, before, beforeID, limit)
+	return &MockRepositoryListSubmissionsPageCall{Call: call}
+}
+
+// MockRepositoryListSubmissionsPageCall wrap *gomock.Call
+type MockRepositoryListSubmissionsPageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryListSubmissionsPageCall) Return(arg0 []*model.FormSubmission, arg1 bool, arg2 error) *MockRepositoryListSubmissionsPageCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryListSubmissionsPageCall) Do(f func(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)) *MockRepositoryListSubmissionsPageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryListSubmissionsPageCall) DoAndReturn(f func(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)) *MockRepositoryListSubmissionsPageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

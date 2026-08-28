@@ -5,13 +5,23 @@ package form
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/infrastructure/repository/common"
 )
 
 // ErrFormSchemaNotFound is returned when a form schema cannot be found
-var ErrFormSchemaNotFound = errors.New("form schema not found")
+var (
+	ErrFormSchemaNotFound      = errors.New("form schema not found")
+	ErrSubmissionLimitExceeded = errors.New("daily submission limit exceeded")
+)
+
+const (
+	DefaultPublicSubmissionRPS   = 1.0
+	DefaultPublicSubmissionBurst = 10
+	DefaultSubmissionsPerDay     = 1000
+)
 
 // Repository defines the interface for form data access
 type Repository interface {
@@ -33,6 +43,13 @@ type Repository interface {
 	CreateSubmissionIdempotent(ctx context.Context, submission *model.FormSubmission) (*model.FormSubmission, bool, error)
 	GetSubmissionByID(ctx context.Context, id string) (*model.FormSubmission, error)
 	ListSubmissions(ctx context.Context, formID string) ([]*model.FormSubmission, error)
+	ListSubmissionsPage(
+		ctx context.Context,
+		formID string,
+		before time.Time,
+		beforeID string,
+		limit int,
+	) ([]*model.FormSubmission, bool, error)
 	UpdateSubmission(ctx context.Context, submission *model.FormSubmission) error
 	DeleteSubmission(ctx context.Context, id string) error
 	GetByFormID(ctx context.Context, formID string) ([]*model.FormSubmission, error)
