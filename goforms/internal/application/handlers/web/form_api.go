@@ -661,7 +661,7 @@ func (h *FormAPIHandler) getFormOrError(c echo.Context) (*model.Form, error) {
 
 		return nil, h.wrapError("handle form not found", h.ErrorHandler.HandleFormNotFoundError(c, ""))
 	}
-	if form.Status != string(model.LifecyclePublished) || !form.Active {
+	if form.Status != model.LifecyclePublished || !form.Active {
 		return nil, h.wrapError("handle form not found", h.ErrorHandler.HandleFormNotFoundError(c, ""))
 	}
 

@@ -273,7 +273,7 @@ func TestService_UpdateForm(t *testing.T) {
 		repo.EXPECT().UpdateForm(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, f *model.Form) error {
 			require.Equal(t, "Updated Title", f.Title)
 			require.Equal(t, "Updated Description", f.Description)
-			require.Equal(t, "published", f.Status)
+			require.Equal(t, model.LifecyclePublished, f.Status)
 
 			return nil
 		})
@@ -488,7 +488,7 @@ func TestService_SubmitForm(t *testing.T) {
 			},
 		},
 	)
-	form.Status = string(model.LifecyclePublished)
+	form.Status = model.LifecyclePublished
 	form.CurrentSchemaVersion = 1
 
 	// Create test submission
