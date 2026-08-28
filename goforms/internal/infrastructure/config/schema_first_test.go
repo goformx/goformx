@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,6 +22,22 @@ func schemaFirstLoader() *ViperConfig {
 	loader.viper.Set("session.secret", "")
 
 	return loader
+}
+
+func TestLoadSchemaFirstAPIValidatesWebhookKeyAndDeliveryBudgets(t *testing.T) {
+	loader := schemaFirstLoader()
+	loader.viper.Set("webhook.enabled", true)
+	loader.viper.Set("webhook.encryption_key", "invalid")
+	_, err := loader.LoadSchemaFirstAPI()
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "webhook encryption key")
+
+	key := sha256.Sum256([]byte("schema-first webhook test key"))
+	loader.viper.Set("webhook.encryption_key", base64.RawStdEncoding.EncodeToString(key[:]))
+	config, err := loader.LoadSchemaFirstAPI()
+	require.NoError(t, err)
+	assert.True(t, config.Webhook.Enabled)
+	assert.Equal(t, 8, config.Webhook.MaxAttempts)
 }
 
 func TestLoadSchemaFirstAPIIgnoresLegacyRuntimeRequirements(t *testing.T) {

@@ -10,9 +10,9 @@ The supported runtime is this Go service. A dashboard, Form.io, Laravel sessions
 2. Publishing a version makes its unguessable `gfpk_` public key and exact schema version available to approved browser origins.
 3. The browser fetches the published JSON Schema without a credential.
 4. The browser submits `{ "data": ... }` with an idempotency key and optional exact schema-version header.
-5. GoFormX validates, persists, and returns the accepted submission. A safe retry returns the same submission.
+5. GoFormX validates and persists the submission. If a webhook is enabled, the same transaction creates its encrypted delivery intent. A safe retry returns the same submission and does not duplicate delivery.
 
-The machine-readable contract is [`contracts/openapi.v1.yaml`](contracts/openapi.v1.yaml).
+The machine-readable contract is [`contracts/openapi.v1.yaml`](contracts/openapi.v1.yaml). Webhook configuration, receiver verification, retries, status, and replay are documented in [`docs/webhooks.md`](../docs/webhooks.md).
 
 ## Development
 
@@ -63,6 +63,9 @@ go run ./cmd/goformx-token rotate --token-id TOKEN_ID --ttl 24h
 | `POST /v1/forms/{id}/versions` | `forms:write` | Append an immutable draft version |
 | `POST /v1/forms/{id}/versions/{version}/publish` | `forms:publish` | Publish an exact version |
 | `GET /v1/forms/{id}/submissions` | `submissions:read` | Retrieve accepted submissions |
+| `PUT /v1/forms/{id}/webhook` | `forms:write` | Store an encrypted destination and signing configuration |
+| `GET /v1/forms/{id}/deliveries` | `submissions:read` | Inspect recent delivery state without secret material |
+| `POST /v1/forms/{id}/deliveries/{deliveryId}/replay` | `forms:write` | Requeue a dead-letter delivery |
 | `GET /v1/public/forms/{publicKey}/schema` | Public key | Fetch a published schema |
 | `POST /v1/public/forms/{publicKey}/submissions` | Public key | Validate and accept an idempotent submission |
 

@@ -5,8 +5,9 @@
 The production binary is built exclusively from goforms/cmd/api. That composition root performs explicit construction in this order:
 
     config -> logger -> PostgreSQL connection
-           -> form repository + token repository
+           -> form/outbox repository + token repository
            -> v1 HTTP handler -> Echo router -> net/http server
+           -> optional safe webhook dispatcher -> public HTTPS destination
 
 There is no dependency-injection container in this graph. The router installs one visible global middleware chain: request ID, panic recovery, security headers, and optional configured rate limiting. Route-specific middleware is limited to public-form CORS, scoped service-token authorization, and per-form public-submission admission control.
 
@@ -21,6 +22,7 @@ There is no dependency-injection container in this graph. The router installs on
 | HTTP API | internal/application/handlers/web v1 files | narrow form persistence and auth interfaces, schema validation, domain models |
 | Service-token authorization | internal/application/middleware/serviceauth | auth domain and its narrow repository interface |
 | PostgreSQL adapters | internal/infrastructure/repository/form and token | domain interfaces/models and database adapter |
+| Webhook delivery | internal/application/webhook and internal/domain/webhook | narrow outbox interface, authenticated encryption, net/http |
 | OpenAPI and schema contracts | contracts and contracts/schema | no runtime implementation |
 | Migrations | migrations/postgresql | PostgreSQL only |
 
@@ -31,6 +33,8 @@ The v1 handler owns a deliberately narrow V1Repository interface. It cannot call
 Canonical schema compilation rejects remote references and schemas outside the configured depth, node, and pattern budgets. Successful compilations are cached by a digest of the schema, so repeated submissions validate against a bounded compiled-schema cache.
 
 The public submission route applies a bounded, per-form token bucket before decoding or validating a request. PostgreSQL then serializes admission for each form and enforces a rolling 24-hour submission quota in the same transaction as the idempotent insert. A replay of an accepted idempotency key remains readable after the quota is exhausted.
+
+When a form has an enabled webhook, that same transaction snapshots its encrypted headers, signing secret, and destination into a pending outbox record. The optional dispatcher claims records with FOR UPDATE SKIP LOCKED, revalidates public DNS at connection time, signs the immutable event, and records retry, delivered, or dead-letter state. Endpoint and delivery APIs remain owner-scoped and never expose encrypted or plaintext secret fields.
 
 Submission reads require the owning service token, return the same not-found response for missing and foreign forms, and use a bounded opaque cursor ordered by submission timestamp and ID. These controls and their accepted residual risks are recorded in `docs/security/threat-model.md` and `docs/security/abuse-case-gate.md`.
 

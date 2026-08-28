@@ -37,7 +37,7 @@ GoFormX must:
 | Owner schema to validator | Controls an authenticated schema definition | Exact dialect, local-only references, depth/node/pattern budgets, bounded compiled-schema cache | SSRF-like network access or validation resource exhaustion |
 | API to PostgreSQL | Controls application queries and transaction order | Parameters, foreign keys, uniqueness, row/advisory locks, immutable-schema trigger | Corruption, duplicate delivery, quota race, mutable history |
 | Operator to token CLI | Holds database credentials and terminal access | One-time plaintext output, cryptographic random token, hash-only storage, atomic rotation | Control-plane credential disclosure |
-| Worker to webhook destination | Processes trusted configuration and untrusted network state | Owned by #82: encrypted headers, destination validation, connect-time IP checks, signature and replay window | SSRF, secret disclosure, forged or replayed delivery |
+| Worker to webhook destination | Processes trusted configuration and untrusted network state | AES-GCM secret storage, HTTPS-only destination validation, connect-time public-IP checks, disabled proxy/redirects, HMAC signature and timestamp | SSRF, secret disclosure, forged or replayed delivery |
 | CI to release registry | Can run repository workflows | Pinned Actions, least-privilege jobs, CodeQL, dependency review, tests, vulnerability scan, attestation | Supply-chain compromise |
 
 ## Attacker stories and disposition
@@ -57,8 +57,8 @@ The security-gate change closes these paths with local-reference and complexity 
 | --- | --- | --- |
 | In-memory burst limits are process-local | Accepted for the documented single-instance Pi deployment; the PostgreSQL rolling quota remains authoritative | GoFormX maintainer; replace with shared admission before adding a second API replica in `goformx/goformx#110` |
 | Public submission cannot prove a human authored the payload | Accepted for v1; budgets bound resource use without making CAPTCHA a protocol dependency | Product owner; define the evidence-based trigger in `goformx/goformx#111` |
-| Webhook egress and stored header secrets do not exist yet | Must not launch without the #82 controls | `goformx/goformx#82` |
 | Backup confidentiality and restore access are infrastructure controls | Must be proven before production cutover | `jonesrussell/waaseyaa-infra#62` and `goformx/goformx#80` |
+| Webhook encryption-key rotation is not automated | The stable vault-backed key is part of backup/restore; queued delivery snapshots depend on it | GoFormX maintainer; add re-encryption in `goformx/goformx#113` before routine rotation is required |
 | Plaintext service token is printed once by the privileged CLI | Accepted operator boundary; terminal capture remains sensitive | Operator; rotate immediately after suspected capture |
 
 ## Severity calibration

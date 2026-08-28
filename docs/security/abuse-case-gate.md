@@ -13,7 +13,7 @@ This gate is a release requirement for the public form API. It is exercised by `
 | Large submission history | Reads use an opaque cursor, deterministic order, default page size 25, and maximum 100 | handler and PostgreSQL page tests |
 | Token theft or overreach | Plaintext is never stored; expiry, revocation, owner, and exact route scope are enforced | domain, middleware, and PostgreSQL token tests |
 | SQL injection or quota race | Values are bound parameters; per-form admission holds a PostgreSQL transaction advisory lock | PostgreSQL integration tests |
-| Sensitive logging | Tokens, webhook secrets, and submission payloads never enter request logs | logger sanitization tests; webhook tests added by #82 |
-| Webhook SSRF, header injection, forgery, or replay | Outbound delivery remains unsupported until #82's egress, encryption, signing, timestamp, and retry tests pass | #82 release gate |
+| Sensitive logging | Tokens, webhook secrets, and submission payloads never enter request logs | logger sanitization and write-only webhook API tests |
+| Webhook SSRF, header injection, forgery, or replay | Destinations resolve only to public addresses at connect time; secrets are encrypted; reserved headers are rejected; requests carry a timestamped HMAC and stable delivery ID | webhook policy, cipher, signature, dispatcher, handler, and PostgreSQL tests |
 
 High or critical findings block release. Lower findings must either be fixed in the same change or appear in the residual-risk table of the threat model with a named owner and removal condition.

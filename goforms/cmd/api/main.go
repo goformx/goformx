@@ -17,6 +17,8 @@ import (
 
 	"github.com/goformx/goforms/internal/application/handlers/web"
 	"github.com/goformx/goforms/internal/application/middleware/serviceauth"
+	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
+	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	"github.com/goformx/goforms/internal/infrastructure/config"
 	"github.com/goformx/goforms/internal/infrastructure/database"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -56,9 +58,31 @@ func run(ctx context.Context) error {
 		}
 	}()
 
-	forms := formstore.NewStoreWithDailySubmissionLimit(db, logger, cfg.Security.RateLimit.SubmissionsPerDay)
+	var webhookCipher *domainwebhook.Cipher
+	if cfg.Webhook.Enabled {
+		webhookCipher, err = domainwebhook.NewCipher(cfg.Webhook.EncryptionKey)
+		if err != nil {
+			return fmt.Errorf("configure webhook encryption: %w", err)
+		}
+	}
+	forms := formstore.NewStoreWithOptions(db, logger, formstore.StoreOptions{
+		DailySubmissionLimit: cfg.Security.RateLimit.SubmissionsPerDay,
+		WebhookCipher:        webhookCipher,
+	})
 	tokens := tokenstore.NewStore(db)
 	router := newRouter(cfg, forms, tokens, logger)
+	if cfg.Webhook.Enabled {
+		destinationPolicy := deliveryapp.NewDestinationPolicy(nil)
+		dispatcher := deliveryapp.NewDispatcher(forms, webhookCipher,
+			destinationPolicy.Client(cfg.Webhook.RequestTimeout), logger, deliveryapp.DispatcherConfig{
+				PollInterval: cfg.Webhook.PollInterval,
+				LockTimeout:  cfg.Webhook.LockTimeout,
+				MaxAttempts:  cfg.Webhook.MaxAttempts,
+				BackoffBase:  cfg.Webhook.BackoffBase,
+				BackoffMax:   cfg.Webhook.BackoffMax,
+			})
+		go dispatcher.Run(ctx)
+	}
 	server := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", cfg.App.Host, cfg.App.Port),
 		Handler:           router,

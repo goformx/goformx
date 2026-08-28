@@ -19,27 +19,32 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"golang.org/x/net/http/httpguts"
 
 	"github.com/goformx/goforms/internal/application/constants"
 	ctxmw "github.com/goformx/goforms/internal/application/middleware/context"
 	"github.com/goformx/goforms/internal/application/middleware/serviceauth"
 	"github.com/goformx/goforms/internal/application/validation"
+	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
 	"github.com/goformx/goforms/internal/domain/auth"
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 )
 
 var formNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{2,62}$`)
 
 // V1APIHandler implements the schema-first control and public data planes.
 type V1APIHandler struct {
-	repository V1Repository
-	auth       *serviceauth.Middleware
-	validator  *validation.ComprehensiveValidator
-	admission  *submissionLimiter
-	logger     RequestLogger
-	requests   atomic.Uint64
-	errors     atomic.Uint64
+	repository   V1Repository
+	auth         *serviceauth.Middleware
+	validator    *validation.ComprehensiveValidator
+	admission    *submissionLimiter
+	webhooks     WebhookRepository
+	destinations *deliveryapp.DestinationPolicy
+	logger       RequestLogger
+	requests     atomic.Uint64
+	errors       atomic.Uint64
 }
 
 // V1Repository is the persistence boundary used by the schema-first API.
@@ -55,6 +60,14 @@ type V1Repository interface {
 	ListSubmissionsPage(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)
 	GetPublishedSchemaVersion(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)
 	CreateSubmissionIdempotent(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)
+}
+
+type WebhookRepository interface {
+	PutWebhookEndpoint(context.Context, string, string, domainwebhook.SecretConfig, bool) (*domainwebhook.Endpoint, error)
+	GetWebhookEndpoint(context.Context, string) (*domainwebhook.Endpoint, error)
+	DeleteWebhookEndpoint(context.Context, string) error
+	ListWebhookDeliveries(context.Context, string, int) ([]*domainwebhook.Delivery, error)
+	ReplayWebhookDelivery(context.Context, string, string) error
 }
 
 // RequestLogger keeps the HTTP application boundary independent of logging implementations.
@@ -98,8 +111,13 @@ func newV1APIHandlerWithLimits(
 	logger RequestLogger,
 	limits V1Limits,
 ) *V1APIHandler {
+	var webhooks WebhookRepository
+	if candidate, ok := repository.(WebhookRepository); ok {
+		webhooks = candidate
+	}
 	return &V1APIHandler{repository: repository, auth: serviceauth.New(tokens), validator: validator,
-		admission: newSubmissionLimiter(limits), logger: logger}
+		admission: newSubmissionLimiter(limits), webhooks: webhooks,
+		destinations: deliveryapp.NewDestinationPolicy(nil), logger: logger}
 }
 
 func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
@@ -111,6 +129,12 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.POST("/:formId/versions", h.instrument("create_schema_version", h.createSchemaVersion), h.require(auth.ScopeFormsWrite))
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead))
+	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeFormsWrite))
+	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeFormsRead))
+	control.DELETE("/:formId/webhook", h.instrument("delete_webhook", h.deleteWebhook), h.require(auth.ScopeFormsWrite))
+	control.GET("/:formId/deliveries", h.instrument("list_deliveries", h.listWebhookDeliveries), h.require(auth.ScopeSubmissionsRead))
+	control.POST("/:formId/deliveries/:deliveryId/replay", h.instrument("replay_delivery", h.replayWebhookDelivery),
+		h.require(auth.ScopeFormsWrite))
 
 	public := e.Group(constants.PathV1PublicForms)
 	public.Use(h.publicCORS())
@@ -402,6 +426,192 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{
 		"limit": limit, "nextCursor": nextCursor,
 	}})
+}
+
+type putWebhookRequest struct {
+	URL           string            `json:"url"`
+	Headers       map[string]string `json:"headers"`
+	SigningSecret string            `json:"signingSecret"`
+	Enabled       *bool             `json:"enabled"`
+}
+
+func (h *V1APIHandler) putWebhook(c echo.Context) error {
+	formModel, ok := h.ownedForm(c)
+	if !ok {
+		return nil
+	}
+	if h.webhooks == nil {
+		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
+			"Webhook delivery is not configured on this service.", nil)
+	}
+	var request putWebhookRequest
+	if err := decodeJSON(c, &request); err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	target, err := h.destinations.Validate(c.Request().Context(), request.URL)
+	if err != nil {
+		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Webhook destination is invalid.",
+			[]validation.Error{{Pointer: "/url", Code: "unsafe_destination", Message: err.Error()}})
+	}
+	if len(request.SigningSecret) < 32 || len(request.SigningSecret) > 256 {
+		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Webhook secret is invalid.",
+			[]validation.Error{{Pointer: "/signingSecret", Code: "length",
+				Message: "Signing secret must contain between 32 and 256 characters."}})
+	}
+	if fieldError := validateWebhookHeaders(request.Headers); fieldError != nil {
+		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed",
+			"Webhook headers are invalid.", []validation.Error{*fieldError})
+	}
+	enabled := true
+	if request.Enabled != nil {
+		enabled = *request.Enabled
+	}
+	endpoint, err := h.webhooks.PutWebhookEndpoint(c.Request().Context(), formModel.ID, target.String(),
+		domainwebhook.SecretConfig{DestinationURL: target.String(),
+			Headers: request.Headers, SigningSecret: request.SigningSecret}, enabled)
+	if err != nil {
+		if errors.Is(err, domainwebhook.ErrDisabled) {
+			return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
+				"Webhook delivery is not configured on this service.", nil)
+		}
+		return h.writeRepositoryError(c, err)
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": webhookEndpointResource(endpoint)})
+}
+
+func validateWebhookHeaders(headers map[string]string) *validation.Error {
+	if len(headers) > 20 {
+		return &validation.Error{Pointer: "/headers", Code: "maxProperties",
+			Message: "At most 20 custom headers are allowed."}
+	}
+	reserved := map[string]struct{}{
+		"content-length": {}, "content-type": {}, "connection": {}, "host": {}, "transfer-encoding": {},
+		"user-agent": {}, strings.ToLower(deliveryapp.HeaderDeliveryID): {},
+		strings.ToLower(deliveryapp.HeaderTimestamp): {}, strings.ToLower(deliveryapp.HeaderSignature): {},
+	}
+	total := 0
+	for name, value := range headers {
+		total += len(name) + len(value)
+		if len(name) > 64 || !httpguts.ValidHeaderFieldName(name) {
+			return &validation.Error{Pointer: "/headers", Code: "invalid_header",
+				Message: "Custom header names must be valid and at most 64 bytes."}
+		}
+		if _, denied := reserved[strings.ToLower(name)]; denied {
+			return &validation.Error{Pointer: "/headers/" + escapeJSONPointer(name), Code: "reserved_header",
+				Message: "This header is controlled by GoFormX."}
+		}
+		if len(value) > 1024 || !httpguts.ValidHeaderFieldValue(value) {
+			return &validation.Error{Pointer: "/headers/" + escapeJSONPointer(name), Code: "invalid_header",
+				Message: "Custom header values must be valid and at most 1024 bytes."}
+		}
+	}
+	if total > 8192 {
+		return &validation.Error{Pointer: "/headers", Code: "maxLength",
+			Message: "Custom headers must not exceed 8192 bytes in total."}
+	}
+	return nil
+}
+
+func escapeJSONPointer(value string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(value, "~", "~0"), "/", "~1")
+}
+
+func (h *V1APIHandler) getWebhook(c echo.Context) error {
+	formModel, ok := h.ownedForm(c)
+	if !ok {
+		return nil
+	}
+	if h.webhooks == nil {
+		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
+			"Webhook delivery is not configured on this service.", nil)
+	}
+	endpoint, err := h.webhooks.GetWebhookEndpoint(c.Request().Context(), formModel.ID)
+	if errors.Is(err, domainwebhook.ErrNotFound) {
+		return h.writeError(c, http.StatusNotFound, "not_found", "Webhook endpoint was not found.", nil)
+	}
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": webhookEndpointResource(endpoint)})
+}
+
+func (h *V1APIHandler) deleteWebhook(c echo.Context) error {
+	formModel, ok := h.ownedForm(c)
+	if !ok {
+		return nil
+	}
+	if h.webhooks == nil {
+		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
+			"Webhook delivery is not configured on this service.", nil)
+	}
+	if err := h.webhooks.DeleteWebhookEndpoint(c.Request().Context(), formModel.ID); err != nil {
+		if errors.Is(err, domainwebhook.ErrNotFound) {
+			return h.writeError(c, http.StatusNotFound, "not_found", "Webhook endpoint was not found.", nil)
+		}
+		return h.writeRepositoryError(c, err)
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *V1APIHandler) listWebhookDeliveries(c echo.Context) error {
+	formModel, ok := h.ownedForm(c)
+	if !ok {
+		return nil
+	}
+	if h.webhooks == nil {
+		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
+			"Webhook delivery is not configured on this service.", nil)
+	}
+	limit, err := submissionPageLimit(c.QueryParam("limit"))
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	deliveries, err := h.webhooks.ListWebhookDeliveries(c.Request().Context(), formModel.ID, limit)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	data := make([]map[string]any, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		data = append(data, webhookDeliveryResource(delivery))
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{"limit": limit}})
+}
+
+func (h *V1APIHandler) replayWebhookDelivery(c echo.Context) error {
+	formModel, ok := h.ownedForm(c)
+	if !ok {
+		return nil
+	}
+	if h.webhooks == nil {
+		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
+			"Webhook delivery is not configured on this service.", nil)
+	}
+	deliveryID := c.Param("deliveryId")
+	if _, err := uuid.Parse(deliveryID); err != nil {
+		return h.writeError(c, http.StatusNotFound, "not_found", "Webhook delivery was not found.", nil)
+	}
+	if err := h.webhooks.ReplayWebhookDelivery(c.Request().Context(), formModel.ID, deliveryID); err != nil {
+		if errors.Is(err, domainwebhook.ErrNotFound) {
+			return h.writeError(c, http.StatusNotFound, "not_found", "Webhook delivery was not found.", nil)
+		}
+		return h.writeRepositoryError(c, err)
+	}
+	return c.JSON(http.StatusAccepted, map[string]any{"data": map[string]string{
+		"id": deliveryID, "status": string(domainwebhook.DeliveryPending),
+	}})
+}
+
+func webhookEndpointResource(endpoint *domainwebhook.Endpoint) map[string]any {
+	return map[string]any{"id": endpoint.ID, "formId": endpoint.FormID, "origin": endpoint.Origin,
+		"enabled": endpoint.Enabled, "createdAt": endpoint.CreatedAt, "updatedAt": endpoint.UpdatedAt}
+}
+
+func webhookDeliveryResource(delivery *domainwebhook.Delivery) map[string]any {
+	return map[string]any{"id": delivery.ID, "submissionId": delivery.SubmissionID,
+		"status": delivery.Status, "attemptCount": delivery.AttemptCount,
+		"nextAttemptAt": delivery.NextAttemptAt, "deliveredAt": delivery.DeliveredAt,
+		"lastHttpStatus": delivery.LastHTTPStatus, "lastErrorCategory": delivery.LastErrorCategory,
+		"createdAt": delivery.CreatedAt, "updatedAt": delivery.UpdatedAt}
 }
 
 const (
