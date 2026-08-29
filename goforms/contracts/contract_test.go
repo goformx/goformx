@@ -54,7 +54,7 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 			require.NotEmpty(t, op.Responses, "%s %s needs responses", method, path)
 			require.Contains(t, op.Responses, "default", "%s %s needs stable error semantics", method, path)
 
-			if strings.HasPrefix(path, "/v1/public/") {
+			if strings.HasPrefix(path, "/v1/public/") || path == "/health" || path == "/ready" {
 				require.Empty(t, op.Security, "%s %s must remain public", method, path)
 			} else {
 				require.NotEmpty(t, op.Security, "%s %s must declare scoped auth", method, path)
