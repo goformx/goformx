@@ -83,18 +83,18 @@ func (c *MockRepositoryCreateFormCall) DoAndReturn(f func(context.Context, *mode
 }
 
 // CreateSchemaVersion mocks base method.
-func (m *MockRepository) CreateSchemaVersion(arg0 context.Context, arg1 string, arg2 model.JSON) (*model.SchemaVersion, error) {
+func (m *MockRepository) CreateSchemaVersion(arg0 context.Context, arg1, arg2 string, arg3 model.JSON) (*model.SchemaVersion, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSchemaVersion", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "CreateSchemaVersion", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(*model.SchemaVersion)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // CreateSchemaVersion indicates an expected call of CreateSchemaVersion.
-func (mr *MockRepositoryMockRecorder) CreateSchemaVersion(arg0, arg1, arg2 any) *MockRepositoryCreateSchemaVersionCall {
+func (mr *MockRepositoryMockRecorder) CreateSchemaVersion(arg0, arg1, arg2, arg3 any) *MockRepositoryCreateSchemaVersionCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchemaVersion", reflect.TypeOf((*MockRepository)(nil).CreateSchemaVersion), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSchemaVersion", reflect.TypeOf((*MockRepository)(nil).CreateSchemaVersion), arg0, arg1, arg2, arg3)
 	return &MockRepositoryCreateSchemaVersionCall{Call: call}
 }
 
@@ -110,13 +110,13 @@ func (c *MockRepositoryCreateSchemaVersionCall) Return(arg0 *model.SchemaVersion
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRepositoryCreateSchemaVersionCall) Do(f func(context.Context, string, model.JSON) (*model.SchemaVersion, error)) *MockRepositoryCreateSchemaVersionCall {
+func (c *MockRepositoryCreateSchemaVersionCall) Do(f func(context.Context, string, string, model.JSON) (*model.SchemaVersion, error)) *MockRepositoryCreateSchemaVersionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRepositoryCreateSchemaVersionCall) DoAndReturn(f func(context.Context, string, model.JSON) (*model.SchemaVersion, error)) *MockRepositoryCreateSchemaVersionCall {
+func (c *MockRepositoryCreateSchemaVersionCall) DoAndReturn(f func(context.Context, string, string, model.JSON) (*model.SchemaVersion, error)) *MockRepositoryCreateSchemaVersionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -241,18 +241,18 @@ func (c *MockRepositoryGetPublishedSchemaVersionCall) DoAndReturn(f func(context
 }
 
 // GetSchemaVersion mocks base method.
-func (m *MockRepository) GetSchemaVersion(arg0 context.Context, arg1 string, arg2 int) (*model.SchemaVersion, error) {
+func (m *MockRepository) GetSchemaVersion(arg0 context.Context, arg1, arg2 string, arg3 int) (*model.SchemaVersion, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSchemaVersion", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "GetSchemaVersion", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(*model.SchemaVersion)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetSchemaVersion indicates an expected call of GetSchemaVersion.
-func (mr *MockRepositoryMockRecorder) GetSchemaVersion(arg0, arg1, arg2 any) *MockRepositoryGetSchemaVersionCall {
+func (mr *MockRepositoryMockRecorder) GetSchemaVersion(arg0, arg1, arg2, arg3 any) *MockRepositoryGetSchemaVersionCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaVersion", reflect.TypeOf((*MockRepository)(nil).GetSchemaVersion), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSchemaVersion", reflect.TypeOf((*MockRepository)(nil).GetSchemaVersion), arg0, arg1, arg2, arg3)
 	return &MockRepositoryGetSchemaVersionCall{Call: call}
 }
 
@@ -268,13 +268,13 @@ func (c *MockRepositoryGetSchemaVersionCall) Return(arg0 *model.SchemaVersion, a
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRepositoryGetSchemaVersionCall) Do(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryGetSchemaVersionCall {
+func (c *MockRepositoryGetSchemaVersionCall) Do(f func(context.Context, string, string, int) (*model.SchemaVersion, error)) *MockRepositoryGetSchemaVersionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRepositoryGetSchemaVersionCall) DoAndReturn(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryGetSchemaVersionCall {
+func (c *MockRepositoryGetSchemaVersionCall) DoAndReturn(f func(context.Context, string, string, int) (*model.SchemaVersion, error)) *MockRepositoryGetSchemaVersionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -358,10 +358,50 @@ func (c *MockRepositoryListFormsCall) DoAndReturn(f func(context.Context, string
 	return c
 }
 
-// ListSubmissionsPage mocks base method.
-func (m *MockRepository) ListSubmissionsPage(arg0 context.Context, arg1 string, arg2 time.Time, arg3 string, arg4 int) ([]*model.FormSubmission, bool, error) {
+// ListSchemaVersions mocks base method.
+func (m *MockRepository) ListSchemaVersions(arg0 context.Context, arg1, arg2 string, arg3, arg4 int) ([]*model.SchemaVersion, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListSubmissionsPage", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "ListSchemaVersions", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].([]*model.SchemaVersion)
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListSchemaVersions indicates an expected call of ListSchemaVersions.
+func (mr *MockRepositoryMockRecorder) ListSchemaVersions(arg0, arg1, arg2, arg3, arg4 any) *MockRepositoryListSchemaVersionsCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSchemaVersions", reflect.TypeOf((*MockRepository)(nil).ListSchemaVersions), arg0, arg1, arg2, arg3, arg4)
+	return &MockRepositoryListSchemaVersionsCall{Call: call}
+}
+
+// MockRepositoryListSchemaVersionsCall wrap *gomock.Call
+type MockRepositoryListSchemaVersionsCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryListSchemaVersionsCall) Return(arg0 []*model.SchemaVersion, arg1 int64, arg2 error) *MockRepositoryListSchemaVersionsCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryListSchemaVersionsCall) Do(f func(context.Context, string, string, int, int) ([]*model.SchemaVersion, int64, error)) *MockRepositoryListSchemaVersionsCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryListSchemaVersionsCall) DoAndReturn(f func(context.Context, string, string, int, int) ([]*model.SchemaVersion, int64, error)) *MockRepositoryListSchemaVersionsCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// ListSubmissionsPage mocks base method.
+func (m *MockRepository) ListSubmissionsPage(arg0 context.Context, arg1, arg2 string, arg3 time.Time, arg4 string, arg5 int) ([]*model.FormSubmission, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSubmissionsPage", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].([]*model.FormSubmission)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -369,9 +409,9 @@ func (m *MockRepository) ListSubmissionsPage(arg0 context.Context, arg1 string, 
 }
 
 // ListSubmissionsPage indicates an expected call of ListSubmissionsPage.
-func (mr *MockRepositoryMockRecorder) ListSubmissionsPage(arg0, arg1, arg2, arg3, arg4 any) *MockRepositoryListSubmissionsPageCall {
+func (mr *MockRepositoryMockRecorder) ListSubmissionsPage(arg0, arg1, arg2, arg3, arg4, arg5 any) *MockRepositoryListSubmissionsPageCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSubmissionsPage", reflect.TypeOf((*MockRepository)(nil).ListSubmissionsPage), arg0, arg1, arg2, arg3, arg4)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSubmissionsPage", reflect.TypeOf((*MockRepository)(nil).ListSubmissionsPage), arg0, arg1, arg2, arg3, arg4, arg5)
 	return &MockRepositoryListSubmissionsPageCall{Call: call}
 }
 
@@ -387,30 +427,30 @@ func (c *MockRepositoryListSubmissionsPageCall) Return(arg0 []*model.FormSubmiss
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRepositoryListSubmissionsPageCall) Do(f func(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)) *MockRepositoryListSubmissionsPageCall {
+func (c *MockRepositoryListSubmissionsPageCall) Do(f func(context.Context, string, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)) *MockRepositoryListSubmissionsPageCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRepositoryListSubmissionsPageCall) DoAndReturn(f func(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)) *MockRepositoryListSubmissionsPageCall {
+func (c *MockRepositoryListSubmissionsPageCall) DoAndReturn(f func(context.Context, string, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)) *MockRepositoryListSubmissionsPageCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // PublishSchemaVersion mocks base method.
-func (m *MockRepository) PublishSchemaVersion(arg0 context.Context, arg1 string, arg2 int) (*model.SchemaVersion, error) {
+func (m *MockRepository) PublishSchemaVersion(arg0 context.Context, arg1, arg2 string, arg3 int) (*model.SchemaVersion, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PublishSchemaVersion", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "PublishSchemaVersion", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(*model.SchemaVersion)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PublishSchemaVersion indicates an expected call of PublishSchemaVersion.
-func (mr *MockRepositoryMockRecorder) PublishSchemaVersion(arg0, arg1, arg2 any) *MockRepositoryPublishSchemaVersionCall {
+func (mr *MockRepositoryMockRecorder) PublishSchemaVersion(arg0, arg1, arg2, arg3 any) *MockRepositoryPublishSchemaVersionCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishSchemaVersion", reflect.TypeOf((*MockRepository)(nil).PublishSchemaVersion), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PublishSchemaVersion", reflect.TypeOf((*MockRepository)(nil).PublishSchemaVersion), arg0, arg1, arg2, arg3)
 	return &MockRepositoryPublishSchemaVersionCall{Call: call}
 }
 
@@ -426,13 +466,13 @@ func (c *MockRepositoryPublishSchemaVersionCall) Return(arg0 *model.SchemaVersio
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRepositoryPublishSchemaVersionCall) Do(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryPublishSchemaVersionCall {
+func (c *MockRepositoryPublishSchemaVersionCall) Do(f func(context.Context, string, string, int) (*model.SchemaVersion, error)) *MockRepositoryPublishSchemaVersionCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRepositoryPublishSchemaVersionCall) DoAndReturn(f func(context.Context, string, int) (*model.SchemaVersion, error)) *MockRepositoryPublishSchemaVersionCall {
+func (c *MockRepositoryPublishSchemaVersionCall) DoAndReturn(f func(context.Context, string, string, int) (*model.SchemaVersion, error)) *MockRepositoryPublishSchemaVersionCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -500,17 +540,17 @@ func (m *MockWebhookRepository) EXPECT() *MockWebhookRepositoryMockRecorder {
 }
 
 // DeleteWebhookEndpoint mocks base method.
-func (m *MockWebhookRepository) DeleteWebhookEndpoint(arg0 context.Context, arg1 string) error {
+func (m *MockWebhookRepository) DeleteWebhookEndpoint(arg0 context.Context, arg1, arg2 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteWebhookEndpoint", arg0, arg1)
+	ret := m.ctrl.Call(m, "DeleteWebhookEndpoint", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteWebhookEndpoint indicates an expected call of DeleteWebhookEndpoint.
-func (mr *MockWebhookRepositoryMockRecorder) DeleteWebhookEndpoint(arg0, arg1 any) *MockWebhookRepositoryDeleteWebhookEndpointCall {
+func (mr *MockWebhookRepositoryMockRecorder) DeleteWebhookEndpoint(arg0, arg1, arg2 any) *MockWebhookRepositoryDeleteWebhookEndpointCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).DeleteWebhookEndpoint), arg0, arg1)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).DeleteWebhookEndpoint), arg0, arg1, arg2)
 	return &MockWebhookRepositoryDeleteWebhookEndpointCall{Call: call}
 }
 
@@ -526,30 +566,30 @@ func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) Return(arg0 error) *Moc
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) Do(f func(context.Context, string) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
+func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) Do(f func(context.Context, string, string) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) DoAndReturn(f func(context.Context, string) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
+func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // GetWebhookEndpoint mocks base method.
-func (m *MockWebhookRepository) GetWebhookEndpoint(arg0 context.Context, arg1 string) (*webhook.Endpoint, error) {
+func (m *MockWebhookRepository) GetWebhookEndpoint(arg0 context.Context, arg1, arg2 string) (*webhook.Endpoint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWebhookEndpoint", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetWebhookEndpoint", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*webhook.Endpoint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWebhookEndpoint indicates an expected call of GetWebhookEndpoint.
-func (mr *MockWebhookRepositoryMockRecorder) GetWebhookEndpoint(arg0, arg1 any) *MockWebhookRepositoryGetWebhookEndpointCall {
+func (mr *MockWebhookRepositoryMockRecorder) GetWebhookEndpoint(arg0, arg1, arg2 any) *MockWebhookRepositoryGetWebhookEndpointCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).GetWebhookEndpoint), arg0, arg1)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).GetWebhookEndpoint), arg0, arg1, arg2)
 	return &MockWebhookRepositoryGetWebhookEndpointCall{Call: call}
 }
 
@@ -565,30 +605,30 @@ func (c *MockWebhookRepositoryGetWebhookEndpointCall) Return(arg0 *webhook.Endpo
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryGetWebhookEndpointCall) Do(f func(context.Context, string) (*webhook.Endpoint, error)) *MockWebhookRepositoryGetWebhookEndpointCall {
+func (c *MockWebhookRepositoryGetWebhookEndpointCall) Do(f func(context.Context, string, string) (*webhook.Endpoint, error)) *MockWebhookRepositoryGetWebhookEndpointCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryGetWebhookEndpointCall) DoAndReturn(f func(context.Context, string) (*webhook.Endpoint, error)) *MockWebhookRepositoryGetWebhookEndpointCall {
+func (c *MockWebhookRepositoryGetWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string) (*webhook.Endpoint, error)) *MockWebhookRepositoryGetWebhookEndpointCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // ListWebhookDeliveries mocks base method.
-func (m *MockWebhookRepository) ListWebhookDeliveries(arg0 context.Context, arg1 string, arg2 int) ([]*webhook.Delivery, error) {
+func (m *MockWebhookRepository) ListWebhookDeliveries(arg0 context.Context, arg1, arg2 string, arg3 int) ([]*webhook.Delivery, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListWebhookDeliveries", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ListWebhookDeliveries", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*webhook.Delivery)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ListWebhookDeliveries indicates an expected call of ListWebhookDeliveries.
-func (mr *MockWebhookRepositoryMockRecorder) ListWebhookDeliveries(arg0, arg1, arg2 any) *MockWebhookRepositoryListWebhookDeliveriesCall {
+func (mr *MockWebhookRepositoryMockRecorder) ListWebhookDeliveries(arg0, arg1, arg2, arg3 any) *MockWebhookRepositoryListWebhookDeliveriesCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWebhookDeliveries", reflect.TypeOf((*MockWebhookRepository)(nil).ListWebhookDeliveries), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWebhookDeliveries", reflect.TypeOf((*MockWebhookRepository)(nil).ListWebhookDeliveries), arg0, arg1, arg2, arg3)
 	return &MockWebhookRepositoryListWebhookDeliveriesCall{Call: call}
 }
 
@@ -604,30 +644,30 @@ func (c *MockWebhookRepositoryListWebhookDeliveriesCall) Return(arg0 []*webhook.
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryListWebhookDeliveriesCall) Do(f func(context.Context, string, int) ([]*webhook.Delivery, error)) *MockWebhookRepositoryListWebhookDeliveriesCall {
+func (c *MockWebhookRepositoryListWebhookDeliveriesCall) Do(f func(context.Context, string, string, int) ([]*webhook.Delivery, error)) *MockWebhookRepositoryListWebhookDeliveriesCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryListWebhookDeliveriesCall) DoAndReturn(f func(context.Context, string, int) ([]*webhook.Delivery, error)) *MockWebhookRepositoryListWebhookDeliveriesCall {
+func (c *MockWebhookRepositoryListWebhookDeliveriesCall) DoAndReturn(f func(context.Context, string, string, int) ([]*webhook.Delivery, error)) *MockWebhookRepositoryListWebhookDeliveriesCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // PutWebhookEndpoint mocks base method.
-func (m *MockWebhookRepository) PutWebhookEndpoint(arg0 context.Context, arg1, arg2 string, arg3 webhook.SecretConfig, arg4 bool) (*webhook.Endpoint, error) {
+func (m *MockWebhookRepository) PutWebhookEndpoint(arg0 context.Context, arg1, arg2, arg3 string, arg4 webhook.SecretConfig, arg5 bool) (*webhook.Endpoint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PutWebhookEndpoint", arg0, arg1, arg2, arg3, arg4)
+	ret := m.ctrl.Call(m, "PutWebhookEndpoint", arg0, arg1, arg2, arg3, arg4, arg5)
 	ret0, _ := ret[0].(*webhook.Endpoint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PutWebhookEndpoint indicates an expected call of PutWebhookEndpoint.
-func (mr *MockWebhookRepositoryMockRecorder) PutWebhookEndpoint(arg0, arg1, arg2, arg3, arg4 any) *MockWebhookRepositoryPutWebhookEndpointCall {
+func (mr *MockWebhookRepositoryMockRecorder) PutWebhookEndpoint(arg0, arg1, arg2, arg3, arg4, arg5 any) *MockWebhookRepositoryPutWebhookEndpointCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).PutWebhookEndpoint), arg0, arg1, arg2, arg3, arg4)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).PutWebhookEndpoint), arg0, arg1, arg2, arg3, arg4, arg5)
 	return &MockWebhookRepositoryPutWebhookEndpointCall{Call: call}
 }
 
@@ -643,29 +683,29 @@ func (c *MockWebhookRepositoryPutWebhookEndpointCall) Return(arg0 *webhook.Endpo
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryPutWebhookEndpointCall) Do(f func(context.Context, string, string, webhook.SecretConfig, bool) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
+func (c *MockWebhookRepositoryPutWebhookEndpointCall) Do(f func(context.Context, string, string, string, webhook.SecretConfig, bool) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryPutWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string, webhook.SecretConfig, bool) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
+func (c *MockWebhookRepositoryPutWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string, string, webhook.SecretConfig, bool) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // ReplayWebhookDelivery mocks base method.
-func (m *MockWebhookRepository) ReplayWebhookDelivery(arg0 context.Context, arg1, arg2 string) error {
+func (m *MockWebhookRepository) ReplayWebhookDelivery(arg0 context.Context, arg1, arg2, arg3 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReplayWebhookDelivery", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ReplayWebhookDelivery", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReplayWebhookDelivery indicates an expected call of ReplayWebhookDelivery.
-func (mr *MockWebhookRepositoryMockRecorder) ReplayWebhookDelivery(arg0, arg1, arg2 any) *MockWebhookRepositoryReplayWebhookDeliveryCall {
+func (mr *MockWebhookRepositoryMockRecorder) ReplayWebhookDelivery(arg0, arg1, arg2, arg3 any) *MockWebhookRepositoryReplayWebhookDeliveryCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplayWebhookDelivery", reflect.TypeOf((*MockWebhookRepository)(nil).ReplayWebhookDelivery), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplayWebhookDelivery", reflect.TypeOf((*MockWebhookRepository)(nil).ReplayWebhookDelivery), arg0, arg1, arg2, arg3)
 	return &MockWebhookRepositoryReplayWebhookDeliveryCall{Call: call}
 }
 
@@ -681,13 +721,13 @@ func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) Return(arg0 error) *Moc
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) Do(f func(context.Context, string, string) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
+func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) Do(f func(context.Context, string, string, string) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) DoAndReturn(f func(context.Context, string, string) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
+func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) DoAndReturn(f func(context.Context, string, string, string) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

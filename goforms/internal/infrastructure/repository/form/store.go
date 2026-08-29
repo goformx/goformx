@@ -234,13 +234,16 @@ func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form, expectedU
 // CreateSchemaVersion appends a draft without mutating any existing snapshot.
 func (s *Store) CreateSchemaVersion(
 	ctx context.Context,
+	organizationID string,
 	formID string,
 	schema model.JSON,
 ) (*model.SchemaVersion, error) {
 	var created *model.SchemaVersion
 	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var formModel model.Form
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid = ?", formID).First(&formModel).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
+			"organization_id = ? AND uuid = ?", organizationID, formID,
+		).First(&formModel).Error; err != nil {
 			return fmt.Errorf("lock form: %w", err)
 		}
 		var latest int
@@ -281,13 +284,54 @@ func restoreSchema(record schemaRecord) (*model.SchemaVersion, error) {
 		model.SchemaVersionState(record.State), record.CreatedAt, record.PublishedAt)
 }
 
-func (s *Store) GetSchemaVersion(ctx context.Context, formID string, version int) (*model.SchemaVersion, error) {
+func (s *Store) GetSchemaVersion(
+	ctx context.Context,
+	organizationID string,
+	formID string,
+	version int,
+) (*model.SchemaVersion, error) {
 	var record schemaRecord
-	if err := s.db.GetDB().WithContext(ctx).Where("form_id = ? AND version = ?", formID, version).
+	if err := s.db.GetDB().WithContext(ctx).Table("form_schemas").Select("form_schemas.*").
+		Joins("JOIN forms ON forms.uuid = form_schemas.form_id").
+		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND form_schemas.form_id = ? AND form_schemas.version = ?", organizationID, formID, version).
 		First(&record).Error; err != nil {
 		return nil, fmt.Errorf("get schema version: %w", err)
 	}
 	return restoreSchema(record)
+}
+
+// ListSchemaVersions returns one organization-owned page, newest version first.
+func (s *Store) ListSchemaVersions(
+	ctx context.Context,
+	organizationID string,
+	formID string,
+	limit int,
+	offset int,
+) ([]*model.SchemaVersion, int64, error) {
+	if limit < 1 || limit > 100 || offset < 0 || offset > 10000 {
+		return nil, 0, errors.New("schema version page is out of bounds")
+	}
+	query := s.db.GetDB().WithContext(ctx).Table("form_schemas").
+		Joins("JOIN forms ON forms.uuid = form_schemas.form_id").
+		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND form_schemas.form_id = ?", organizationID, formID)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count schema versions: %w", err)
+	}
+	var records []schemaRecord
+	if err := query.Select("form_schemas.*").Order("form_schemas.version DESC").
+		Limit(limit).Offset(offset).Find(&records).Error; err != nil {
+		return nil, 0, fmt.Errorf("list schema versions: %w", err)
+	}
+	versions := make([]*model.SchemaVersion, 0, len(records))
+	for _, record := range records {
+		version, err := restoreSchema(record)
+		if err != nil {
+			return nil, 0, err
+		}
+		versions = append(versions, version)
+	}
+	return versions, total, nil
 }
 
 // GetPublishedSchemaVersion resolves only an active published form and an explicitly published snapshot.
@@ -321,13 +365,16 @@ func (s *Store) GetPublishedSchemaVersion(
 
 func (s *Store) PublishSchemaVersion(
 	ctx context.Context,
+	organizationID string,
 	formID string,
 	version int,
 ) (*model.SchemaVersion, error) {
 	var published *model.SchemaVersion
 	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var formModel model.Form
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("uuid = ?", formID).First(&formModel).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
+			"organization_id = ? AND uuid = ?", organizationID, formID,
+		).First(&formModel).Error; err != nil {
 			return fmt.Errorf("lock form: %w", err)
 		}
 		if formModel.Status == model.LifecyclePublished && version < formModel.CurrentSchemaVersion {
@@ -355,7 +402,7 @@ func (s *Store) PublishSchemaVersion(
 				return fmt.Errorf("publish schema record: %w", err)
 			}
 		}
-		if err := tx.Model(&model.Form{}).Where("uuid = ?", formID).Updates(map[string]any{
+		if err := tx.Model(&model.Form{}).Where("organization_id = ? AND uuid = ?", organizationID, formID).Updates(map[string]any{
 			"status": string(model.LifecyclePublished), "active": true, "current_schema_version": version,
 		}).Error; err != nil {
 			return fmt.Errorf("publish form: %w", err)
@@ -450,6 +497,7 @@ func findIdempotentSubmission(tx *gorm.DB, formID, idempotencyKey string) (*mode
 // ListSubmissionsPage returns one deterministic, bounded cursor page.
 func (s *Store) ListSubmissionsPage(
 	ctx context.Context,
+	organizationID string,
 	formID string,
 	before time.Time,
 	beforeID string,
@@ -458,12 +506,19 @@ func (s *Store) ListSubmissionsPage(
 	if limit < 1 || limit > 100 {
 		return nil, false, errors.New("submission page limit must be between 1 and 100")
 	}
-	query := s.db.GetDB().WithContext(ctx).Where("form_id = ?", formID)
+	query := s.db.GetDB().WithContext(ctx).Model(&model.FormSubmission{}).
+		Select("form_submissions.*").
+		Joins("JOIN forms ON forms.uuid = form_submissions.form_id").
+		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND form_submissions.form_id = ?", organizationID, formID)
 	if !before.IsZero() {
-		query = query.Where("(submitted_at < ? OR (submitted_at = ? AND uuid < ?))", before, before, beforeID)
+		query = query.Where(
+			"(form_submissions.submitted_at < ? OR (form_submissions.submitted_at = ? AND form_submissions.uuid < ?))",
+			before, before, beforeID,
+		)
 	}
 	var submissions []*model.FormSubmission
-	if err := query.Order("submitted_at DESC, uuid DESC").Limit(limit + 1).Find(&submissions).Error; err != nil {
+	if err := query.Order("form_submissions.submitted_at DESC, form_submissions.uuid DESC").Limit(limit + 1).
+		Find(&submissions).Error; err != nil {
 		return nil, false, fmt.Errorf("list submission page: %w", err)
 	}
 	hasMore := len(submissions) > limit

@@ -87,6 +87,10 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 					"#/components/parameters/FormSort", "#/components/parameters/PageLimit",
 					"#/components/parameters/PageOffset",
 				}, parameterRefs(op.Parameters))
+			case "listSchemaVersions":
+				require.Equal(t, []string{
+					"#/components/parameters/PageLimit", "#/components/parameters/PageOffset",
+				}, parameterRefs(op.Parameters))
 			case "updateForm":
 				require.Equal(t, []string{"#/components/parameters/IfMatch"}, parameterRefs(op.Parameters))
 				require.Contains(t, op.Responses, "412")

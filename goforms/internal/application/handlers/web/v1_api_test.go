@@ -66,8 +66,8 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 	repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", gomock.Any()).DoAndReturn(
 		func(_ context.Context, _, _ string) (*model.Form, error) { return formModel, nil },
 	).AnyTimes()
-	repository.EXPECT().CreateSchemaVersion(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, formID string, schema model.JSON) (*model.SchemaVersion, error) {
+	repository.EXPECT().CreateSchemaVersion(gomock.Any(), "owner-a", gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ string, formID string, schema model.JSON) (*model.SchemaVersion, error) {
 			version, createErr := model.NewSchemaVersion(formID, 2, schema, validator)
 			if createErr == nil {
 				versions[2] = version
@@ -75,11 +75,16 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			return version, createErr
 		},
 	)
-	repository.EXPECT().GetSchemaVersion(gomock.Any(), gomock.Any(), 2).DoAndReturn(
-		func(context.Context, string, int) (*model.SchemaVersion, error) { return versions[2], nil },
+	repository.EXPECT().ListSchemaVersions(gomock.Any(), "owner-a", gomock.Any(), 25, 0).DoAndReturn(
+		func(context.Context, string, string, int, int) ([]*model.SchemaVersion, int64, error) {
+			return []*model.SchemaVersion{versions[2], versions[1]}, 2, nil
+		},
 	)
-	repository.EXPECT().PublishSchemaVersion(gomock.Any(), gomock.Any(), 2).DoAndReturn(
-		func(_ context.Context, _ string, _ int) (*model.SchemaVersion, error) {
+	repository.EXPECT().GetSchemaVersion(gomock.Any(), "owner-a", gomock.Any(), 2).DoAndReturn(
+		func(context.Context, string, string, int) (*model.SchemaVersion, error) { return versions[2], nil },
+	).Times(2)
+	repository.EXPECT().PublishSchemaVersion(gomock.Any(), "owner-a", gomock.Any(), 2).DoAndReturn(
+		func(_ context.Context, _, _ string, _ int) (*model.SchemaVersion, error) {
 			published, publishErr := versions[2].Publish(now)
 			if publishErr == nil {
 				versions[2] = published
@@ -107,8 +112,8 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			return candidate, false, nil
 		},
 	).Times(3)
-	repository.EXPECT().ListSubmissionsPage(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), 25).DoAndReturn(
-		func(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error) {
+	repository.EXPECT().ListSubmissionsPage(gomock.Any(), "owner-a", gomock.Any(), gomock.Any(), gomock.Any(), 25).DoAndReturn(
+		func(context.Context, string, string, time.Time, string, int) ([]*model.FormSubmission, bool, error) {
 			return []*model.FormSubmission{submissions["contact-submit-0001"]}, false, nil
 		},
 	)
@@ -135,6 +140,15 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 		"/v1/forms/11111111-1111-4111-8111-111111111111/versions",
 		map[string]any{"schema": versionSchema}, plaintext, "create-version-0002", nil)
 	require.Equal(t, http.StatusCreated, versionResponse.Code, versionResponse.Body.String())
+	listVersionsResponse := requestJSON(t, e, http.MethodGet,
+		"/v1/forms/11111111-1111-4111-8111-111111111111/versions",
+		nil, plaintext, "", nil)
+	require.Equal(t, http.StatusOK, listVersionsResponse.Code, listVersionsResponse.Body.String())
+	require.Contains(t, listVersionsResponse.Body.String(), `"total":2`)
+	getVersionResponse := requestJSON(t, e, http.MethodGet,
+		"/v1/forms/11111111-1111-4111-8111-111111111111/versions/2",
+		nil, plaintext, "", nil)
+	require.Equal(t, http.StatusOK, getVersionResponse.Code, getVersionResponse.Body.String())
 
 	publishResponse := requestJSON(t, e, http.MethodPost,
 		"/v1/forms/11111111-1111-4111-8111-111111111111/versions/2/publish",

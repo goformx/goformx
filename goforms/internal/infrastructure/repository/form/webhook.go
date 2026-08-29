@@ -70,12 +70,19 @@ func enqueueWebhookDelivery(tx *gorm.DB, submission *model.FormSubmission, now t
 
 func (s *Store) PutWebhookEndpoint(
 	ctx context.Context,
-	formID, destinationURL string,
+	organizationID, formID, destinationURL string,
 	config domainwebhook.SecretConfig,
 	enabled bool,
 ) (*domainwebhook.Endpoint, error) {
 	if s.webhookCipher == nil {
 		return nil, domainwebhook.ErrDisabled
+	}
+	owned, err := s.organizationOwnsForm(ctx, organizationID, formID)
+	if err != nil {
+		return nil, err
+	}
+	if !owned {
+		return nil, domainwebhook.ErrNotFound
 	}
 	target, err := url.Parse(destinationURL)
 	if err != nil || target.Scheme != "https" || target.Host == "" {
@@ -99,12 +106,15 @@ func (s *Store) PutWebhookEndpoint(
 	if err != nil {
 		return nil, fmt.Errorf("put webhook endpoint: %w", err)
 	}
-	return s.GetWebhookEndpoint(ctx, formID)
+	return s.GetWebhookEndpoint(ctx, organizationID, formID)
 }
 
-func (s *Store) GetWebhookEndpoint(ctx context.Context, formID string) (*domainwebhook.Endpoint, error) {
+func (s *Store) GetWebhookEndpoint(ctx context.Context, organizationID, formID string) (*domainwebhook.Endpoint, error) {
 	var record webhookEndpointRecord
-	if err := s.db.GetDB().WithContext(ctx).Where("form_id = ?", formID).First(&record).Error; err != nil {
+	if err := s.db.GetDB().WithContext(ctx).Table("webhook_endpoints").Select("webhook_endpoints.*").
+		Joins("JOIN forms ON forms.uuid = webhook_endpoints.form_id").
+		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND webhook_endpoints.form_id = ?", organizationID, formID).
+		First(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domainwebhook.ErrNotFound
 		}
@@ -118,8 +128,10 @@ func restoreEndpoint(record webhookEndpointRecord) *domainwebhook.Endpoint {
 		Enabled: record.Enabled, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt}
 }
 
-func (s *Store) DeleteWebhookEndpoint(ctx context.Context, formID string) error {
-	result := s.db.GetDB().WithContext(ctx).Where("form_id = ?", formID).Delete(&webhookEndpointRecord{})
+func (s *Store) DeleteWebhookEndpoint(ctx context.Context, organizationID, formID string) error {
+	ownedForms := s.db.GetDB().Table("forms").Select("uuid").
+		Where("deleted_at IS NULL AND organization_id = ? AND uuid = ?", organizationID, formID)
+	result := s.db.GetDB().WithContext(ctx).Where("form_id IN (?)", ownedForms).Delete(&webhookEndpointRecord{})
 	if result.Error != nil {
 		return fmt.Errorf("delete webhook endpoint: %w", result.Error)
 	}
@@ -131,6 +143,7 @@ func (s *Store) DeleteWebhookEndpoint(ctx context.Context, formID string) error 
 
 func (s *Store) ListWebhookDeliveries(
 	ctx context.Context,
+	organizationID string,
 	formID string,
 	limit int,
 ) ([]*domainwebhook.Delivery, error) {
@@ -138,8 +151,11 @@ func (s *Store) ListWebhookDeliveries(
 		return nil, errors.New("webhook delivery limit must be between 1 and 100")
 	}
 	var records []webhookDeliveryRecord
-	if err := s.db.GetDB().WithContext(ctx).Where("form_id = ?", formID).
-		Order("created_at DESC, uuid DESC").Limit(limit).Find(&records).Error; err != nil {
+	if err := s.db.GetDB().WithContext(ctx).Table("webhook_deliveries").Select("webhook_deliveries.*").
+		Joins("JOIN forms ON forms.uuid = webhook_deliveries.form_id").
+		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND webhook_deliveries.form_id = ?", organizationID, formID).
+		Order("webhook_deliveries.created_at DESC, webhook_deliveries.uuid DESC").Limit(limit).
+		Find(&records).Error; err != nil {
 		return nil, fmt.Errorf("list webhook deliveries: %w", err)
 	}
 	deliveries := make([]*domainwebhook.Delivery, 0, len(records))
@@ -149,10 +165,12 @@ func (s *Store) ListWebhookDeliveries(
 	return deliveries, nil
 }
 
-func (s *Store) ReplayWebhookDelivery(ctx context.Context, formID, deliveryID string) error {
+func (s *Store) ReplayWebhookDelivery(ctx context.Context, organizationID, formID, deliveryID string) error {
 	now := s.now().UTC()
+	ownedForms := s.db.GetDB().Table("forms").Select("uuid").
+		Where("deleted_at IS NULL AND organization_id = ? AND uuid = ?", organizationID, formID)
 	result := s.db.GetDB().WithContext(ctx).Model(&webhookDeliveryRecord{}).
-		Where("uuid = ? AND form_id = ? AND status = ?", deliveryID, formID, domainwebhook.DeliveryDeadLetter).
+		Where("uuid = ? AND form_id IN (?) AND status = ?", deliveryID, ownedForms, domainwebhook.DeliveryDeadLetter).
 		Updates(map[string]any{"status": domainwebhook.DeliveryPending, "next_attempt_at": now,
 			"attempt_count": 0, "locked_at": nil, "delivered_at": nil,
 			"last_error_category": "", "last_http_status": nil})
@@ -163,6 +181,15 @@ func (s *Store) ReplayWebhookDelivery(ctx context.Context, formID, deliveryID st
 		return domainwebhook.ErrNotFound
 	}
 	return nil
+}
+
+func (s *Store) organizationOwnsForm(ctx context.Context, organizationID, formID string) (bool, error) {
+	var count int64
+	if err := s.db.GetDB().WithContext(ctx).Model(&model.Form{}).
+		Where("organization_id = ? AND uuid = ?", organizationID, formID).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("check form ownership: %w", err)
+	}
+	return count == 1, nil
 }
 
 func (s *Store) ClaimDelivery(

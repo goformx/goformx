@@ -103,17 +103,39 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		"properties": map[string]any{"email": map[string]any{"type": "string", "format": "email"}},
 		"required":   []any{"email"},
 	}
-	version, err := store.CreateSchemaVersion(t.Context(), form.ID, form.Schema)
+	foreignOrganizationID := uuid.NewString()
+	_, err = store.CreateSchemaVersion(t.Context(), foreignOrganizationID, form.ID, form.Schema)
+	require.ErrorContains(t, err, "record not found")
+	_, err = store.GetSchemaVersion(t.Context(), foreignOrganizationID, form.ID, 1)
+	require.ErrorContains(t, err, "record not found")
+
+	version, err := store.CreateSchemaVersion(t.Context(), ownerID, form.ID, form.Schema)
 	require.NoError(t, err)
 	require.Equal(t, 2, version.Version())
-	published, err := store.PublishSchemaVersion(t.Context(), form.ID, 2)
+	foreignVersions, foreignVersionTotal, err := store.ListSchemaVersions(
+		t.Context(), foreignOrganizationID, form.ID, 25, 0,
+	)
+	require.NoError(t, err)
+	require.Zero(t, foreignVersionTotal)
+	require.Empty(t, foreignVersions)
+	ownedVersions, ownedVersionTotal, err := store.ListSchemaVersions(t.Context(), ownerID, form.ID, 25, 0)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, ownedVersionTotal)
+	require.Len(t, ownedVersions, 2)
+	require.Equal(t, 2, ownedVersions[0].Version())
+	ownedVersion, err := store.GetSchemaVersion(t.Context(), ownerID, form.ID, 2)
+	require.NoError(t, err)
+	require.Equal(t, 2, ownedVersion.Version())
+	published, err := store.PublishSchemaVersion(t.Context(), ownerID, form.ID, 2)
 	require.NoError(t, err)
 	require.Equal(t, model.SchemaVersionPublished, published.State())
 	publicForm, exactVersion, err := store.GetPublishedSchemaVersion(t.Context(), form.PublicKey, 2)
 	require.NoError(t, err)
 	require.Equal(t, form.ID, publicForm.ID)
 	require.Equal(t, 2, exactVersion.Version())
-	_, err = store.PublishSchemaVersion(t.Context(), form.ID, 1)
+	_, err = store.PublishSchemaVersion(t.Context(), foreignOrganizationID, form.ID, 2)
+	require.ErrorContains(t, err, "record not found")
+	_, err = store.PublishSchemaVersion(t.Context(), ownerID, form.ID, 1)
 	require.ErrorContains(t, err, "cannot move backwards")
 
 	submission := &model.FormSubmission{FormID: form.ID, SchemaVersion: 1,
@@ -155,12 +177,18 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.False(t, replayed)
 	require.NotEmpty(t, second.ID)
 
-	page, hasMore, err := store.ListSubmissionsPage(t.Context(), form.ID, time.Time{}, "", 1)
+	foreignPage, foreignHasMore, err := store.ListSubmissionsPage(
+		t.Context(), foreignOrganizationID, form.ID, time.Time{}, "", 1,
+	)
+	require.NoError(t, err)
+	require.False(t, foreignHasMore)
+	require.Empty(t, foreignPage)
+	page, hasMore, err := store.ListSubmissionsPage(t.Context(), ownerID, form.ID, time.Time{}, "", 1)
 	require.NoError(t, err)
 	require.True(t, hasMore)
 	require.Len(t, page, 1)
 	nextPage, hasMore, err := store.ListSubmissionsPage(
-		t.Context(), form.ID, page[0].SubmittedAt, page[0].ID, 1,
+		t.Context(), ownerID, form.ID, page[0].SubmittedAt, page[0].ID, 1,
 	)
 	require.NoError(t, err)
 	require.False(t, hasMore)
@@ -220,7 +248,10 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	t.Cleanup(func() {
 		_ = db.Unscoped().Where("uuid = ?", webhookForm.ID).Delete(&model.Form{}).Error
 	})
-	_, err = webhookStore.PutWebhookEndpoint(t.Context(), webhookForm.ID, "https://hooks.example/receive",
+	_, err = webhookStore.PutWebhookEndpoint(t.Context(), foreignOrganizationID, webhookForm.ID, "https://hooks.example/receive",
+		domainwebhook.SecretConfig{SigningSecret: "repository-signing-secret-long-enough"}, true)
+	require.ErrorIs(t, err, domainwebhook.ErrNotFound)
+	_, err = webhookStore.PutWebhookEndpoint(t.Context(), ownerID, webhookForm.ID, "https://hooks.example/receive",
 		domainwebhook.SecretConfig{Headers: map[string]string{"Authorization": "Bearer encrypted"},
 			SigningSecret: "repository-signing-secret-long-enough"}, true)
 	require.NoError(t, err)
@@ -230,7 +261,12 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	storedWebhookSubmission, replayed, err := webhookStore.CreateSubmissionIdempotent(t.Context(), webhookSubmission)
 	require.NoError(t, err)
 	require.False(t, replayed)
-	deliveries, err := webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	_, err = webhookStore.GetWebhookEndpoint(t.Context(), foreignOrganizationID, webhookForm.ID)
+	require.ErrorIs(t, err, domainwebhook.ErrNotFound)
+	foreignDeliveries, err := webhookStore.ListWebhookDeliveries(t.Context(), foreignOrganizationID, webhookForm.ID, 25)
+	require.NoError(t, err)
+	require.Empty(t, foreignDeliveries)
+	deliveries, err := webhookStore.ListWebhookDeliveries(t.Context(), ownerID, webhookForm.ID, 25)
 	require.NoError(t, err)
 	require.Len(t, deliveries, 1)
 	require.Equal(t, storedWebhookSubmission.ID, deliveries[0].SubmissionID)
@@ -247,7 +283,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.True(t, replayed)
-	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), ownerID, webhookForm.ID, 25)
 	require.NoError(t, err)
 	require.Len(t, deliveries, 1)
 
@@ -257,11 +293,12 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.Equal(t, storedWebhookSubmission.ID, event.SubmissionID)
 	require.NoError(t, webhookStore.MarkDeliveryFailed(t.Context(), claimed.ID, "network", nil,
 		true, 1, time.Second, time.Minute, time.Now().UTC()))
-	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), ownerID, webhookForm.ID, 25)
 	require.NoError(t, err)
 	require.Equal(t, domainwebhook.DeliveryDeadLetter, deliveries[0].Status)
-	require.NoError(t, webhookStore.ReplayWebhookDelivery(t.Context(), webhookForm.ID, claimed.ID))
-	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), webhookForm.ID, 25)
+	require.ErrorIs(t, webhookStore.ReplayWebhookDelivery(t.Context(), foreignOrganizationID, webhookForm.ID, claimed.ID), domainwebhook.ErrNotFound)
+	require.NoError(t, webhookStore.ReplayWebhookDelivery(t.Context(), ownerID, webhookForm.ID, claimed.ID))
+	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), ownerID, webhookForm.ID, 25)
 	require.NoError(t, err)
 	require.Equal(t, domainwebhook.DeliveryPending, deliveries[0].Status)
 	require.Zero(t, deliveries[0].AttemptCount)
@@ -283,7 +320,10 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		_ = db.Exec("DROP TRIGGER IF EXISTS goformx_test_reject_outbox ON webhook_deliveries").Error
 		_ = db.Exec("DROP FUNCTION IF EXISTS goformx_test_reject_outbox()").Error
 	})
-	_, err = webhookStore.PutWebhookEndpoint(t.Context(), webhookForm.ID, "https://reject.example/hooks",
+	require.ErrorIs(t, webhookStore.DeleteWebhookEndpoint(t.Context(), foreignOrganizationID, webhookForm.ID), domainwebhook.ErrNotFound)
+	_, err = webhookStore.GetWebhookEndpoint(t.Context(), ownerID, webhookForm.ID)
+	require.NoError(t, err)
+	_, err = webhookStore.PutWebhookEndpoint(t.Context(), ownerID, webhookForm.ID, "https://reject.example/hooks",
 		domainwebhook.SecretConfig{SigningSecret: "repository-signing-secret-long-enough"}, true)
 	require.NoError(t, err)
 	rollbackKey := "webhook-rollback-submit-0002"

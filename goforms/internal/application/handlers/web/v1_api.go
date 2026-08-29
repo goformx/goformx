@@ -59,21 +59,22 @@ type V1Repository interface {
 	ListForms(context.Context, string, model.FormListOptions) ([]*model.Form, int64, error)
 	GetFormByID(context.Context, string, string) (*model.Form, error)
 	UpdateForm(context.Context, *model.Form, time.Time) error
-	CreateSchemaVersion(context.Context, string, model.JSON) (*model.SchemaVersion, error)
-	GetSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
-	PublishSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
-	ListSubmissionsPage(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)
+	CreateSchemaVersion(context.Context, string, string, model.JSON) (*model.SchemaVersion, error)
+	ListSchemaVersions(context.Context, string, string, int, int) ([]*model.SchemaVersion, int64, error)
+	GetSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
+	PublishSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
+	ListSubmissionsPage(context.Context, string, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)
 	GetSubmissionByOrganization(context.Context, string, string, string) (*model.FormSubmission, error)
 	GetPublishedSchemaVersion(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)
 	CreateSubmissionIdempotent(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)
 }
 
 type WebhookRepository interface {
-	PutWebhookEndpoint(context.Context, string, string, domainwebhook.SecretConfig, bool) (*domainwebhook.Endpoint, error)
-	GetWebhookEndpoint(context.Context, string) (*domainwebhook.Endpoint, error)
-	DeleteWebhookEndpoint(context.Context, string) error
-	ListWebhookDeliveries(context.Context, string, int) ([]*domainwebhook.Delivery, error)
-	ReplayWebhookDelivery(context.Context, string, string) error
+	PutWebhookEndpoint(context.Context, string, string, string, domainwebhook.SecretConfig, bool) (*domainwebhook.Endpoint, error)
+	GetWebhookEndpoint(context.Context, string, string) (*domainwebhook.Endpoint, error)
+	DeleteWebhookEndpoint(context.Context, string, string) error
+	ListWebhookDeliveries(context.Context, string, string, int) ([]*domainwebhook.Delivery, error)
+	ReplayWebhookDelivery(context.Context, string, string, string) error
 }
 
 // ServiceTokenManagementRepository exposes organization-scoped metadata and lifecycle operations.
@@ -143,7 +144,9 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.POST("", h.instrument("create_form", h.createForm), h.require(auth.ScopeFormsWrite))
 	control.GET("/:formId", h.instrument("get_form", h.getForm), h.require(auth.ScopeFormsRead))
 	control.PATCH("/:formId", h.instrument("update_form", h.updateForm), h.require(auth.ScopeFormsWrite))
+	control.GET("/:formId/versions", h.instrument("list_schema_versions", h.listSchemaVersions), h.require(auth.ScopeFormsRead))
 	control.POST("/:formId/versions", h.instrument("create_schema_version", h.createSchemaVersion), h.require(auth.ScopeFormsWrite))
+	control.GET("/:formId/versions/:version", h.instrument("get_schema_version", h.getSchemaVersion), h.require(auth.ScopeFormsRead))
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead))
 	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead))
@@ -395,6 +398,52 @@ type createVersionRequest struct {
 	Schema model.JSON `json:"schema"`
 }
 
+func (h *V1APIHandler) listSchemaVersions(c echo.Context) error {
+	formModel, ok := h.ownedForm(c)
+	if !ok {
+		return nil
+	}
+	limit, err := boundedInt(c.QueryParam("limit"), 25, 1, 100, "schema version page limit")
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	offset, err := boundedInt(c.QueryParam("offset"), 0, 0, 10000, "schema version page offset")
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	versions, total, err := h.repository.ListSchemaVersions(
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, limit, offset,
+	)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	data := make([]map[string]any, 0, len(versions))
+	for _, version := range versions {
+		data = append(data, schemaVersionResource(version))
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{
+		"limit": limit, "offset": offset, "total": total,
+	}})
+}
+
+func (h *V1APIHandler) getSchemaVersion(c echo.Context) error {
+	formModel, ok := h.ownedForm(c)
+	if !ok {
+		return nil
+	}
+	versionNumber, err := positiveInt(c.Param("version"))
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", "Schema version must be a positive integer.", nil)
+	}
+	version, err := h.repository.GetSchemaVersion(
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, versionNumber,
+	)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": schemaVersionResource(version)})
+}
+
 func (h *V1APIHandler) createSchemaVersion(c echo.Context) error {
 	formModel, ok := h.ownedForm(c)
 	if !ok {
@@ -407,7 +456,9 @@ func (h *V1APIHandler) createSchemaVersion(c echo.Context) error {
 	if result := h.validator.ValidateSchema(request.Schema); !result.IsValid {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Form schema is invalid.", prefixErrors(result.Errors, "/schema"))
 	}
-	version, err := h.repository.CreateSchemaVersion(c.Request().Context(), formModel.ID, request.Schema)
+	version, err := h.repository.CreateSchemaVersion(
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, request.Schema,
+	)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
@@ -423,14 +474,18 @@ func (h *V1APIHandler) publishSchemaVersion(c echo.Context) error {
 	if err != nil {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "Schema version must be a positive integer.", nil)
 	}
-	version, err := h.repository.GetSchemaVersion(c.Request().Context(), formModel.ID, versionNumber)
+	version, err := h.repository.GetSchemaVersion(
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, versionNumber,
+	)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
 	if result := h.validator.ValidateSchema(version.Schema()); !result.IsValid {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Form schema is invalid.", prefixErrors(result.Errors, "/schema"))
 	}
-	published, err := h.repository.PublishSchemaVersion(c.Request().Context(), formModel.ID, versionNumber)
+	published, err := h.repository.PublishSchemaVersion(
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, versionNumber,
+	)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
@@ -451,7 +506,7 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 	submissions, hasMore, err := h.repository.ListSubmissionsPage(
-		c.Request().Context(), formModel.ID, before, beforeID, limit,
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, before, beforeID, limit,
 	)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
@@ -518,7 +573,7 @@ func (h *V1APIHandler) putWebhook(c echo.Context) error {
 	if request.Enabled != nil {
 		enabled = *request.Enabled
 	}
-	endpoint, err := h.webhooks.PutWebhookEndpoint(c.Request().Context(), formModel.ID, target.String(),
+	endpoint, err := h.webhooks.PutWebhookEndpoint(c.Request().Context(), formModel.OrganizationID, formModel.ID, target.String(),
 		domainwebhook.SecretConfig{DestinationURL: target.String(),
 			Headers: request.Headers, SigningSecret: request.SigningSecret}, enabled)
 	if err != nil {
@@ -577,7 +632,7 @@ func (h *V1APIHandler) getWebhook(c echo.Context) error {
 		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
 			"Webhook delivery is not configured on this service.", nil)
 	}
-	endpoint, err := h.webhooks.GetWebhookEndpoint(c.Request().Context(), formModel.ID)
+	endpoint, err := h.webhooks.GetWebhookEndpoint(c.Request().Context(), formModel.OrganizationID, formModel.ID)
 	if errors.Is(err, domainwebhook.ErrNotFound) {
 		return h.writeError(c, http.StatusNotFound, "not_found", "Webhook endpoint was not found.", nil)
 	}
@@ -596,7 +651,7 @@ func (h *V1APIHandler) deleteWebhook(c echo.Context) error {
 		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
 			"Webhook delivery is not configured on this service.", nil)
 	}
-	if err := h.webhooks.DeleteWebhookEndpoint(c.Request().Context(), formModel.ID); err != nil {
+	if err := h.webhooks.DeleteWebhookEndpoint(c.Request().Context(), formModel.OrganizationID, formModel.ID); err != nil {
 		if errors.Is(err, domainwebhook.ErrNotFound) {
 			return h.writeError(c, http.StatusNotFound, "not_found", "Webhook endpoint was not found.", nil)
 		}
@@ -618,7 +673,9 @@ func (h *V1APIHandler) listWebhookDeliveries(c echo.Context) error {
 	if err != nil {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
-	deliveries, err := h.webhooks.ListWebhookDeliveries(c.Request().Context(), formModel.ID, limit)
+	deliveries, err := h.webhooks.ListWebhookDeliveries(
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, limit,
+	)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
@@ -642,7 +699,9 @@ func (h *V1APIHandler) replayWebhookDelivery(c echo.Context) error {
 	if _, err := uuid.Parse(deliveryID); err != nil {
 		return h.writeError(c, http.StatusNotFound, "not_found", "Webhook delivery was not found.", nil)
 	}
-	if err := h.webhooks.ReplayWebhookDelivery(c.Request().Context(), formModel.ID, deliveryID); err != nil {
+	if err := h.webhooks.ReplayWebhookDelivery(
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, deliveryID,
+	); err != nil {
 		if errors.Is(err, domainwebhook.ErrNotFound) {
 			return h.writeError(c, http.StatusNotFound, "not_found", "Webhook delivery was not found.", nil)
 		}
