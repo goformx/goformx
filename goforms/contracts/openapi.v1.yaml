@@ -14,11 +14,49 @@ servers:
   - url: https://api.goformx.com
     description: Production
 tags:
+  - name: Operations
+    description: Unauthenticated liveness and dependency-readiness probes.
   - name: Control plane
     description: Authenticated management operations for forms and submissions.
   - name: Public data plane
     description: Browser-safe schema discovery and submission operations.
 paths:
+  /health:
+    get:
+      summary: Report process liveness
+      operationId: getHealth
+      tags: [Operations]
+      security: []
+      responses:
+        '200':
+          description: The API process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProbeEnvelope'
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /ready:
+    get:
+      summary: Report production dependency readiness
+      operationId: getReadiness
+      tags: [Operations]
+      security: []
+      responses:
+        '200':
+          description: PostgreSQL is reachable and the API can accept traffic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProbeEnvelope'
+        '503':
+          description: A required production dependency is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProbeEnvelope'
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms:
     get:
       summary: List forms
@@ -418,6 +456,18 @@ components:
       description: Opaque cursor returned as meta.nextCursor by the previous page.
       schema: { type: string, minLength: 1 }
   schemas:
+    ProbeEnvelope:
+      type: object
+      required: [data]
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          required: [status]
+          additionalProperties: false
+          properties:
+            status: { type: string, enum: [ok, ready, unavailable] }
+            time: { type: string, format: date-time }
     FormDefinition:
       type: object
       description: A JSON Schema Draft 2020-12 object conforming to the canonical linked schema.

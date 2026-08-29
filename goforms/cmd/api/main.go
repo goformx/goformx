@@ -30,6 +30,10 @@ import (
 
 const shutdownTimeout = 10 * time.Second
 
+type readinessChecker interface {
+	Ping(context.Context) error
+}
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -70,7 +74,7 @@ func run(ctx context.Context) error {
 		WebhookCipher:        webhookCipher,
 	})
 	tokens := tokenstore.NewStore(db)
-	router := newRouter(cfg, forms, tokens, logger)
+	router := newRouter(cfg, forms, tokens, db, logger)
 	if cfg.Webhook.Enabled {
 		destinationPolicy := deliveryapp.NewDestinationPolicy(nil)
 		dispatcher := deliveryapp.NewDispatcher(forms, webhookCipher,
@@ -120,6 +124,7 @@ func newRouter(
 	cfg *config.Config,
 	forms web.V1Repository,
 	tokens serviceauth.Repository,
+	readiness readinessChecker,
 	logger logging.Logger,
 ) *echo.Echo {
 	router := echo.New()
@@ -147,6 +152,18 @@ func newRouter(
 	}
 	router.GET("/health", health)
 	router.HEAD("/health", health)
+	ready := func(c echo.Context) error {
+		if err := readiness.Ping(c.Request().Context()); err != nil {
+			return c.JSON(http.StatusServiceUnavailable, map[string]any{
+				"data": map[string]string{"status": "unavailable"},
+			})
+		}
+		return c.JSON(http.StatusOK, map[string]any{
+			"data": map[string]string{"status": "ready", "time": time.Now().UTC().Format(time.RFC3339)},
+		})
+	}
+	router.GET("/ready", ready)
+	router.HEAD("/ready", ready)
 	web.NewV1APIHandlerWithLimits(forms, tokens, logger, web.V1Limits{
 		PublicSubmissionRPS:   cfg.Security.RateLimit.PublicSubmissionRPS,
 		PublicSubmissionBurst: cfg.Security.RateLimit.PublicSubmissionBurst,

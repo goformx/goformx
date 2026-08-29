@@ -19,6 +19,10 @@ import (
 
 type unavailableTokens struct{}
 
+type readinessStub struct{ err error }
+
+func (stub readinessStub) Ping(context.Context) error { return stub.err }
+
 func (unavailableTokens) FindByID(context.Context, string) (*auth.ServiceToken, error) {
 	return nil, errors.New("not found")
 }
@@ -30,7 +34,7 @@ func (unavailableTokens) MarkUsed(context.Context, string, time.Time) error {
 func TestProductionRouterMountsOnlyHealthAndSchemaFirstAPI(t *testing.T) {
 	t.Parallel()
 	repository := mockform.NewMockRepository(gomock.NewController(t))
-	router := newRouter(&config.Config{}, repository, unavailableTokens{}, nil)
+	router := newRouter(&config.Config{}, repository, unavailableTokens{}, readinessStub{}, nil)
 	routes := make(map[string]struct{})
 	for _, route := range router.Routes() {
 		routes[route.Method+" "+route.Path] = struct{}{}
@@ -39,6 +43,8 @@ func TestProductionRouterMountsOnlyHealthAndSchemaFirstAPI(t *testing.T) {
 	for _, expected := range []string{
 		"GET /health",
 		"HEAD /health",
+		"GET /ready",
+		"HEAD /ready",
 		"GET /v1/forms",
 		"POST /v1/forms",
 		"GET /v1/public/forms/:publicKey/schema",
@@ -52,7 +58,7 @@ func TestProductionRouterMountsOnlyHealthAndSchemaFirstAPI(t *testing.T) {
 func TestProductionRouterRejectsLegacyAssertionHeaders(t *testing.T) {
 	t.Parallel()
 	repository := mockform.NewMockRepository(gomock.NewController(t))
-	router := newRouter(&config.Config{}, repository, unavailableTokens{}, nil)
+	router := newRouter(&config.Config{}, repository, unavailableTokens{}, readinessStub{}, nil)
 	request := httptest.NewRequest(http.MethodGet, "/v1/forms", nil)
 	request.Header.Set("X-User-Id", "11111111-1111-4111-8111-111111111111")
 	request.Header.Set("X-Timestamp", time.Now().UTC().Format(time.RFC3339))
@@ -61,4 +67,30 @@ func TestProductionRouterRejectsLegacyAssertionHeaders(t *testing.T) {
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusUnauthorized, response.Code)
 	require.Contains(t, response.Body.String(), "unauthorized")
+}
+
+func TestReadinessReflectsDatabaseAvailability(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		pingErr    error
+		statusCode int
+		body       string
+	}{
+		{name: "ready", statusCode: http.StatusOK, body: `"status":"ready"`},
+		{name: "database unavailable", pingErr: errors.New("database unavailable"), statusCode: http.StatusServiceUnavailable, body: `"status":"unavailable"`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			repository := mockform.NewMockRepository(gomock.NewController(t))
+			router := newRouter(&config.Config{}, repository, unavailableTokens{}, readinessStub{err: test.pingErr}, nil)
+			request := httptest.NewRequest(http.MethodGet, "/ready", nil)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			require.Equal(t, test.statusCode, response.Code)
+			require.Contains(t, response.Body.String(), test.body)
+			require.NotContains(t, response.Body.String(), "database unavailable")
+		})
+	}
 }
