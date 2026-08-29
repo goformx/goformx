@@ -65,14 +65,14 @@ func rotate(ctx context.Context, arguments []string) error {
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
 
-	var ownerID string
+	var ownerID, tokenName string
 	var encodedScopes []byte
 	err = transaction.QueryRow(ctx, `
-		SELECT organization_id, scopes
+		SELECT organization_id, name, scopes
 		FROM service_tokens
 		WHERE token_id = $1 AND revoked_at IS NULL AND expires_at > now()
 		FOR UPDATE
-	`, *tokenID).Scan(&ownerID, &encodedScopes)
+	`, *tokenID).Scan(&ownerID, &tokenName, &encodedScopes)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errors.New("active service token was not found")
@@ -92,14 +92,15 @@ func rotate(ctx context.Context, arguments []string) error {
 	if err != nil {
 		return err
 	}
+	replacement.Name = tokenName
 	replacementScopes, err := json.Marshal(scopeNames(scopes))
 	if err != nil {
 		return fmt.Errorf("encode replacement scopes: %w", err)
 	}
 	_, err = transaction.Exec(ctx, `
-		INSERT INTO service_tokens (token_id, organization_id, token_hash, scopes, created_at, expires_at)
-		VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-	`, replacement.ID, replacement.OwnerID, replacement.Hash[:], string(replacementScopes),
+		INSERT INTO service_tokens (token_id, name, organization_id, token_hash, scopes, created_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+	`, replacement.ID, replacement.Name, replacement.OwnerID, replacement.Hash[:], string(replacementScopes),
 		replacement.CreatedAt, replacement.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("persist replacement service token: %w", err)
@@ -119,7 +120,7 @@ func rotate(ctx context.Context, arguments []string) error {
 		return fmt.Errorf("commit token rotation: %w", err)
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"token": plaintext, "tokenId": replacement.ID, "ownerId": replacement.OwnerID,
+		"token": plaintext, "tokenId": replacement.ID, "name": replacement.Name, "ownerId": replacement.OwnerID,
 		"scopes": scopeNames(scopes), "expiresAt": replacement.ExpiresAt.Format(time.RFC3339),
 		"rotatedTokenId": *tokenID,
 	})
@@ -128,6 +129,7 @@ func rotate(ctx context.Context, arguments []string) error {
 func issue(ctx context.Context, arguments []string) error {
 	flags := flag.NewFlagSet("issue", flag.ContinueOnError)
 	owner := flags.String("owner", "", "owner UUID")
+	name := flags.String("name", "CLI token", "human-readable token name")
 	scopeList := flags.String("scopes", "", "comma-separated scopes")
 	ttl := flags.Duration("ttl", 24*time.Hour, "token lifetime")
 	databaseURLFlag := flags.String("database-url", "", "PostgreSQL URL (defaults to DATABASE_URL)")
@@ -146,6 +148,10 @@ func issue(ctx context.Context, arguments []string) error {
 	if err != nil {
 		return err
 	}
+	token.Name = strings.TrimSpace(*name)
+	if token.Name == "" || len(token.Name) > 100 {
+		return errors.New("token name must be between 1 and 100 characters")
+	}
 	connection, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
 		return fmt.Errorf("connect to PostgreSQL: %w", err)
@@ -156,14 +162,14 @@ func issue(ctx context.Context, arguments []string) error {
 		return fmt.Errorf("encode scopes: %w", err)
 	}
 	_, err = connection.Exec(ctx, `
-		INSERT INTO service_tokens (token_id, organization_id, token_hash, scopes, created_at, expires_at)
-		VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-	`, token.ID, token.OwnerID, token.Hash[:], string(encodedScopes), token.CreatedAt, token.ExpiresAt)
+		INSERT INTO service_tokens (token_id, name, organization_id, token_hash, scopes, created_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+	`, token.ID, token.Name, token.OwnerID, token.Hash[:], string(encodedScopes), token.CreatedAt, token.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("persist service token: %w", err)
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"token": plaintext, "tokenId": token.ID, "ownerId": token.OwnerID,
+		"token": plaintext, "tokenId": token.ID, "name": token.Name, "ownerId": token.OwnerID,
 		"scopes": scopeNames(scopes), "expiresAt": token.ExpiresAt.Format(time.RFC3339),
 	})
 }

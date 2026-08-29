@@ -41,12 +41,24 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 		INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
 		VALUES (?, ?, 'not-used', 'Token', 'Fixture')
 	`, ownerID, ownerID+"@example.test").Error)
-	t.Cleanup(func() { _ = db.Exec("DELETE FROM users WHERE uuid = ?", ownerID).Error })
+	t.Cleanup(func() {
+		_ = db.Exec("DELETE FROM service_tokens WHERE organization_id = ?", ownerID).Error
+		_ = db.Exec("DELETE FROM users WHERE uuid = ?", ownerID).Error
+	})
 	now := time.Now().UTC()
 	token, plaintext, err := auth.Issue(ownerID,
 		[]auth.Scope{auth.ScopeFormsRead, auth.ScopeFormsWrite}, time.Hour, now)
 	require.NoError(t, err)
 	require.NoError(t, store.Save(t.Context(), token))
+	listed, err := store.ListByOrganization(t.Context(), ownerID, 25)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.Equal(t, token.ID, listed[0].ID)
+	require.Equal(t, token.Name, listed[0].Name)
+	require.Empty(t, listed[0].Hash, "metadata listing must not load the stored secret hash")
+	foreign, err := store.ListByOrganization(t.Context(), uuid.NewString(), 25)
+	require.NoError(t, err)
+	require.Empty(t, foreign)
 
 	loaded, err := store.FindByID(t.Context(), auth.LookupID(plaintext))
 	require.NoError(t, err)
@@ -56,7 +68,13 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loaded.LastUsedAt)
 	require.WithinDuration(t, now, *loaded.LastUsedAt, time.Second)
-	require.NoError(t, store.Revoke(t.Context(), loaded.ID, now))
+	require.Error(t, store.RevokeByOrganization(t.Context(), uuid.NewString(), loaded.ID, now))
+	stillActive, err := store.FindByID(t.Context(), loaded.ID)
+	require.NoError(t, err)
+	require.NoError(t, stillActive.Authorize(plaintext, ownerID, auth.ScopeFormsRead, now))
+	require.NoError(t, store.RevokeByOrganization(t.Context(), ownerID, loaded.ID, now))
+	require.NoError(t, store.RevokeByOrganization(t.Context(), ownerID, loaded.ID, now.Add(time.Minute)),
+		"revocation must be idempotent for an owned token")
 	loaded, err = store.FindByID(t.Context(), loaded.ID)
 	require.NoError(t, err)
 	require.Error(t, loaded.Authorize(plaintext, loaded.OwnerID, auth.ScopeFormsRead, now))

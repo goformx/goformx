@@ -9,6 +9,7 @@ Waaseyaa control plane -- signed single-use assertion --> Go API -- parameterize
 server integration -- scoped service token --> Go API -- parameterized transaction --> PostgreSQL
 anonymous browser/HTTP caller -- public form key --> Go API -- immutable schema validation --> PostgreSQL
 operator -- database credential --> token CLI -- hash + lifecycle metadata --> PostgreSQL
+organization principal -- tokens scopes --> token management API -- hash + metadata only --> PostgreSQL
 GitHub Actions -- pinned build/test/release steps --> attested multi-architecture image
 ```
 
@@ -40,6 +41,7 @@ GoFormX must:
 | Owner schema to validator | Controls an authenticated schema definition | Exact dialect, local-only references, depth/node/pattern budgets, bounded compiled-schema cache | SSRF-like network access or validation resource exhaustion |
 | API to PostgreSQL | Controls application queries and transaction order | Parameters, foreign keys, uniqueness, row/advisory locks, immutable-schema trigger | Corruption, duplicate delivery, quota race, mutable history |
 | Operator to token CLI | Holds database credentials and terminal access | One-time plaintext output, cryptographic random token, hash-only storage, atomic rotation | Control-plane credential disclosure |
+| Organization principal to token management API | Holds `tokens:read` or `tokens:write` plus a bounded delegable scope set | Owner-scoped repository queries, delegation subset check, one-time no-store reveal, hash-free metadata reads, idempotent revocation | Privilege amplification or cross-tenant credential control |
 | Worker to webhook destination | Processes trusted configuration and untrusted network state | AES-GCM secret storage, HTTPS-only destination validation, connect-time public-IP checks, disabled proxy/redirects, HMAC signature and timestamp | SSRF, secret disclosure, forged or replayed delivery |
 | CI to release registry | Can run repository workflows | Pinned Actions, least-privilege jobs, CodeQL, dependency review, tests, vulnerability scan, attestation | Supply-chain compromise |
 
