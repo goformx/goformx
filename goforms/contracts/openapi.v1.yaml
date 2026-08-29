@@ -62,7 +62,8 @@ paths:
       summary: List forms
       operationId: listForms
       tags: [Control plane]
-      security: [{ serviceToken: [forms:read] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:read]
       responses:
         '200':
           description: Forms visible to the token subject
@@ -81,7 +82,8 @@ paths:
       summary: Create a form and its first schema version
       operationId: createForm
       tags: [Control plane]
-      security: [{ serviceToken: [forms:write] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:write]
       requestBody:
         required: true
         content:
@@ -120,7 +122,8 @@ paths:
       summary: Get form metadata
       operationId: getForm
       tags: [Control plane]
-      security: [{ serviceToken: [forms:read] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:read]
       responses:
         '200':
           description: Form metadata and version pointers
@@ -133,7 +136,8 @@ paths:
       summary: Update mutable form metadata
       operationId: updateForm
       tags: [Control plane]
-      security: [{ serviceToken: [forms:write] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:write]
       requestBody:
         required: true
         content:
@@ -164,7 +168,8 @@ paths:
       summary: Create an immutable schema version
       operationId: createSchemaVersion
       tags: [Control plane]
-      security: [{ serviceToken: [forms:write] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:write]
       requestBody:
         required: true
         content:
@@ -191,7 +196,8 @@ paths:
       summary: Publish a schema version
       operationId: publishSchemaVersion
       tags: [Control plane]
-      security: [{ serviceToken: [forms:publish] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:publish]
       responses:
         '200':
           description: Version atomically made public
@@ -207,7 +213,8 @@ paths:
       summary: List form submissions
       operationId: listSubmissions
       tags: [Control plane]
-      security: [{ serviceToken: [submissions:read] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [submissions:read]
       parameters:
         - $ref: '#/components/parameters/SubmissionLimit'
         - $ref: '#/components/parameters/SubmissionCursor'
@@ -234,7 +241,8 @@ paths:
       summary: Get the form webhook endpoint without secret material
       operationId: getWebhookEndpoint
       tags: [Control plane]
-      security: [{ serviceToken: [forms:read] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:read]
       responses:
         '200':
           description: Webhook endpoint metadata
@@ -247,7 +255,8 @@ paths:
       summary: Create or replace the form webhook endpoint and write-only secrets
       operationId: putWebhookEndpoint
       tags: [Control plane]
-      security: [{ serviceToken: [forms:write] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:write]
       requestBody:
         required: true
         content:
@@ -265,7 +274,8 @@ paths:
       summary: Disable future delivery by deleting the endpoint
       operationId: deleteWebhookEndpoint
       tags: [Control plane]
-      security: [{ serviceToken: [forms:write] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:write]
       responses:
         '204': { description: Endpoint deleted; already-enqueued deliveries retain their encrypted snapshot }
         default: { $ref: '#/components/responses/Error' }
@@ -277,7 +287,8 @@ paths:
       summary: List recent webhook delivery status
       operationId: listWebhookDeliveries
       tags: [Control plane]
-      security: [{ serviceToken: [submissions:read] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [submissions:read]
       parameters:
         - $ref: '#/components/parameters/SubmissionLimit'
       responses:
@@ -307,7 +318,8 @@ paths:
       summary: Requeue a dead-letter webhook delivery
       operationId: replayWebhookDelivery
       tags: [Control plane]
-      security: [{ serviceToken: [forms:write] }]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:write]
       responses:
         '202':
           description: Dead-letter delivery requeued with the same delivery identifier and payload
@@ -394,16 +406,19 @@ paths:
 components:
   securitySchemes:
     serviceToken:
-      type: oauth2
-      description: Short-lived, server-side bearer token. Browsers must not receive it.
-      flows:
-        clientCredentials:
-          tokenUrl: https://api.goformx.com/oauth/token
-          scopes:
-            forms:read: Read form metadata and versions
-            forms:write: Create forms, versions, and mutable metadata
-            forms:publish: Publish immutable schema versions
-            submissions:read: Read submission payloads
+      type: http
+      scheme: bearer
+      bearerFormat: gfst_ opaque token
+      description: External integration credential stored server-side, returned once, and verified by hash, organization owner, lifecycle, and required operation scope. Browsers must not receive it.
+      x-goformx-credential-class: external-service-token
+    firstPartyAssertion:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT (EdDSA)
+      description: Single-use, at-most-60-second assertion minted by the Waaseyaa server after session authentication and organization membership resolution. Never delivered to a browser and never accepted as an external service token.
+      x-goformx-credential-class: first-party-assertion
+      x-goformx-jwt-profile: gofx-fpa-v1
+      x-goformx-jwks-uri: https://goformx.com/.well-known/goformx-control-plane-jwks.json
   parameters:
     FormId:
       name: formId

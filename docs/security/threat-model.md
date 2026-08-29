@@ -2,24 +2,26 @@
 
 ## Scope and production data flow
 
-This model covers the supported `goforms/cmd/api` runtime, PostgreSQL persistence, service-token operator CLI, and CI/release path. Retired human-first and renderer-specific runtimes were removed under issue #83 and are not part of the dependency or scan graph.
+This model covers the supported `goforms/cmd/api` runtime, PostgreSQL persistence, both management credential classes, service-token operator CLI, and CI/release path. Retired human-first and renderer-specific runtimes were removed under issue #83 and are not part of the dependency or scan graph.
 
 ```text
-control-plane caller -- scoped service token --> Go API -- parameterized transaction --> PostgreSQL
+Waaseyaa control plane -- signed single-use assertion --> Go API -- parameterized transaction --> PostgreSQL
+server integration -- scoped service token --> Go API -- parameterized transaction --> PostgreSQL
 anonymous browser/HTTP caller -- public form key --> Go API -- immutable schema validation --> PostgreSQL
 operator -- database credential --> token CLI -- hash + lifecycle metadata --> PostgreSQL
 GitHub Actions -- pinned build/test/release steps --> attested multi-architecture image
 ```
 
-The public form key is intentionally embedded in a website and is not authentication. CORS restricts cooperating browsers to an owner's configured origins; it does not stop direct HTTP clients. Control-plane callers cross a different boundary: a hashed, expiring, revocable service token supplies an owner principal and one explicit scope for each operation.
+The public form key is intentionally embedded in a website and is not authentication. CORS restricts cooperating browsers to an owner's configured origins; it does not stop direct HTTP clients. Management callers cross a different boundary. An external integration presents a hashed, expiring, revocable service token. Waaseyaa presents a 60-second EdDSA assertion only after resolving the signed-in user's active organization membership. Both resolve to an owner-scoped internal principal, but each has an independent verifier and failure in one class never falls back to the other.
 
 ## Assets and security objectives
 
-The protected assets are submission payloads; immutable published schemas; service-token hashes, scopes, and lifecycle metadata; webhook secrets and delivery state; and the finite CPU, memory, database, and backup capacity of the production Pi.
+The protected assets are submission payloads; immutable published schemas; service-token hashes, assertion signing keys and replay state, scopes and credential lifecycle metadata; webhook secrets and delivery state; and the finite CPU, memory, database, and backup capacity of the production Pi.
 
 GoFormX must:
 
 - prevent a token from crossing an owner boundary and make another owner's resources indistinguishable from absent resources;
+- verify assertion issuer, audience, algorithm, type, key state, lifetime, organization, scope, and one-time identifier before dispatch;
 - validate submissions against the exact immutable schema version recorded with the submission;
 - compile only bounded Draft 2020-12 schemas whose references stay inside the submitted document;
 - bound anonymous work and durable storage per form, independently of browser-origin behavior;
@@ -33,7 +35,8 @@ GoFormX must:
 | Boundary | Attacker starting capability | Enforced control | Failure impact |
 | --- | --- | --- | --- |
 | Anonymous caller to public submission API | Knows a public form key and controls headers/body/frequency | 1 MiB body cap, per-form token bucket, rolling daily quota, schema validation, idempotency | CPU, memory, or PostgreSQL exhaustion; invalid stored data |
-| Tenant to control plane | Holds a scoped token for one owner | Hash-only token verification, expiry/revocation, route scope, uniform owner-scoped absence | Cross-tenant metadata or payload access |
+| External integration to management plane | Holds a scoped token for one owner | Hash-only token verification, expiry/revocation, route scope, uniform owner-scoped absence | Cross-tenant metadata or payload access |
+| Waaseyaa to management plane | Can mint assertions for resolved memberships and holds the signing key | Fixed issuer/audience/profile, configured JWKS, short lifetime, key state, one-use replay row, route scope, uniform owner-scoped absence | Forged identity, assertion replay, or cross-tenant access |
 | Owner schema to validator | Controls an authenticated schema definition | Exact dialect, local-only references, depth/node/pattern budgets, bounded compiled-schema cache | SSRF-like network access or validation resource exhaustion |
 | API to PostgreSQL | Controls application queries and transaction order | Parameters, foreign keys, uniqueness, row/advisory locks, immutable-schema trigger | Corruption, duplicate delivery, quota race, mutable history |
 | Operator to token CLI | Holds database credentials and terminal access | One-time plaintext output, cryptographic random token, hash-only storage, atomic rotation | Control-plane credential disclosure |
@@ -60,6 +63,7 @@ The security-gate change closes these paths with local-reference and complexity 
 | Backup confidentiality and restore access are infrastructure controls | Must be proven before production cutover | `jonesrussell/waaseyaa-infra#62` and `goformx/goformx#80` |
 | Webhook encryption-key rotation is not automated | The stable vault-backed key is part of backup/restore; queued delivery snapshots depend on it | GoFormX maintainer; add re-encryption in `goformx/goformx#113` before routine rotation is required |
 | Plaintext service token is printed once by the privileged CLI | Accepted operator boundary; terminal capture remains sensitive | Operator; rotate immediately after suspected capture |
+| Waaseyaa assertion signing key is an online control-plane secret | Public keys rotate with a 65-second overlap; compromise requires immediate revocation and service-token fallback containment | Control-plane operator; follow ADR 0002 emergency rotation and audit all affected request IDs |
 
 ## Severity calibration
 
