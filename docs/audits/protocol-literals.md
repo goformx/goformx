@@ -9,6 +9,7 @@ This audit classifies stable strings used by the supported schema-first runtime.
 | JSON Schema Draft 2020-12 dialect | `model.JSONSchemaDraft202012URI` | Canonical schema documents, OpenAPI examples, and black-box contract fixtures |
 | Public form-key prefix (`gfpk_`) | `model.PublicKeyPrefix` | Black-box fixtures that verify the wire contract |
 | Service-token prefix (`gfst_`) and scopes | `auth.ServiceTokenPrefix` and typed `auth.Scope` values | CLI examples and contract fixtures |
+| First-party assertion profile, issuer, audience, claims, and key states | `docs/adr/0002-first-party-assertions.md` and `goforms/contracts/auth/first-party-assertion.claims.schema.json` | OpenAPI security scheme and negative contract fixtures |
 | v1 control/data-plane route roots | `constants.PathV1Forms` and `constants.PathV1PublicForms` | OpenAPI paths and black-box HTTP fixtures |
 | GoFormX schema/idempotency headers and schema media type | `constants.Header*` and `constants.ContentTypeJSONSchema` | OpenAPI declarations and black-box fixtures |
 | Form lifecycle, schema-version, and submission states | Typed values in `domain/form/model` | Migration constraints/defaults and persistence integration fixtures |

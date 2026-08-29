@@ -7,14 +7,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 )
 
 type operation struct {
-	OperationID string                `yaml:"operationId"`
-	Security    []map[string][]string `yaml:"security"`
-	Responses   map[string]any        `yaml:"responses"`
+	OperationID    string                `yaml:"operationId"`
+	Security       []map[string][]string `yaml:"security"`
+	RequiredScopes []string              `yaml:"x-goformx-required-scopes"`
+	Responses      map[string]any        `yaml:"responses"`
 }
 
 type pathItem struct {
@@ -27,6 +29,18 @@ type contract struct {
 	OpenAPI           string              `yaml:"openapi"`
 	JSONSchemaDialect string              `yaml:"jsonSchemaDialect"`
 	Paths             map[string]pathItem `yaml:"paths"`
+	Components        struct {
+		SecuritySchemes map[string]securityScheme `yaml:"securitySchemes"`
+	} `yaml:"components"`
+}
+
+type securityScheme struct {
+	Type            string `yaml:"type"`
+	Scheme          string `yaml:"scheme"`
+	BearerFormat    string `yaml:"bearerFormat"`
+	CredentialClass string `yaml:"x-goformx-credential-class"`
+	JWTProfile      string `yaml:"x-goformx-jwt-profile"`
+	JWKSURI         string `yaml:"x-goformx-jwks-uri"`
 }
 
 func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
@@ -42,6 +56,9 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 	require.NotEmpty(t, api.Paths)
 
 	seenIDs := make(map[string]struct{})
+	allowedScopes := map[string]struct{}{
+		"forms:read": {}, "forms:write": {}, "forms:publish": {}, "submissions:read": {},
+	}
 	for path, item := range api.Paths {
 		for method, op := range map[string]*operation{"get": item.Get, "post": item.Post, "patch": item.Patch} {
 			if op == nil {
@@ -56,11 +73,94 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 
 			if strings.HasPrefix(path, "/v1/public/") || path == "/health" || path == "/ready" {
 				require.Empty(t, op.Security, "%s %s must remain public", method, path)
+				require.Empty(t, op.RequiredScopes, "%s %s must not require a management scope", method, path)
 			} else {
-				require.NotEmpty(t, op.Security, "%s %s must declare scoped auth", method, path)
+				require.Equal(t, []map[string][]string{
+					{"serviceToken": {}},
+					{"firstPartyAssertion": {}},
+				}, op.Security, "%s %s must accept either credential class without making them interchangeable", method, path)
+				require.Len(t, op.RequiredScopes, 1, "%s %s must declare exactly one canonical scope", method, path)
+				_, allowed := allowedScopes[op.RequiredScopes[0]]
+				require.True(t, allowed, "%s %s declares unknown scope %q", method, path, op.RequiredScopes[0])
 			}
 		}
 	}
+
+	serviceToken := api.Components.SecuritySchemes["serviceToken"]
+	require.Equal(t, "http", serviceToken.Type)
+	require.Equal(t, "bearer", serviceToken.Scheme)
+	require.Equal(t, "gfst_ opaque token", serviceToken.BearerFormat)
+	require.Equal(t, "external-service-token", serviceToken.CredentialClass)
+	require.Empty(t, serviceToken.JWTProfile)
+
+	assertion := api.Components.SecuritySchemes["firstPartyAssertion"]
+	require.Equal(t, "http", assertion.Type)
+	require.Equal(t, "bearer", assertion.Scheme)
+	require.Equal(t, "JWT (EdDSA)", assertion.BearerFormat)
+	require.Equal(t, "first-party-assertion", assertion.CredentialClass)
+	require.Equal(t, "gofx-fpa-v1", assertion.JWTProfile)
+	require.Equal(t, "https://goformx.com/.well-known/goformx-control-plane-jwks.json", assertion.JWKSURI)
+}
+
+func TestFirstPartyAssertionContractAndNegativeFixtures(t *testing.T) {
+	t.Parallel()
+
+	schemaDocument, err := os.ReadFile(filepath.Join("auth", "first-party-assertion.claims.schema.json"))
+	require.NoError(t, err)
+
+	var schema struct {
+		Dialect              string                     `json:"$schema"`
+		AdditionalProperties bool                       `json:"additionalProperties"`
+		Required             []string                   `json:"required"`
+		Properties           map[string]json.RawMessage `json:"properties"`
+	}
+	require.NoError(t, json.Unmarshal(schemaDocument, &schema))
+	require.Equal(t, "https://json-schema.org/draft/2020-12/schema", schema.Dialect)
+	require.False(t, schema.AdditionalProperties)
+	require.ElementsMatch(t,
+		[]string{"iss", "aud", "sub", "org", "scp", "iat", "nbf", "exp", "jti", "rid", "ver"},
+		schema.Required,
+	)
+	require.Len(t, schema.Properties, 11)
+	require.JSONEq(t, `{"const":"https://goformx.com"}`, string(schema.Properties["iss"]))
+	require.JSONEq(t, `{"const":"https://api.goformx.com"}`, string(schema.Properties["aud"]))
+	require.JSONEq(t, `{"const":1}`, string(schema.Properties["ver"]))
+	var schemaResource any
+	require.NoError(t, json.Unmarshal(schemaDocument, &schemaResource))
+	compiler := jsonschema.NewCompiler()
+	require.NoError(t, compiler.AddResource("first-party-assertion.claims.schema.json", schemaResource))
+	compiledSchema, err := compiler.Compile("first-party-assertion.claims.schema.json")
+	require.NoError(t, err)
+
+	fixtureDocument, err := os.ReadFile(filepath.Join("auth", "first-party-assertion.examples.json"))
+	require.NoError(t, err)
+
+	var fixtures struct {
+		Profile string `json:"profile"`
+		Valid   struct {
+			Header map[string]any `json:"header"`
+			Claims map[string]any `json:"claims"`
+		} `json:"valid"`
+		Negative []struct {
+			Name string `json:"name"`
+		} `json:"negative"`
+	}
+	require.NoError(t, json.Unmarshal(fixtureDocument, &fixtures))
+	require.Equal(t, "gofx-fpa-v1", fixtures.Profile)
+	require.Equal(t, "EdDSA", fixtures.Valid.Header["alg"])
+	require.Equal(t, "gofx-fpa+jwt", fixtures.Valid.Header["typ"])
+	require.Equal(t, "https://goformx.com", fixtures.Valid.Claims["iss"])
+	require.Equal(t, "https://api.goformx.com", fixtures.Valid.Claims["aud"])
+	require.NoError(t, compiledSchema.Validate(fixtures.Valid.Claims))
+	require.Equal(t, float64(60), fixtures.Valid.Claims["exp"].(float64)-fixtures.Valid.Claims["iat"].(float64))
+
+	negativeNames := make([]string, 0, len(fixtures.Negative))
+	for _, fixture := range fixtures.Negative {
+		negativeNames = append(negativeNames, fixture.Name)
+	}
+	require.ElementsMatch(t, []string{
+		"wrong-issuer", "wrong-audience", "wrong-organization", "missing-scope", "expired", "replayed-jti", "revoked-key",
+	}, negativeNames)
 }
 
 func TestCanonicalSchemaAndReferencesExist(t *testing.T) {

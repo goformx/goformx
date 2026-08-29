@@ -24,7 +24,7 @@ Tool versions must be pinned. Do not introduce `@latest`, hidden global prerequi
 
 Keep business rules independent of HTTP, logging, configuration, and persistence. New code should live behind explicit packages for form, schema, submission, auth, Postgres, HTTP API, migrations, and OpenAPI. Prefer explicit constructors and one middleware chain.
 
-Public browsers use unguessable form keys and never receive reusable credentials. Control-plane callers use scoped, revocable service tokens. Submissions must record the immutable schema version used for validation.
+Public browsers use unguessable form keys and never receive reusable credentials. External control-plane callers use scoped, revocable service tokens. The Waaseyaa control plane acts for a resolved user and organization through the single-use first-party assertion profile in `docs/adr/0002-first-party-assertions.md`; the two credential classes must not fall back to one another. Submissions must record the immutable schema version used for validation.
 
 ## Tests and changes
 
