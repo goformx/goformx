@@ -51,7 +51,10 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		VALUES (?, 'form-fixture@example.test', 'not-used', 'Form', 'Fixture')
 		ON CONFLICT (uuid) DO NOTHING
 	`, ownerID).Error)
-	t.Cleanup(func() { _ = db.Exec("DELETE FROM users WHERE uuid = ?", ownerID).Error })
+	t.Cleanup(func() {
+		_ = db.Exec("DELETE FROM forms WHERE organization_id = ?", ownerID).Error
+		_ = db.Exec("DELETE FROM users WHERE uuid = ?", ownerID).Error
+	})
 	ctrl := gomock.NewController(t)
 	store := formrepository.NewStore(&integrationDB{db: db}, mocklogging.NewMockLogger(ctrl))
 
@@ -66,7 +69,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 
 	form.Status = model.LifecyclePublished
 	require.NoError(t, store.UpdateForm(t.Context(), form))
-	publicForm, err := store.GetFormByID(t.Context(), form.ID)
+	publicForm, err := store.GetFormByID(t.Context(), ownerID, form.ID)
 	require.NoError(t, err)
 	require.Equal(t, form.ID, publicForm.ID)
 	require.Equal(t, "object", publicForm.Schema["type"])

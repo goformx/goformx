@@ -88,8 +88,8 @@ func (s *Store) CreateForm(ctx context.Context, formModel *model.Form) error {
 	return nil
 }
 
-// GetFormByID retrieves a form by ID
-func (s *Store) GetFormByID(ctx context.Context, id string) (*model.Form, error) {
+// GetFormByID retrieves a form only inside the authenticated organization boundary.
+func (s *Store) GetFormByID(ctx context.Context, organizationID, id string) (*model.Form, error) {
 	// Normalize the UUID by trimming spaces and converting to lowercase
 	normalizedID := strings.TrimSpace(strings.ToLower(id))
 
@@ -105,7 +105,9 @@ func (s *Store) GetFormByID(ctx context.Context, id string) (*model.Form, error)
 	}
 
 	var formModel model.Form
-	if err := s.db.GetDB().WithContext(ctx).Where("uuid = ?", normalizedID).First(&formModel).Error; err != nil {
+	if err := s.db.GetDB().WithContext(ctx).Where(
+		"organization_id = ? AND uuid = ?", organizationID, normalizedID,
+	).First(&formModel).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			s.logger.Debug("form not found in database",
 				"id_length", len(normalizedID),
@@ -141,15 +143,15 @@ func (s *Store) loadCurrentSchema(ctx context.Context, formModel *model.Form) er
 	return nil
 }
 
-// ListForms retrieves all forms for a user
-func (s *Store) ListForms(ctx context.Context, userID string) ([]*model.Form, error) {
+// ListForms retrieves all forms for an organization.
+func (s *Store) ListForms(ctx context.Context, organizationID string) ([]*model.Form, error) {
 	var forms []*model.Form
 	if err := s.db.GetDB().WithContext(ctx).
-		Where("user_id = ?", userID).
+		Where("organization_id = ?", organizationID).
 		Order("created_at DESC").
 		Find(&forms).Error; err != nil {
 		s.logger.Error("failed to list forms",
-			"user_id", userID,
+			"organization_id", organizationID,
 			"error", err,
 		)
 
@@ -181,7 +183,9 @@ func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form) error {
 				return fmt.Errorf("publish schema version: %w", err)
 			}
 		}
-		result := tx.Model(&model.Form{}).Where("uuid = ?", formModel.ID).Updates(formModel)
+		result := tx.Model(&model.Form{}).Where(
+			"organization_id = ? AND uuid = ?", formModel.OrganizationID, formModel.ID,
+		).Updates(formModel)
 		if result.Error != nil {
 			return fmt.Errorf("update form: %w", common.NewDatabaseError("update", "form", formModel.ID, result.Error))
 		}

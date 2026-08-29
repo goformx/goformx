@@ -74,8 +74,8 @@ func (r webhookResolver) LookupNetIP(_ context.Context, _ string, host string) (
 func TestWebhookAPIKeepsSecretsWriteOnlyAndBlocksUnsafeInputs(t *testing.T) {
 	t.Parallel()
 	base := mockform.NewMockRepository(gomock.NewController(t))
-	base.EXPECT().GetFormByID(gomock.Any(), "11111111-1111-4111-8111-111111111111").
-		Return(&model.Form{ID: "11111111-1111-4111-8111-111111111111", UserID: "owner-a"}, nil).
+	base.EXPECT().GetFormByID(gomock.Any(), "owner-a", "11111111-1111-4111-8111-111111111111").
+		Return(&model.Form{ID: "11111111-1111-4111-8111-111111111111", OrganizationID: "owner-a"}, nil).
 		AnyTimes()
 	repository := &webhookAPIRepository{V1Repository: base}
 	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{
@@ -122,8 +122,8 @@ func TestWebhookDeliveryStatusAndDeadLetterReplay(t *testing.T) {
 	base := mockform.NewMockRepository(gomock.NewController(t))
 	formID := "11111111-1111-4111-8111-111111111111"
 	deliveryID := "33333333-3333-4333-8333-333333333333"
-	base.EXPECT().GetFormByID(gomock.Any(), formID).
-		Return(&model.Form{ID: formID, UserID: "owner-a"}, nil).AnyTimes()
+	base.EXPECT().GetFormByID(gomock.Any(), "owner-a", formID).
+		Return(&model.Form{ID: formID, OrganizationID: "owner-a"}, nil).AnyTimes()
 	repository := &webhookAPIRepository{V1Repository: base, deliveries: []*domainwebhook.Delivery{{
 		ID: deliveryID, SubmissionID: "22222222-2222-4222-8222-222222222222",
 		Status: domainwebhook.DeliveryDeadLetter, AttemptCount: 8, LastErrorCategory: "network",

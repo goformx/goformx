@@ -31,7 +31,7 @@ var (
 // Form represents a form in the system
 type Form struct {
 	ID                   string          `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	UserID               string          `gorm:"not null;index;type:uuid"                                   json:"user_id"`
+	OrganizationID       string          `gorm:"column:organization_id;not null;index;type:uuid"            json:"organization_id"`
 	Name                 string          `gorm:"not null;size:63"                                           json:"name"`
 	Title                string          `gorm:"not null;size:100"                                          json:"title"`
 	Description          string          `gorm:"size:500"                                                   json:"description"`
@@ -238,23 +238,23 @@ func (j *JSON) UnmarshalJSON(data []byte) error {
 }
 
 // NewForm creates a new form instance
-func NewForm(userID, title, description string, schema JSON) *Form {
+func NewForm(organizationID, title, description string, schema JSON) *Form {
 	now := time.Now()
 
 	return &Form{
-		ID:          uuid.New().String(),
-		UserID:      userID,
-		Title:       title,
-		Description: description,
-		Schema:      schema,
-		Active:      true,
-		Status:      LifecycleDraft,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-		DeletedAt:   gorm.DeletedAt{},
-		CorsOrigins: JSON{},
-		CorsMethods: JSON{},
-		CorsHeaders: JSON{},
+		ID:             uuid.New().String(),
+		OrganizationID: organizationID,
+		Title:          title,
+		Description:    description,
+		Schema:         schema,
+		Active:         true,
+		Status:         LifecycleDraft,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		DeletedAt:      gorm.DeletedAt{},
+		CorsOrigins:    JSON{},
+		CorsMethods:    JSON{},
+		CorsHeaders:    JSON{},
 	}
 }
 

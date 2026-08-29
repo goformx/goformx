@@ -72,7 +72,7 @@ func rotate(ctx context.Context, arguments []string) error {
 	var ownerID string
 	var encodedScopes []byte
 	err = transaction.QueryRow(ctx, `
-		SELECT owner_id, scopes
+		SELECT organization_id, scopes
 		FROM service_tokens
 		WHERE token_id = $1 AND revoked_at IS NULL AND expires_at > now()
 		FOR UPDATE
@@ -101,7 +101,7 @@ func rotate(ctx context.Context, arguments []string) error {
 		return fmt.Errorf("encode replacement scopes: %w", err)
 	}
 	_, err = transaction.Exec(ctx, `
-		INSERT INTO service_tokens (token_id, owner_id, token_hash, scopes, created_at, expires_at)
+		INSERT INTO service_tokens (token_id, organization_id, token_hash, scopes, created_at, expires_at)
 		VALUES ($1, $2, $3, $4::jsonb, $5, $6)
 	`, replacement.ID, replacement.OwnerID, replacement.Hash[:], string(replacementScopes),
 		replacement.CreatedAt, replacement.ExpiresAt)
@@ -160,7 +160,7 @@ func issue(ctx context.Context, arguments []string) error {
 		return fmt.Errorf("encode scopes: %w", err)
 	}
 	_, err = connection.Exec(ctx, `
-		INSERT INTO service_tokens (token_id, owner_id, token_hash, scopes, created_at, expires_at)
+		INSERT INTO service_tokens (token_id, organization_id, token_hash, scopes, created_at, expires_at)
 		VALUES ($1, $2, $3, $4::jsonb, $5, $6)
 	`, token.ID, token.OwnerID, token.Hash[:], string(encodedScopes), token.CreatedAt, token.ExpiresAt)
 	if err != nil {
