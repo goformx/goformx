@@ -18,17 +18,24 @@ import (
 	"github.com/goformx/goforms/internal/application/handlers/web"
 	"github.com/goformx/goforms/internal/application/middleware/serviceauth"
 	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
+	"github.com/goformx/goforms/internal/domain/auth"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
+	"github.com/goformx/goforms/internal/infrastructure/authn"
 	"github.com/goformx/goforms/internal/infrastructure/config"
 	"github.com/goformx/goforms/internal/infrastructure/database"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
+	assertionreplay "github.com/goformx/goforms/internal/infrastructure/repository/assertionreplay"
 	formstore "github.com/goformx/goforms/internal/infrastructure/repository/form"
 	tokenstore "github.com/goformx/goforms/internal/infrastructure/repository/token"
 	"github.com/goformx/goforms/internal/infrastructure/sanitization"
 	"github.com/goformx/goforms/internal/infrastructure/version"
 )
 
-const shutdownTimeout = 10 * time.Second
+const (
+	shutdownTimeout       = 10 * time.Second
+	replayCleanupInterval = 5 * time.Minute
+	replayCleanupBatch    = 1000
+)
 
 type readinessChecker interface {
 	Ping(context.Context) error
@@ -74,7 +81,27 @@ func run(ctx context.Context) error {
 		WebhookCipher:        webhookCipher,
 	})
 	tokens := tokenstore.NewStore(db)
-	router := newRouter(cfg, forms, tokens, db, logger)
+	var assertions serviceauth.AssertionVerifier
+	if cfg.Security.FirstParty.Enabled {
+		keys, keyErr := authn.NewJWKSProvider(authn.JWKSProviderConfig{
+			Snapshot: cfg.Security.FirstParty.JWKSSnapshot, URL: cfg.Security.FirstParty.JWKSURL,
+			RefreshInterval: cfg.Security.FirstParty.RefreshInterval,
+		})
+		if keyErr != nil {
+			return fmt.Errorf("configure first-party verification keys: %w", keyErr)
+		}
+		replays := assertionreplay.NewStore(db)
+		verifier, verifierErr := auth.NewFirstPartyVerifier(
+			cfg.Security.FirstParty.Issuer, cfg.Security.FirstParty.Audience,
+			keys, replays,
+		)
+		if verifierErr != nil {
+			return fmt.Errorf("configure first-party assertion verifier: %w", verifierErr)
+		}
+		assertions = verifier
+		go runReplayCleanup(ctx, replays, logger)
+	}
+	router := newRouterWithAssertions(cfg, forms, tokens, db, logger, assertions)
 	if cfg.Webhook.Enabled {
 		destinationPolicy := deliveryapp.NewDestinationPolicy(nil)
 		dispatcher := deliveryapp.NewDispatcher(forms, webhookCipher,
@@ -120,12 +147,47 @@ func run(ctx context.Context) error {
 	}
 }
 
+type replayCleaner interface {
+	DeleteExpired(context.Context, time.Time, int) (int64, error)
+}
+
+func runReplayCleanup(ctx context.Context, cleaner replayCleaner, logger logging.Logger) {
+	ticker := time.NewTicker(replayCleanupInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case now := <-ticker.C:
+			deleted, err := cleaner.DeleteExpired(ctx, now.UTC(), replayCleanupBatch)
+			if err != nil {
+				logger.Warn("first-party replay cleanup failed", "error", err)
+				continue
+			}
+			if deleted > 0 {
+				logger.Debug("first-party replay identities expired", "count", deleted)
+			}
+		}
+	}
+}
+
 func newRouter(
 	cfg *config.Config,
 	forms web.V1Repository,
 	tokens serviceauth.Repository,
 	readiness readinessChecker,
 	logger logging.Logger,
+) *echo.Echo {
+	return newRouterWithAssertions(cfg, forms, tokens, readiness, logger, nil)
+}
+
+func newRouterWithAssertions(
+	cfg *config.Config,
+	forms web.V1Repository,
+	tokens serviceauth.Repository,
+	readiness readinessChecker,
+	logger logging.Logger,
+	assertions serviceauth.AssertionVerifier,
 ) *echo.Echo {
 	router := echo.New()
 	router.HideBanner = true
@@ -167,7 +229,7 @@ func newRouter(
 	web.NewV1APIHandlerWithLimits(forms, tokens, logger, web.V1Limits{
 		PublicSubmissionRPS:   cfg.Security.RateLimit.PublicSubmissionRPS,
 		PublicSubmissionBurst: cfg.Security.RateLimit.PublicSubmissionBurst,
-	}).RegisterRoutes(router)
+	}, assertions).RegisterRoutes(router)
 	return router
 }
 

@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -14,7 +15,17 @@ type Config struct {
 }
 
 type SecurityConfig struct {
-	RateLimit RateLimitConfig `json:"rate_limit"`
+	RateLimit  RateLimitConfig  `json:"rate_limit"`
+	FirstParty FirstPartyConfig `json:"first_party"`
+}
+
+type FirstPartyConfig struct {
+	Enabled         bool          `json:"enabled"`
+	Issuer          string        `json:"issuer"`
+	Audience        string        `json:"audience"`
+	JWKSURL         string        `json:"jwks_url"`
+	JWKSSnapshot    string        `json:"jwks_snapshot"`
+	RefreshInterval time.Duration `json:"refresh_interval"`
 }
 
 type RateLimitConfig struct {
@@ -49,6 +60,17 @@ func (c *Config) validate() error {
 		}
 		if c.Security.RateLimit.SubmissionsPerDay <= 0 {
 			errs = append(errs, "daily submission limit must be positive")
+		}
+	}
+	if c.Security.FirstParty.Enabled {
+		if c.Security.FirstParty.Issuer == "" || c.Security.FirstParty.Audience == "" {
+			errs = append(errs, "first-party assertion issuer and audience are required")
+		}
+		if c.Security.FirstParty.JWKSSnapshot == "" {
+			errs = append(errs, "first-party assertion JWKS snapshot is required")
+		}
+		if c.Security.FirstParty.RefreshInterval <= 0 {
+			errs = append(errs, "first-party assertion refresh interval must be positive")
 		}
 	}
 	if err := c.Webhook.Validate(); err != nil {

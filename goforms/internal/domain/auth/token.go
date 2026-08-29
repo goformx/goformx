@@ -103,7 +103,8 @@ func Issue(ownerID string, scopes []Scope, ttl time.Duration, now time.Time) (*S
 		CreatedAt: now.UTC(), ExpiresAt: now.Add(ttl).UTC()}, plaintext, nil
 }
 
-func (t *ServiceToken) Authorize(plaintext, ownerID string, required Scope, now time.Time) error {
+// Authenticate verifies the opaque token value, organization binding, and lifecycle.
+func (t *ServiceToken) Authenticate(plaintext, ownerID string, now time.Time) error {
 	if t.RevokedAt != nil {
 		return errors.New("service token is revoked")
 	}
@@ -117,7 +118,14 @@ func (t *ServiceToken) Authorize(plaintext, ownerID string, required Scope, now 
 	if subtle.ConstantTimeCompare(candidate[:], t.Hash[:]) != 1 {
 		return errors.New("invalid service token")
 	}
-	if _, ok := t.Scopes[required]; !ok {
+	return nil
+}
+
+func (t *ServiceToken) Authorize(plaintext, ownerID string, required Scope, now time.Time) error {
+	if err := t.Authenticate(plaintext, ownerID, now); err != nil {
+		return err
+	}
+	if !t.HasScope(required) {
 		return errors.New("service token scope denied")
 	}
 	return nil

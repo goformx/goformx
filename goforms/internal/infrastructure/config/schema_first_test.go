@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -12,6 +13,21 @@ func testLoader() *ViperConfig {
 	loader := NewViperConfig()
 	loader.viper.Set("database.password", "test-password")
 	return loader
+}
+
+func TestFirstPartyConfigurationFailsClosedWithoutSnapshot(t *testing.T) {
+	loader := testLoader()
+	loader.viper.Set("security.first_party.enabled", true)
+	_, err := loader.LoadSchemaFirstAPI()
+	require.ErrorContains(t, err, "JWKS snapshot")
+
+	loader.viper.Set("security.first_party.jwks_snapshot", `{"keys":[{"kid":"local"}]}`)
+	cfg, err := loader.LoadSchemaFirstAPI()
+	require.NoError(t, err)
+	require.True(t, cfg.Security.FirstParty.Enabled)
+	require.Equal(t, "https://goformx.com", cfg.Security.FirstParty.Issuer)
+	require.Equal(t, "https://api.goformx.com", cfg.Security.FirstParty.Audience)
+	require.Equal(t, 30*time.Second, cfg.Security.FirstParty.RefreshInterval)
 }
 
 func TestSchemaFirstConfiguration(t *testing.T) {

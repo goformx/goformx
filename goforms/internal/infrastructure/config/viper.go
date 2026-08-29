@@ -30,14 +30,20 @@ func NewViperConfig() *ViperConfig {
 		"database.port": {"DB_PORT"}, "database.name": {"DB_NAME", "DB_DATABASE"},
 		"database.username": {"DB_USERNAME", "DB_USER"}, "database.password": {"DB_PASSWORD"},
 		"database.ssl_mode": {"DB_SSL_MODE"}, "database.max_open_conns": {"DB_MAX_OPEN_CONNS"},
-		"database.max_idle_conns":     {"DB_MAX_IDLE_CONNS"},
-		"database.conn_max_lifetime":  {"DB_CONN_MAX_LIFETIME"},
-		"database.conn_max_idle_time": {"DB_CONN_MAX_IDLE_TIME"},
-		"webhook.enabled":             {"WEBHOOK_ENABLED"},
-		"webhook.encryption_key":      {"WEBHOOK_ENCRYPTION_KEY"},
-		"webhook.poll_interval":       {"WEBHOOK_POLL_INTERVAL"},
-		"webhook.request_timeout":     {"WEBHOOK_REQUEST_TIMEOUT"},
-		"webhook.lock_timeout":        {"WEBHOOK_LOCK_TIMEOUT"}, "webhook.max_attempts": {"WEBHOOK_MAX_ATTEMPTS"},
+		"database.max_idle_conns":               {"DB_MAX_IDLE_CONNS"},
+		"database.conn_max_lifetime":            {"DB_CONN_MAX_LIFETIME"},
+		"database.conn_max_idle_time":           {"DB_CONN_MAX_IDLE_TIME"},
+		"security.first_party.enabled":          {"FIRST_PARTY_ASSERTION_ENABLED"},
+		"security.first_party.issuer":           {"FIRST_PARTY_ASSERTION_ISSUER"},
+		"security.first_party.audience":         {"FIRST_PARTY_ASSERTION_AUDIENCE"},
+		"security.first_party.jwks_url":         {"FIRST_PARTY_ASSERTION_JWKS_URL"},
+		"security.first_party.jwks_snapshot":    {"FIRST_PARTY_ASSERTION_JWKS_SNAPSHOT"},
+		"security.first_party.refresh_interval": {"FIRST_PARTY_ASSERTION_REFRESH_INTERVAL"},
+		"webhook.enabled":                       {"WEBHOOK_ENABLED"},
+		"webhook.encryption_key":                {"WEBHOOK_ENCRYPTION_KEY"},
+		"webhook.poll_interval":                 {"WEBHOOK_POLL_INTERVAL"},
+		"webhook.request_timeout":               {"WEBHOOK_REQUEST_TIMEOUT"},
+		"webhook.lock_timeout":                  {"WEBHOOK_LOCK_TIMEOUT"}, "webhook.max_attempts": {"WEBHOOK_MAX_ATTEMPTS"},
 		"webhook.backoff_base": {"WEBHOOK_BACKOFF_BASE"}, "webhook.backoff_max": {"WEBHOOK_BACKOFF_MAX"},
 	}
 	for key, names := range bindings {
@@ -82,13 +88,23 @@ func (vc *ViperConfig) LoadSchemaFirstAPI() (*Config, error) {
 			ConnMaxLifetime: vc.viper.GetDuration("database.conn_max_lifetime"),
 			ConnMaxIdleTime: vc.viper.GetDuration("database.conn_max_idle_time"),
 		},
-		Security: SecurityConfig{RateLimit: RateLimitConfig{
-			Enabled: vc.viper.GetBool("security.rate_limit.enabled"), RPS: vc.viper.GetInt("security.rate_limit.rps"),
-			Burst:                 vc.viper.GetInt("security.rate_limit.burst"),
-			PublicSubmissionRPS:   vc.viper.GetFloat64("security.rate_limit.public_submission_rps"),
-			PublicSubmissionBurst: vc.viper.GetInt("security.rate_limit.public_submission_burst"),
-			SubmissionsPerDay:     vc.viper.GetInt("security.rate_limit.submissions_per_day"),
-		}},
+		Security: SecurityConfig{
+			RateLimit: RateLimitConfig{
+				Enabled: vc.viper.GetBool("security.rate_limit.enabled"), RPS: vc.viper.GetInt("security.rate_limit.rps"),
+				Burst:                 vc.viper.GetInt("security.rate_limit.burst"),
+				PublicSubmissionRPS:   vc.viper.GetFloat64("security.rate_limit.public_submission_rps"),
+				PublicSubmissionBurst: vc.viper.GetInt("security.rate_limit.public_submission_burst"),
+				SubmissionsPerDay:     vc.viper.GetInt("security.rate_limit.submissions_per_day"),
+			},
+			FirstParty: FirstPartyConfig{
+				Enabled:         vc.viper.GetBool("security.first_party.enabled"),
+				Issuer:          vc.viper.GetString("security.first_party.issuer"),
+				Audience:        vc.viper.GetString("security.first_party.audience"),
+				JWKSURL:         vc.viper.GetString("security.first_party.jwks_url"),
+				JWKSSnapshot:    vc.viper.GetString("security.first_party.jwks_snapshot"),
+				RefreshInterval: vc.viper.GetDuration("security.first_party.refresh_interval"),
+			},
+		},
 		Webhook: WebhookConfig{
 			Enabled: vc.viper.GetBool("webhook.enabled"), EncryptionKey: vc.viper.GetString("webhook.encryption_key"),
 			PollInterval:   vc.viper.GetDuration("webhook.poll_interval"),
@@ -134,6 +150,12 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("security.rate_limit.public_submission_rps", defaultPublicSubmissionRPS)
 	v.SetDefault("security.rate_limit.public_submission_burst", defaultPublicSubmissionBurst)
 	v.SetDefault("security.rate_limit.submissions_per_day", defaultSubmissionsPerDay)
+	v.SetDefault("security.first_party.enabled", false)
+	v.SetDefault("security.first_party.issuer", "https://goformx.com")
+	v.SetDefault("security.first_party.audience", "https://api.goformx.com")
+	v.SetDefault("security.first_party.jwks_url", "https://goformx.com/.well-known/goformx-control-plane-jwks.json")
+	v.SetDefault("security.first_party.jwks_snapshot", "")
+	v.SetDefault("security.first_party.refresh_interval", 30*time.Second)
 	v.SetDefault("webhook.enabled", false)
 	v.SetDefault("webhook.encryption_key", "")
 	v.SetDefault("webhook.poll_interval", time.Second)
