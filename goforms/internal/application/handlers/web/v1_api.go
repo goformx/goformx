@@ -130,12 +130,12 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.POST("/:formId/versions", h.instrument("create_schema_version", h.createSchemaVersion), h.require(auth.ScopeFormsWrite))
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead))
-	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeFormsWrite))
-	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeFormsRead))
-	control.DELETE("/:formId/webhook", h.instrument("delete_webhook", h.deleteWebhook), h.require(auth.ScopeFormsWrite))
+	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite))
+	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeWebhooksRead))
+	control.DELETE("/:formId/webhook", h.instrument("delete_webhook", h.deleteWebhook), h.require(auth.ScopeWebhooksWrite))
 	control.GET("/:formId/deliveries", h.instrument("list_deliveries", h.listWebhookDeliveries), h.require(auth.ScopeSubmissionsRead))
 	control.POST("/:formId/deliveries/:deliveryId/replay", h.instrument("replay_delivery", h.replayWebhookDelivery),
-		h.require(auth.ScopeFormsWrite))
+		h.require(auth.ScopeWebhooksWrite))
 
 	public := e.Group(constants.PathV1PublicForms)
 	public.Use(h.publicCORS())

@@ -49,7 +49,7 @@ Claims:
 | `aud` | Exactly `https://api.goformx.com`; arrays and alternate audiences are rejected. |
 | `sub` | Stable opaque Waaseyaa user UUID. Never an email address or display name. |
 | `org` | Stable GoFormX organization UUID selected by server-side membership policy. |
-| `scp` | Non-empty, duplicate-free array drawn from the same scope registry used by service tokens. |
+| `scp` | Non-empty, duplicate-free array drawn from the same scope registry used by service tokens: `forms:read`, `forms:write`, `forms:publish`, `submissions:read`, `tokens:read`, `tokens:write`, `webhooks:read`, and `webhooks:write`. |
 | `iat` | NumericDate at signing time. |
 | `nbf` | NumericDate equal to `iat`; the assertion is not valid early. |
 | `exp` | NumericDate no more than 60 seconds after `iat`. |
@@ -120,4 +120,3 @@ The browser-to-Waaseyaa session boundary, Waaseyaa-to-GoFormX assertion boundary
 - #120 must implement assertion verification, replay persistence, key-state handling, principal convergence, and negative tests without replacing `gfst_` tokens.
 - The Waaseyaa control plane needs Ed25519 signing custody and a JWKS endpoint, but does not need access to GoFormX token hashes or PostgreSQL.
 - Adding claims, algorithms, audiences, versions, or scopes is a contract change requiring fixtures, negative tests, OpenAPI updates, and an ADR amendment.
-

@@ -23,3 +23,21 @@ func TestServiceTokenScopesOwnersExpiryAndRevocation(t *testing.T) {
 	token.Revoke(now)
 	require.Error(t, token.Authorize(plaintext, "owner-a", auth.ScopeFormsRead, now))
 }
+
+func TestCanonicalManagementScopeRegistry(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, []auth.Scope{
+		auth.ScopeFormsRead,
+		auth.ScopeFormsWrite,
+		auth.ScopeFormsPublish,
+		auth.ScopeSubmissionsRead,
+		auth.ScopeTokensRead,
+		auth.ScopeTokensWrite,
+		auth.ScopeWebhooksRead,
+		auth.ScopeWebhooksWrite,
+	}, auth.AllScopes())
+	require.True(t, auth.ScopeWebhooksWrite.Valid())
+	require.False(t, auth.Scope("admin").Valid())
+	_, _, err := auth.Issue("owner-a", []auth.Scope{"admin"}, time.Hour, time.Now())
+	require.ErrorContains(t, err, "unsupported scope")
+}

@@ -16,10 +16,6 @@ import (
 	"github.com/goformx/goforms/internal/domain/auth"
 )
 
-var validScopes = map[auth.Scope]struct{}{
-	auth.ScopeFormsRead: {}, auth.ScopeFormsWrite: {}, auth.ScopeFormsPublish: {}, auth.ScopeSubmissionsRead: {},
-}
-
 func main() {
 	if err := run(context.Background(), os.Args[1:]); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "goformx-token:", err)
@@ -215,7 +211,7 @@ func parseScopes(value string) ([]auth.Scope, error) {
 	scopes := make([]auth.Scope, 0, len(items))
 	for _, item := range items {
 		scope := auth.Scope(strings.TrimSpace(item))
-		if _, ok := validScopes[scope]; !ok {
+		if !scope.Valid() {
 			return nil, fmt.Errorf("unsupported scope %q", scope)
 		}
 		if _, duplicate := seen[scope]; duplicate {

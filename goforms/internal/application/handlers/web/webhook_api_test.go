@@ -79,7 +79,7 @@ func TestWebhookAPIKeepsSecretsWriteOnlyAndBlocksUnsafeInputs(t *testing.T) {
 		AnyTimes()
 	repository := &webhookAPIRepository{V1Repository: base}
 	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{
-		auth.ScopeFormsRead, auth.ScopeFormsWrite, auth.ScopeSubmissionsRead,
+		auth.ScopeWebhooksRead, auth.ScopeWebhooksWrite, auth.ScopeSubmissionsRead,
 	}, time.Hour, time.Now())
 	require.NoError(t, err)
 	handler := newV1APIHandler(repository, fixedTokenRepository{token: token}, nil, nil)
@@ -130,7 +130,7 @@ func TestWebhookDeliveryStatusAndDeadLetterReplay(t *testing.T) {
 		CreatedAt: time.Now(), UpdatedAt: time.Now(), NextAttemptAt: time.Now(),
 	}}}
 	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{
-		auth.ScopeFormsWrite, auth.ScopeSubmissionsRead,
+		auth.ScopeWebhooksWrite, auth.ScopeSubmissionsRead,
 	}, time.Hour, time.Now())
 	require.NoError(t, err)
 	router := echo.New()

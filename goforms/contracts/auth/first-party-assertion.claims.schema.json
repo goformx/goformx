@@ -15,7 +15,16 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": {
-        "enum": ["forms:read", "forms:write", "forms:publish", "submissions:read"]
+        "enum": [
+          "forms:read",
+          "forms:write",
+          "forms:publish",
+          "submissions:read",
+          "tokens:read",
+          "tokens:write",
+          "webhooks:read",
+          "webhooks:write"
+        ]
       }
     },
     "iat": { "type": "integer", "minimum": 0 },
