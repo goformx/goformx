@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,6 +18,7 @@ type FormSubmission struct {
 	ID             string           `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
 	FormID         string           `gorm:"not null;index;type:uuid"                                   json:"form_id"`
 	SchemaVersion  int              `gorm:"not null"                                                   json:"schema_version"`
+	RequestID      string           `gorm:"column:request_id;not null"                                 json:"request_id"`
 	IdempotencyKey string           `gorm:"column:idempotency_key"                                     json:"-"`
 	Data           JSON             `gorm:"type:jsonb;not null"                                        json:"data"`
 	SubmittedAt    time.Time        `gorm:"not null"                                                   json:"submitted_at"`
@@ -34,6 +36,9 @@ func (s *FormSubmission) BeforeCreate(_ *gorm.DB) error {
 	}
 	if s.Status == "" {
 		s.Status = SubmissionStatusAccepted
+	}
+	if s.RequestID == "" {
+		s.RequestID = "req_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	return nil
 }

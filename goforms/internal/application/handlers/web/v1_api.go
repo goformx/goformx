@@ -33,7 +33,10 @@ import (
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 )
 
-var formNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{2,62}$`)
+var (
+	formNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{2,62}$`)
+	traceIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+)
 
 // V1APIHandler implements the schema-first control and public data planes.
 type V1APIHandler struct {
@@ -60,6 +63,7 @@ type V1Repository interface {
 	GetSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
 	PublishSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
 	ListSubmissionsPage(context.Context, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)
+	GetSubmissionByOrganization(context.Context, string, string, string) (*model.FormSubmission, error)
 	GetPublishedSchemaVersion(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)
 	CreateSubmissionIdempotent(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)
 }
@@ -142,6 +146,7 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.POST("/:formId/versions", h.instrument("create_schema_version", h.createSchemaVersion), h.require(auth.ScopeFormsWrite))
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead))
+	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead))
 	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite))
 	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeWebhooksRead))
 	control.DELETE("/:formId/webhook", h.instrument("delete_webhook", h.deleteWebhook), h.require(auth.ScopeWebhooksWrite))
@@ -447,6 +452,17 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	}})
 }
 
+func (h *V1APIHandler) getSubmission(c echo.Context) error {
+	principal, _ := serviceauth.PrincipalFrom(c)
+	submission, err := h.repository.GetSubmissionByOrganization(
+		c.Request().Context(), principal.OwnerID, c.Param("formId"), c.Param("submissionId"),
+	)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": submissionResource(submission)})
+}
+
 type putWebhookRequest struct {
 	URL           string            `json:"url"`
 	Headers       map[string]string `json:"headers"`
@@ -736,7 +752,7 @@ func (h *V1APIHandler) createSubmission(c echo.Context) error {
 	}
 	now := time.Now().UTC()
 	submission := &model.FormSubmission{FormID: formModel.ID, SchemaVersion: schemaVersion.Version(),
-		IdempotencyKey: idempotencyKey, Data: request.Data, SubmittedAt: now,
+		RequestID: requestID(c), IdempotencyKey: idempotencyKey, Data: request.Data, SubmittedAt: now,
 		Status: model.SubmissionStatusAccepted, Metadata: model.JSON{}}
 	stored, replayed, err := h.repository.CreateSubmissionIdempotent(c.Request().Context(), submission)
 	if err != nil {
@@ -841,7 +857,8 @@ func schemaVersionResource(version *model.SchemaVersion) map[string]any {
 
 func submissionResource(submission *model.FormSubmission) map[string]any {
 	return map[string]any{"id": submission.ID, "formId": submission.FormID, "schemaVersion": submission.SchemaVersion,
-		"status": submission.Status, "data": submission.Data, "submittedAt": submission.SubmittedAt.UTC().Format(time.RFC3339)}
+		"requestId": submission.RequestID, "status": submission.Status, "data": submission.Data,
+		"submittedAt": submission.SubmittedAt.UTC().Format(time.RFC3339)}
 }
 
 func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {
@@ -863,7 +880,7 @@ func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {
 
 func requestID(c echo.Context) string {
 	id := c.Request().Header.Get(constants.HeaderTraceID)
-	if id == "" {
+	if !traceIDPattern.MatchString(id) {
 		id = "req_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
 	c.Response().Header().Set(constants.HeaderTraceID, id)

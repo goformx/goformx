@@ -234,6 +234,24 @@ paths:
                     $ref: '#/components/schemas/CursorPageMeta'
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/submissions/{submissionId}:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+      - $ref: '#/components/parameters/SubmissionId'
+    get:
+      summary: Get one immutable submission with schema and request provenance
+      operationId: getSubmission
+      tags: [Control plane]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [submissions:read]
+      responses:
+        '200':
+          description: Organization-owned immutable submission
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SubmissionEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms/{formId}/webhook:
     parameters:
       - $ref: '#/components/parameters/FormId'
@@ -507,6 +525,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    SubmissionId:
+      name: submissionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     TokenId:
       name: tokenId
       in: path
@@ -621,11 +644,16 @@ components:
         publishedAt: { type: string, format: date-time }
     Submission:
       type: object
-      required: [id, formId, schemaVersion, status, data, submittedAt]
+      required: [id, formId, schemaVersion, requestId, status, data, submittedAt]
       properties:
         id: { type: string, format: uuid }
         formId: { type: string, format: uuid }
         schemaVersion: { type: integer, minimum: 1 }
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Correlation identifier for the accepted public request; it contains no credential or payload data.
         status: { type: string, enum: [accepted, processing, completed, failed] }
         data: { type: object }
         submittedAt: { type: string, format: date-time }

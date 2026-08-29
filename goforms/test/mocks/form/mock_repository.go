@@ -279,6 +279,45 @@ func (c *MockRepositoryGetSchemaVersionCall) DoAndReturn(f func(context.Context,
 	return c
 }
 
+// GetSubmissionByOrganization mocks base method.
+func (m *MockRepository) GetSubmissionByOrganization(arg0 context.Context, arg1, arg2, arg3 string) (*model.FormSubmission, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSubmissionByOrganization", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(*model.FormSubmission)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSubmissionByOrganization indicates an expected call of GetSubmissionByOrganization.
+func (mr *MockRepositoryMockRecorder) GetSubmissionByOrganization(arg0, arg1, arg2, arg3 any) *MockRepositoryGetSubmissionByOrganizationCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSubmissionByOrganization", reflect.TypeOf((*MockRepository)(nil).GetSubmissionByOrganization), arg0, arg1, arg2, arg3)
+	return &MockRepositoryGetSubmissionByOrganizationCall{Call: call}
+}
+
+// MockRepositoryGetSubmissionByOrganizationCall wrap *gomock.Call
+type MockRepositoryGetSubmissionByOrganizationCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryGetSubmissionByOrganizationCall) Return(arg0 *model.FormSubmission, arg1 error) *MockRepositoryGetSubmissionByOrganizationCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryGetSubmissionByOrganizationCall) Do(f func(context.Context, string, string, string) (*model.FormSubmission, error)) *MockRepositoryGetSubmissionByOrganizationCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryGetSubmissionByOrganizationCall) DoAndReturn(f func(context.Context, string, string, string) (*model.FormSubmission, error)) *MockRepositoryGetSubmissionByOrganizationCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // ListForms mocks base method.
 func (m *MockRepository) ListForms(arg0 context.Context, arg1 string) ([]*model.Form, error) {
 	m.ctrl.T.Helper()

@@ -111,6 +111,11 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			return []*model.FormSubmission{submissions["contact-submit-0001"]}, false, nil
 		},
 	)
+	repository.EXPECT().GetSubmissionByOrganization(
+		gomock.Any(), "owner-a", "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222",
+	).DoAndReturn(func(context.Context, string, string, string) (*model.FormSubmission, error) {
+		return submissions["contact-submit-0001"], nil
+	})
 
 	e := echo.New()
 	handler := newV1APIHandler(repository, fixedTokenRepository{token: token}, validator, nil)
@@ -176,6 +181,12 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 		"/v1/forms/11111111-1111-4111-8111-111111111111/submissions", nil, plaintext, "", nil)
 	require.Equal(t, http.StatusOK, listResponse.Code, listResponse.Body.String())
 	require.Contains(t, listResponse.Body.String(), "ada@example.com")
+	detailResponse := requestJSON(t, e, http.MethodGet,
+		"/v1/forms/11111111-1111-4111-8111-111111111111/submissions/22222222-2222-4222-8222-222222222222",
+		nil, plaintext, "", nil)
+	require.Equal(t, http.StatusOK, detailResponse.Code, detailResponse.Body.String())
+	require.Contains(t, detailResponse.Body.String(), `"schemaVersion":2`)
+	require.Contains(t, detailResponse.Body.String(), `"requestId":"req_`)
 
 	unauthorized := requestJSON(t, e, http.MethodGet, "/v1/forms", nil, "", "", nil)
 	require.Equal(t, http.StatusUnauthorized, unauthorized.Code, unauthorized.Body.String())
@@ -226,6 +237,20 @@ func TestSubmissionPaginationInputsAreBoundedAndOpaque(t *testing.T) {
 	require.Equal(t, submission.ID, beforeID)
 	_, _, err = decodeSubmissionCursor("not-a-cursor")
 	require.Error(t, err)
+}
+
+func TestRequestIDAcceptsSafeCorrelationAndReplacesUnsafeInput(t *testing.T) {
+	t.Parallel()
+	router := echo.New()
+	safeRequest := httptest.NewRequest(http.MethodGet, "/", nil)
+	safeRequest.Header.Set("X-Trace-Id", "client.request-123:retry_2")
+	safeContext := router.NewContext(safeRequest, httptest.NewRecorder())
+	require.Equal(t, "client.request-123:retry_2", requestID(safeContext))
+
+	unsafeRequest := httptest.NewRequest(http.MethodGet, "/", nil)
+	unsafeRequest.Header.Set("X-Trace-Id", "attacker\nforged-log-line")
+	unsafeContext := router.NewContext(unsafeRequest, httptest.NewRecorder())
+	require.Regexp(t, `^req_[a-f0-9]{32}$`, requestID(unsafeContext))
 }
 
 func mustSubmissionLimit(t *testing.T, value string) int {
