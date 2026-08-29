@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
@@ -28,8 +30,15 @@ func TestRotateAtomicallyRevokesAndLinksReplacement(t *testing.T) {
 	connection, err := pgx.Connect(t.Context(), databaseURL)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = connection.Close(t.Context()) })
+	ownerID := uuid.NewString()
+	_, err = connection.Exec(t.Context(), `
+		INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
+		VALUES ($1, $2, 'not-used', 'Token', 'Fixture')
+	`, ownerID, ownerID+"@example.test")
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = connection.Exec(context.Background(), "DELETE FROM users WHERE uuid = $1", ownerID) })
 	now := time.Now().UTC()
-	original, _, err := auth.Issue("11111111-1111-4111-8111-111111111111",
+	original, _, err := auth.Issue(ownerID,
 		[]auth.Scope{auth.ScopeFormsRead, auth.ScopeFormsWrite}, time.Hour, now)
 	require.NoError(t, err)
 	scopes, err := json.Marshal([]string{string(auth.ScopeFormsRead), string(auth.ScopeFormsWrite)})

@@ -2,7 +2,7 @@
 
 GoFormX is an AI-first, schema-driven forms service. JSON Schema Draft 2020-12 is the form definition, OpenAPI 3.1 is the HTTP contract, and PostgreSQL stores immutable schema versions and the submissions validated against them.
 
-The supported runtime is this Go service. A dashboard, Form.io, Laravel sessions, and browser-held API secrets are not required for the v1 contact-form path.
+The supported runtime is this Go service. Retired dashboard, renderer fork, browser-session, and plan-tier code remains available in Git history but is absent from the build and scan graph.
 
 ## v1 flow
 
@@ -69,7 +69,7 @@ go run ./cmd/goformx-token rotate --token-id TOKEN_ID --ttl 24h
 | `GET /v1/public/forms/{publicKey}/schema` | Public key | Fetch a published schema |
 | `POST /v1/public/forms/{publicKey}/submissions` | Public key | Validate and accept an idempotent submission |
 
-Legacy assertion-auth and embed routes remain temporarily for migration work tracked in GitHub issues #73, #74, and #83. New integrations must use `/v1`.
+Only `/v1` is supported. Renderer-specific schemas and the former `/api` assertion-auth routes have been removed.
 
 ## License
 

@@ -1,10 +1,4 @@
-GoFormX - Forms Management Platform
+GoFormX - AI-first schema-driven forms service
 Copyright (C) 2024-2026 Russell Jones and the GoFormX contributors
 
-This monorepo contains multiple components with different licenses:
-
-  goforms/          AGPL-3.0    Go API backend
-  goformx-laravel/  MIT         Laravel + Vue frontend
-  goformx-formio/   MIT         Form.io wrapper (submodule, upstream license)
-
-See the LICENSE file in each directory for the full license text.
+The supported `goforms/` service is licensed AGPL-3.0-or-later. Retired components keep their original licensing in repository history and in their archived repositories.

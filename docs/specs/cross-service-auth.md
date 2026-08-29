@@ -40,7 +40,7 @@ Store the returned replacement token before restarting its caller. Rotation revo
 
 The v1 control plane accepts only Authorization: Bearer gfst_.... It does not authenticate X-User-Id, X-Timestamp, X-Signature, plan-tier headers, browser sessions, or CSRF tokens. Public data-plane routes accept no reusable credential.
 
-Legacy /api/* routes remain isolated reference code pending deletion under issue #83. They are not part of the v1 OpenAPI contract and must not be mounted by the supported production runtime after issue #73.
+The former `/api/*` routes and their authentication packages have been deleted. They are absent from the v1 OpenAPI contract and production dependency graph.
 
 ## Failure behavior
 

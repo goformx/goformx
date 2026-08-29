@@ -13,7 +13,7 @@ This audit classifies stable strings used by the supported schema-first runtime.
 | GoFormX schema/idempotency headers and schema media type | `constants.Header*` and `constants.ContentTypeJSONSchema` | OpenAPI declarations and black-box fixtures |
 | Form lifecycle, schema-version, and submission states | Typed values in `domain/form/model` | Migration constraints/defaults and persistence integration fixtures |
 
-The former `PathAPIV1`/`PathAPIv1` alias pair was reconciled to `PathAPIv1`. Production v1 route registration and `Location` generation now use the owning route constants.
+Production v1 route registration and `Location` generation use the owning route constants. Constants for the retired web runtime were deleted rather than consolidated.
 
 ## Deployment policy: configuration, not constants
 
@@ -31,7 +31,7 @@ OpenAPI, canonical JSON Schema files, example payloads, migrations, and black-bo
 
 - Standard HTTP methods, headers, status codes, media types, and RFC3339 formatting use Go/Echo standard-library definitions where available.
 - Stable error codes are currently local to the v1 HTTP boundary. They should become typed only when another production package must branch on them; sharing them with black-box tests is not a reason.
-- Legacy `/api` paths, browser sessions, CSRF names, and legacy roles remain isolated debt scheduled for removal under issues #73, #74, and #83. Consolidating those literals would invest in an unsupported runtime.
+- Retired `/api` paths, browser-session and CSRF names, and web roles were removed under issues #73, #74, and #83.
 - Human-readable log and error messages are not protocol identifiers unless the OpenAPI contract explicitly promotes them to stable codes.
 
 ## Regression policy

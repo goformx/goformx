@@ -45,10 +45,17 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 
 	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
 	require.NoError(t, err)
+	ownerID := "11111111-1111-4111-8111-111111111111"
+	require.NoError(t, db.Exec(`
+		INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
+		VALUES (?, 'form-fixture@example.test', 'not-used', 'Form', 'Fixture')
+		ON CONFLICT (uuid) DO NOTHING
+	`, ownerID).Error)
+	t.Cleanup(func() { _ = db.Exec("DELETE FROM users WHERE uuid = ?", ownerID).Error })
 	ctrl := gomock.NewController(t)
 	store := formrepository.NewStore(&integrationDB{db: db}, mocklogging.NewMockLogger(ctrl))
 
-	form := model.NewForm("11111111-1111-4111-8111-111111111111", "Agent Contact", "", model.JSON{
+	form := model.NewForm(ownerID, "Agent Contact", "", model.JSON{
 		"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object",
 		"properties": map[string]any{"name": map[string]any{"type": "string"}}, "required": []any{"name"},
 	})
@@ -59,7 +66,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 
 	form.Status = model.LifecyclePublished
 	require.NoError(t, store.UpdateForm(t.Context(), form))
-	publicForm, err := store.GetFormByPublicKey(t.Context(), form.PublicKey)
+	publicForm, err := store.GetFormByID(t.Context(), form.ID)
 	require.NoError(t, err)
 	require.Equal(t, form.ID, publicForm.ID)
 	require.Equal(t, "object", publicForm.Schema["type"])
@@ -126,7 +133,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.Len(t, nextPage, 1)
 	require.NotEqual(t, page[0].ID, nextPage[0].ID)
 
-	concurrentForm := model.NewForm("11111111-1111-4111-8111-111111111111", "Concurrent Admission", "", model.JSON{
+	concurrentForm := model.NewForm(ownerID, "Concurrent Admission", "", model.JSON{
 		"$schema": model.JSONSchemaDraft202012URI, "type": "object",
 		"properties": map[string]any{"name": map[string]any{"type": "string"}},
 	})
@@ -170,7 +177,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.NoError(t, err)
 	webhookStore := formrepository.NewStoreWithOptions(&integrationDB{db: db}, mocklogging.NewMockLogger(ctrl),
 		formrepository.StoreOptions{DailySubmissionLimit: 100, WebhookCipher: webhookCipher})
-	webhookForm := model.NewForm("11111111-1111-4111-8111-111111111111", "Webhook Atomicity", "", model.JSON{
+	webhookForm := model.NewForm(ownerID, "Webhook Atomicity", "", model.JSON{
 		"$schema": model.JSONSchemaDraft202012URI, "type": "object",
 		"properties": map[string]any{"name": map[string]any{"type": "string"}},
 	})

@@ -1,3 +1,5 @@
+//go:generate go tool mockgen -typed -source=v1_api.go -destination=../../../../test/mocks/form/mock_repository.go -package=form -mock_names=V1Repository=MockRepository,WebhookRepository=MockWebhookRepository,RequestLogger=MockRequestLogger
+
 package web
 
 import (
@@ -22,7 +24,6 @@ import (
 	"golang.org/x/net/http/httpguts"
 
 	"github.com/goformx/goforms/internal/application/constants"
-	ctxmw "github.com/goformx/goforms/internal/application/middleware/context"
 	"github.com/goformx/goforms/internal/application/middleware/serviceauth"
 	"github.com/goformx/goforms/internal/application/validation"
 	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
@@ -193,7 +194,7 @@ func (h *V1APIHandler) publicCORS() echo.MiddlewareFunc {
 			responseHeaders.Set(echo.HeaderAccessControlAllowMethods, strings.Join(methods, ", "))
 			responseHeaders.Set(echo.HeaderAccessControlAllowHeaders, strings.Join(headers, ", "))
 			responseHeaders.Set(echo.HeaderAccessControlExposeHeaders,
-				"ETag, "+constants.HeaderSchemaVersion+", "+ctxmw.RequestIDHeader+", "+constants.HeaderReplay)
+				"ETag, "+constants.HeaderSchemaVersion+", "+constants.HeaderTraceID+", "+constants.HeaderReplay)
 			if c.Request().Method == http.MethodOptions {
 				return c.NoContent(http.StatusNoContent)
 			}
@@ -842,14 +843,11 @@ func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {
 }
 
 func requestID(c echo.Context) string {
-	id := ctxmw.GetRequestID(c.Request().Context())
-	if id == "" {
-		id = c.Request().Header.Get(ctxmw.RequestIDHeader)
-	}
+	id := c.Request().Header.Get(constants.HeaderTraceID)
 	if id == "" {
 		id = "req_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
-	c.Response().Header().Set(ctxmw.RequestIDHeader, id)
+	c.Response().Header().Set(constants.HeaderTraceID, id)
 	return id
 }
 

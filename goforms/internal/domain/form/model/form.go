@@ -21,39 +21,12 @@ const (
 	MaxTitleLength = 100
 	// MaxDescriptionLength is the maximum length for a form description
 	MaxDescriptionLength = 500
-	// MaxFields is the maximum number of fields allowed in a form
-	MaxFields = 50
 )
 
 var (
 	// ErrInvalidJSON represents an invalid JSON error
 	ErrInvalidJSON = errors.New("invalid JSON")
 )
-
-// Field represents a form field
-type Field struct {
-	ID        string    `gorm:"primaryKey"             json:"id"`
-	FormID    string    `gorm:"not null"               json:"form_id"`
-	Label     string    `gorm:"size:100;not null"      json:"label"`
-	Type      string    `gorm:"size:20;not null"       json:"type"`
-	Required  bool      `gorm:"not null;default:false" json:"required"`
-	Options   []string  `gorm:"type:json"              json:"options"`
-	CreatedAt time.Time `gorm:"not null"               json:"created_at"`
-	UpdatedAt time.Time `gorm:"not null"               json:"updated_at"`
-}
-
-// Validate validates the field
-func (f *Field) Validate() error {
-	if f.Label == "" {
-		return errors.New("label is required")
-	}
-
-	if f.Type == "" {
-		return errors.New("type is required")
-	}
-
-	return nil
-}
 
 // Form represents a form in the system
 type Form struct {
@@ -67,9 +40,7 @@ type Form struct {
 	CreatedAt            time.Time       `gorm:"not null;autoCreateTime"                                    json:"created_at"`
 	UpdatedAt            time.Time       `gorm:"not null;autoUpdateTime"                                    json:"updated_at"`
 	DeletedAt            gorm.DeletedAt  `gorm:"index"                                                      json:"-"`
-	Fields               []Field         `gorm:"foreignKey:FormID"                                          json:"fields"`
 	Status               LifecycleStatus `gorm:"size:20;not null;default:'draft'"                          json:"status"`
-	PlanTier             string          `gorm:"size:20;not null;default:'free'"                            json:"plan_tier"`
 	PublicKey            string          `gorm:"not null;uniqueIndex"                                       json:"public_key"`
 	CurrentSchemaVersion int             `gorm:"not null;default:1"                                         json:"current_schema_version"`
 
@@ -281,7 +252,6 @@ func NewForm(userID, title, description string, schema JSON) *Form {
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		DeletedAt:   gorm.DeletedAt{},
-		Fields:      []Field{},
 		CorsOrigins: JSON{},
 		CorsMethods: JSON{},
 		CorsHeaders: JSON{},
@@ -413,16 +383,6 @@ func (f *Form) Validate() error {
 
 	if len(f.Description) > MaxDescriptionLength {
 		return fmt.Errorf("description must not exceed %d characters", MaxDescriptionLength)
-	}
-
-	if len(f.Fields) > MaxFields {
-		return fmt.Errorf("form cannot have more than %d fields", MaxFields)
-	}
-
-	for i := range f.Fields {
-		if err := f.Fields[i].Validate(); err != nil {
-			return fmt.Errorf("invalid field: %w", err)
-		}
 	}
 
 	return f.validateSchema()
