@@ -68,11 +68,35 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.Equal(t, 1, form.CurrentSchemaVersion)
 
 	form.Status = model.LifecyclePublished
-	require.NoError(t, store.UpdateForm(t.Context(), form))
+	require.NoError(t, store.UpdateForm(t.Context(), form, form.UpdatedAt))
 	publicForm, err := store.GetFormByID(t.Context(), ownerID, form.ID)
 	require.NoError(t, err)
 	require.Equal(t, form.ID, publicForm.ID)
 	require.Equal(t, "object", publicForm.Schema["type"])
+	listedForms, totalForms, err := store.ListForms(t.Context(), ownerID, model.FormListOptions{
+		Status: model.LifecyclePublished, Query: "Agent", Sort: model.FormSortNameAsc, Limit: 25,
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, totalForms)
+	require.Len(t, listedForms, 1)
+	foreignForms, foreignTotal, err := store.ListForms(t.Context(), uuid.NewString(), model.FormListOptions{
+		Sort: model.FormSortCreatedDesc, Limit: 25,
+	})
+	require.NoError(t, err)
+	require.Zero(t, foreignTotal)
+	require.Empty(t, foreignForms)
+	wildcardForms, wildcardTotal, err := store.ListForms(t.Context(), ownerID, model.FormListOptions{
+		Query: "%", Sort: model.FormSortCreatedDesc, Limit: 25,
+	})
+	require.NoError(t, err)
+	require.Zero(t, wildcardTotal, "search wildcards must be treated as literal input")
+	require.Empty(t, wildcardForms)
+
+	staleUpdatedAt := publicForm.UpdatedAt
+	publicForm.Title = "Agent Contact Updated"
+	require.NoError(t, store.UpdateForm(t.Context(), publicForm, staleUpdatedAt))
+	publicForm.Title = "Stale Writer"
+	require.ErrorIs(t, store.UpdateForm(t.Context(), publicForm, staleUpdatedAt), model.ErrPreconditionFailed)
 
 	form.Schema = model.JSON{
 		"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object",

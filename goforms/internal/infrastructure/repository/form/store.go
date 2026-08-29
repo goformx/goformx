@@ -143,26 +143,61 @@ func (s *Store) loadCurrentSchema(ctx context.Context, formModel *model.Form) er
 	return nil
 }
 
-// ListForms retrieves all forms for an organization.
-func (s *Store) ListForms(ctx context.Context, organizationID string) ([]*model.Form, error) {
+// ListForms returns one bounded, filtered organization page and the matching total.
+func (s *Store) ListForms(
+	ctx context.Context,
+	organizationID string,
+	options model.FormListOptions,
+) ([]*model.Form, int64, error) {
+	if err := options.Validate(); err != nil {
+		return nil, 0, err
+	}
+	query := s.db.GetDB().WithContext(ctx).Model(&model.Form{}).Where("organization_id = ?", organizationID)
+	if options.Status != "" {
+		query = query.Where("status = ?", options.Status)
+	}
+	if options.Query != "" {
+		pattern := "%" + escapeLike(options.Query) + "%"
+		query = query.Where("(name ILIKE ? ESCAPE '\\' OR title ILIKE ? ESCAPE '\\')", pattern, pattern)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, fmt.Errorf("count forms: %w", common.NewDatabaseError("count", "form", "", err))
+	}
+	order, ok := formSortOrder[options.Sort]
+	if !ok {
+		return nil, 0, errors.New("form sort is invalid")
+	}
 	var forms []*model.Form
-	if err := s.db.GetDB().WithContext(ctx).
-		Where("organization_id = ?", organizationID).
-		Order("created_at DESC").
+	if err := query.Order(order).Offset(options.Offset).Limit(options.Limit).
 		Find(&forms).Error; err != nil {
 		s.logger.Error("failed to list forms",
 			"organization_id", organizationID,
 			"error", err,
 		)
 
-		return nil, fmt.Errorf("list forms: %w", common.NewDatabaseError("list", "form", "", err))
+		return nil, 0, fmt.Errorf("list forms: %w", common.NewDatabaseError("list", "form", "", err))
 	}
 
-	return forms, nil
+	return forms, total, nil
+}
+
+var formSortOrder = map[model.FormSort]string{
+	model.FormSortCreatedDesc: "created_at DESC, uuid DESC",
+	model.FormSortCreatedAsc:  "created_at ASC, uuid ASC",
+	model.FormSortUpdatedDesc: "updated_at DESC, uuid DESC",
+	model.FormSortUpdatedAsc:  "updated_at ASC, uuid ASC",
+	model.FormSortNameDesc:    "name DESC, uuid DESC",
+	model.FormSortNameAsc:     "name ASC, uuid ASC",
+}
+
+func escapeLike(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return replacer.Replace(value)
 }
 
 // UpdateForm updates a form
-func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form) error {
+func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form, expectedUpdatedAt time.Time) error {
 	return s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var current schemaRecord
 		if err := tx.Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).First(&current).Error; err != nil {
@@ -184,13 +219,13 @@ func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form) error {
 			}
 		}
 		result := tx.Model(&model.Form{}).Where(
-			"organization_id = ? AND uuid = ?", formModel.OrganizationID, formModel.ID,
+			"organization_id = ? AND uuid = ? AND updated_at = ?", formModel.OrganizationID, formModel.ID, expectedUpdatedAt,
 		).Updates(formModel)
 		if result.Error != nil {
 			return fmt.Errorf("update form: %w", common.NewDatabaseError("update", "form", formModel.ID, result.Error))
 		}
 		if result.RowsAffected == 0 {
-			return fmt.Errorf("update form: %w", common.NewNotFoundError("update", "form", formModel.ID))
+			return model.ErrPreconditionFailed
 		}
 		return nil
 	})

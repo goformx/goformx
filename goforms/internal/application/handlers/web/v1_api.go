@@ -56,9 +56,9 @@ type V1APIHandler struct {
 // It intentionally excludes legacy users, plans, pagination, and browser sessions.
 type V1Repository interface {
 	CreateForm(context.Context, *model.Form) error
-	ListForms(context.Context, string) ([]*model.Form, error)
+	ListForms(context.Context, string, model.FormListOptions) ([]*model.Form, int64, error)
 	GetFormByID(context.Context, string, string) (*model.Form, error)
-	UpdateForm(context.Context, *model.Form) error
+	UpdateForm(context.Context, *model.Form, time.Time) error
 	CreateSchemaVersion(context.Context, string, model.JSON) (*model.SchemaVersion, error)
 	GetSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
 	PublishSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
@@ -290,13 +290,18 @@ func (h *V1APIHandler) createForm(c echo.Context) error {
 	if err := h.repository.CreateForm(c.Request().Context(), formModel); err != nil {
 		return h.writeRepositoryError(c, err)
 	}
+	c.Response().Header().Set(constants.HeaderETag, formETag(formModel))
 	c.Response().Header().Set(echo.HeaderLocation, constants.PathV1Forms+"/"+formModel.ID)
 	return c.JSON(http.StatusCreated, map[string]any{"data": formResource(formModel)})
 }
 
 func (h *V1APIHandler) listForms(c echo.Context) error {
+	options, err := formListOptions(c)
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
 	principal, _ := serviceauth.PrincipalFrom(c)
-	forms, err := h.repository.ListForms(c.Request().Context(), principal.OwnerID)
+	forms, total, err := h.repository.ListForms(c.Request().Context(), principal.OwnerID, options)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
@@ -304,7 +309,9 @@ func (h *V1APIHandler) listForms(c echo.Context) error {
 	for _, formModel := range forms {
 		data = append(data, formResource(formModel))
 	}
-	return c.JSON(http.StatusOK, map[string]any{"data": data})
+	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{
+		"limit": options.Limit, "offset": options.Offset, "total": total,
+	}})
 }
 
 func (h *V1APIHandler) ownedForm(c echo.Context) (*model.Form, bool) {
@@ -326,6 +333,7 @@ func (h *V1APIHandler) getForm(c echo.Context) error {
 	if !ok {
 		return nil
 	}
+	c.Response().Header().Set(constants.HeaderETag, formETag(formModel))
 	return c.JSON(http.StatusOK, map[string]any{"data": formResource(formModel)})
 }
 
@@ -339,6 +347,14 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 	formModel, ok := h.ownedForm(c)
 	if !ok {
 		return nil
+	}
+	expected := formModel.UpdatedAt
+	ifMatch := strings.TrimSpace(c.Request().Header.Get(constants.HeaderIfMatch))
+	if ifMatch == "" {
+		return h.writeError(c, http.StatusPreconditionRequired, "precondition_required", "If-Match is required for form updates.", nil)
+	}
+	if ifMatch != formETag(formModel) {
+		return h.writeError(c, http.StatusPreconditionFailed, "precondition_failed", "The form was modified by another request.", nil)
 	}
 	var request updateFormRequest
 	if err := decodeJSON(c, &request); err != nil {
@@ -364,13 +380,14 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 			[]string{echo.HeaderContentType, constants.HeaderIdempotencyKey, constants.HeaderSchemaVersion})
 	}
 	formModel.Schema = nil // Metadata updates must never create a schema version.
-	if err := h.repository.UpdateForm(c.Request().Context(), formModel); err != nil {
+	if err := h.repository.UpdateForm(c.Request().Context(), formModel, expected); err != nil {
 		return h.writeRepositoryError(c, err)
 	}
 	updated, err := h.repository.GetFormByID(c.Request().Context(), formModel.OrganizationID, formModel.ID)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
+	c.Response().Header().Set(constants.HeaderETag, formETag(updated))
 	return c.JSON(http.StatusOK, map[string]any{"data": formResource(updated)})
 }
 
@@ -862,6 +879,9 @@ func submissionResource(submission *model.FormSubmission) map[string]any {
 }
 
 func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {
+	if errors.Is(err, model.ErrPreconditionFailed) {
+		return h.writeError(c, http.StatusPreconditionFailed, "precondition_failed", "The form was modified by another request.", nil)
+	}
 	message := strings.ToLower(err.Error())
 	if strings.Contains(message, "not found") || strings.Contains(message, "record not found") {
 		return h.writeError(c, http.StatusNotFound, "not_found", "The requested resource was not found.", nil)
@@ -876,6 +896,42 @@ func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {
 		h.logger.Error("v1 API repository failure", "request_id", requestID(c), "error", err)
 	}
 	return h.writeError(c, http.StatusInternalServerError, "internal_error", "The request could not be completed.", nil)
+}
+
+func formETag(formModel *model.Form) string {
+	value := formModel.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	return `"form-` + base64.RawURLEncoding.EncodeToString([]byte(value)) + `"`
+}
+
+func formListOptions(c echo.Context) (model.FormListOptions, error) {
+	limit, err := boundedInt(c.QueryParam("limit"), 25, 1, 100, "form page limit")
+	if err != nil {
+		return model.FormListOptions{}, err
+	}
+	offset, err := boundedInt(c.QueryParam("offset"), 0, 0, 10000, "form page offset")
+	if err != nil {
+		return model.FormListOptions{}, err
+	}
+	sort := model.FormSort(c.QueryParam("sort"))
+	if sort == "" {
+		sort = model.FormSortCreatedDesc
+	}
+	options := model.FormListOptions{
+		Status: model.LifecycleStatus(c.QueryParam("status")), Query: strings.TrimSpace(c.QueryParam("q")),
+		Sort: sort, Limit: limit, Offset: offset,
+	}
+	return options, options.Validate()
+}
+
+func boundedInt(raw string, defaultValue, minimum, maximum int, name string) (int, error) {
+	if raw == "" {
+		return defaultValue, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < minimum || value > maximum {
+		return 0, fmt.Errorf("%s must be between %d and %d", name, minimum, maximum)
+	}
+	return value, nil
 }
 
 func requestID(c echo.Context) string {

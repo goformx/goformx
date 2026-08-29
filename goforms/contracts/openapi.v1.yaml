@@ -64,6 +64,12 @@ paths:
       tags: [Control plane]
       security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
       x-goformx-required-scopes: [forms:read]
+      parameters:
+        - $ref: '#/components/parameters/FormStatusFilter'
+        - $ref: '#/components/parameters/FormQuery'
+        - $ref: '#/components/parameters/FormSort'
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
       responses:
         '200':
           description: Forms visible to the token subject
@@ -71,11 +77,14 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [data]
+                required: [data, meta]
+                additionalProperties: false
                 properties:
                   data:
                     type: array
                     items: { $ref: '#/components/schemas/Form' }
+                  meta:
+                    $ref: '#/components/schemas/OffsetPageMeta'
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
     post:
@@ -110,6 +119,7 @@ paths:
           description: Form and initial immutable draft version created
           headers:
             Location: { schema: { type: string, format: uri-reference } }
+            ETag: { schema: { type: string }, description: Strong validator required by later metadata updates. }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FormEnvelope' }
@@ -127,6 +137,8 @@ paths:
       responses:
         '200':
           description: Form metadata and version pointers
+          headers:
+            ETag: { schema: { type: string }, description: Strong validator required by metadata updates. }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FormEnvelope' }
@@ -138,6 +150,8 @@ paths:
       tags: [Control plane]
       security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
       x-goformx-required-scopes: [forms:write]
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
       requestBody:
         required: true
         content:
@@ -156,9 +170,13 @@ paths:
       responses:
         '200':
           description: Updated mutable form metadata
+          headers:
+            ETag: { schema: { type: string }, description: New strong validator after the update. }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FormEnvelope' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms/{formId}/versions:
@@ -564,6 +582,37 @@ components:
       required: false
       description: Maximum resources returned in this bounded collection.
       schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    PageOffset:
+      name: offset
+      in: query
+      required: false
+      description: Zero-based form collection offset; bounded to prevent unbounded scans.
+      schema: { type: integer, minimum: 0, maximum: 10000, default: 0 }
+    FormStatusFilter:
+      name: status
+      in: query
+      required: false
+      schema: { type: string, enum: [draft, published, disabled, archived] }
+    FormQuery:
+      name: q
+      in: query
+      required: false
+      description: Case-insensitive literal substring search over form name and title.
+      schema: { type: string, maxLength: 100 }
+    FormSort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [-createdAt, createdAt, -updatedAt, updatedAt, -name, name]
+        default: -createdAt
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Exact strong ETag returned by the latest form GET or successful mutation.
+      schema: { type: string, minLength: 1 }
     SubmissionCursor:
       name: cursor
       in: query
@@ -784,6 +833,14 @@ components:
         limit: { type: integer, minimum: 1, maximum: 100 }
         nextCursor:
           type: [string, 'null']
+    OffsetPageMeta:
+      type: object
+      required: [limit, offset, total]
+      additionalProperties: false
+      properties:
+        limit: { type: integer, minimum: 1, maximum: 100 }
+        offset: { type: integer, minimum: 0, maximum: 10000 }
+        total: { type: integer, minimum: 0 }
     FieldError:
       type: object
       required: [pointer, code, message]
@@ -825,3 +882,13 @@ components:
                 - pointer: /data/email
                   code: format
                   message: Must be a valid email address.
+    PreconditionRequired:
+      description: If-Match is required for this mutation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    PreconditionFailed:
+      description: The supplied form validator is stale
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
