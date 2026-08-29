@@ -99,6 +99,13 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, replayed)
 	require.NotEmpty(t, created.ID)
+	ownedSubmission, err := store.GetSubmissionByOrganization(t.Context(), ownerID, form.ID, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, created.ID, ownedSubmission.ID)
+	require.Equal(t, 1, ownedSubmission.SchemaVersion)
+	require.NotEmpty(t, ownedSubmission.RequestID)
+	_, err = store.GetSubmissionByOrganization(t.Context(), uuid.NewString(), form.ID, created.ID)
+	require.ErrorContains(t, err, "record not found")
 	retry := &model.FormSubmission{FormID: form.ID, SchemaVersion: 1,
 		IdempotencyKey: submission.IdempotencyKey, Data: model.JSON{"name": "Ada"},
 		SubmittedAt: time.Now().UTC(), Status: model.SubmissionStatusAccepted}

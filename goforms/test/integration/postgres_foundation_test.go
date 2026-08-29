@@ -67,13 +67,13 @@ func TestSchemaFirstPostgresFoundation(t *testing.T) {
 
 	idempotencyKey := "integration-" + uuid.NewString()
 	_, err = pool.Exec(t.Context(), `
-		INSERT INTO form_submissions (uuid, form_id, schema_version, data, submitted_at, status, idempotency_key)
-		VALUES ($1, $2, 1, '{"email":"ada@example.com"}'::jsonb, now(), 'accepted', $3)
-	`, uuid.NewString(), formID, idempotencyKey)
+		INSERT INTO form_submissions (uuid, form_id, schema_version, request_id, data, submitted_at, status, idempotency_key)
+		VALUES ($1, $2, 1, $3, '{"email":"ada@example.com"}'::jsonb, now(), 'accepted', $4)
+	`, uuid.NewString(), formID, "req_"+uuid.NewString(), idempotencyKey)
 	require.NoError(t, err)
 	_, err = pool.Exec(t.Context(), `
-		INSERT INTO form_submissions (uuid, form_id, schema_version, data, submitted_at, status, idempotency_key)
-		VALUES ($1, $2, 1, '{"email":"ada@example.com"}'::jsonb, now(), 'accepted', $3)
-	`, uuid.NewString(), formID, idempotencyKey)
+		INSERT INTO form_submissions (uuid, form_id, schema_version, request_id, data, submitted_at, status, idempotency_key)
+		VALUES ($1, $2, 1, $3, '{"email":"ada@example.com"}'::jsonb, now(), 'accepted', $4)
+	`, uuid.NewString(), formID, "req_"+uuid.NewString(), idempotencyKey)
 	require.Error(t, err)
 }

@@ -437,3 +437,33 @@ func (s *Store) ListSubmissionsPage(
 	}
 	return submissions, hasMore, nil
 }
+
+// GetSubmissionByOrganization resolves a submission through its owning form so
+// foreign and absent identifiers have the same repository result.
+func (s *Store) GetSubmissionByOrganization(
+	ctx context.Context,
+	organizationID string,
+	formID string,
+	submissionID string,
+) (*model.FormSubmission, error) {
+	if _, err := uuid.Parse(formID); err != nil {
+		return nil, fmt.Errorf("get submission: %w", common.NewNotFoundError("get", "submission", submissionID))
+	}
+	if _, err := uuid.Parse(submissionID); err != nil {
+		return nil, fmt.Errorf("get submission: %w", common.NewNotFoundError("get", "submission", submissionID))
+	}
+	var submission model.FormSubmission
+	result := s.db.GetDB().WithContext(ctx).
+		Table("form_submissions").
+		Select("form_submissions.*").
+		Joins("JOIN forms ON forms.uuid = form_submissions.form_id").
+		Where("forms.organization_id = ? AND forms.uuid = ? AND form_submissions.uuid = ?", organizationID, formID, submissionID).
+		First(&submission)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("get submission: %w", common.NewNotFoundError("get", "submission", submissionID))
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("get submission: %w", common.NewDatabaseError("get", "submission", submissionID, result.Error))
+	}
+	return &submission, nil
+}
