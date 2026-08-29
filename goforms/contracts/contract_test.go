@@ -16,7 +16,12 @@ type operation struct {
 	OperationID    string                `yaml:"operationId"`
 	Security       []map[string][]string `yaml:"security"`
 	RequiredScopes []string              `yaml:"x-goformx-required-scopes"`
+	Parameters     []parameter           `yaml:"parameters"`
 	Responses      map[string]any        `yaml:"responses"`
+}
+
+type parameter struct {
+	Ref string `yaml:"$ref"`
 }
 
 type pathItem struct {
@@ -75,6 +80,18 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 			seenIDs[op.OperationID] = struct{}{}
 			require.NotEmpty(t, op.Responses, "%s %s needs responses", method, path)
 			require.Contains(t, op.Responses, "default", "%s %s needs stable error semantics", method, path)
+			switch op.OperationID {
+			case "listForms":
+				require.Equal(t, []string{
+					"#/components/parameters/FormStatusFilter", "#/components/parameters/FormQuery",
+					"#/components/parameters/FormSort", "#/components/parameters/PageLimit",
+					"#/components/parameters/PageOffset",
+				}, parameterRefs(op.Parameters))
+			case "updateForm":
+				require.Equal(t, []string{"#/components/parameters/IfMatch"}, parameterRefs(op.Parameters))
+				require.Contains(t, op.Responses, "412")
+				require.Contains(t, op.Responses, "428")
+			}
 
 			if strings.HasPrefix(path, "/v1/public/") || path == "/health" || path == "/ready" {
 				require.Empty(t, op.Security, "%s %s must remain public", method, path)
@@ -105,6 +122,14 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 	require.Equal(t, "first-party-assertion", assertion.CredentialClass)
 	require.Equal(t, "gofx-fpa-v1", assertion.JWTProfile)
 	require.Equal(t, "https://goformx.com/.well-known/goformx-control-plane-jwks.json", assertion.JWKSURI)
+}
+
+func parameterRefs(parameters []parameter) []string {
+	refs := make([]string, 0, len(parameters))
+	for _, item := range parameters {
+		refs = append(refs, item.Ref)
+	}
+	return refs
 }
 
 func TestFirstPartyAssertionContractAndNegativeFixtures(t *testing.T) {

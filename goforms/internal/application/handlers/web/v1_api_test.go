@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/goformx/goforms/internal/application/constants"
 	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/auth"
 	domainform "github.com/goformx/goforms/internal/domain/form"
@@ -237,6 +238,73 @@ func TestSubmissionPaginationInputsAreBoundedAndOpaque(t *testing.T) {
 	require.Equal(t, submission.ID, beforeID)
 	_, _, err = decodeSubmissionCursor("not-a-cursor")
 	require.Error(t, err)
+}
+
+func TestFormListOptionsValidateFiltersSortingAndBounds(t *testing.T) {
+	t.Parallel()
+	router := echo.New()
+	request := httptest.NewRequest(http.MethodGet,
+		"/v1/forms?status=published&q=contact&sort=name&limit=50&offset=25", nil)
+	context := router.NewContext(request, httptest.NewRecorder())
+	options, err := formListOptions(context)
+	require.NoError(t, err)
+	require.Equal(t, model.LifecyclePublished, options.Status)
+	require.Equal(t, "contact", options.Query)
+	require.Equal(t, model.FormSortNameAsc, options.Sort)
+	require.Equal(t, 50, options.Limit)
+	require.Equal(t, 25, options.Offset)
+
+	invalid := httptest.NewRequest(http.MethodGet, "/v1/forms?sort=random&limit=101", nil)
+	_, err = formListOptions(router.NewContext(invalid, httptest.NewRecorder()))
+	require.Error(t, err)
+}
+
+func TestFormMetadataUpdateRequiresRepositoryEnforcedETag(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	formID := "11111111-1111-4111-8111-111111111111"
+	base := &model.Form{ID: formID, OrganizationID: "owner-a", Name: "contact", Title: "Contact",
+		UpdatedAt: now, CreatedAt: now, Status: model.LifecycleDraft, CurrentSchemaVersion: 1}
+	repository := mockform.NewMockRepository(gomock.NewController(t))
+	updated := false
+	repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", formID).DoAndReturn(
+		func(context.Context, string, string) (*model.Form, error) {
+			copy := *base
+			if updated {
+				copy.Title = "Updated contact"
+				copy.UpdatedAt = now.Add(time.Second)
+			}
+			return &copy, nil
+		},
+	).AnyTimes()
+	repository.EXPECT().UpdateForm(gomock.Any(), gomock.Any(), now).DoAndReturn(
+		func(_ context.Context, candidate *model.Form, expected time.Time) error {
+			require.Equal(t, "Updated contact", candidate.Title)
+			require.Equal(t, now, expected)
+			updated = true
+			return nil
+		},
+	)
+	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeFormsWrite}, time.Hour, now)
+	require.NoError(t, err)
+	router := echo.New()
+	newV1APIHandler(repository, fixedTokenRepository{token: token},
+		validation.NewComprehensiveValidator(), nil).RegisterRoutes(router)
+	path := "/v1/forms/" + formID
+
+	missing := requestJSON(t, router, http.MethodPatch, path, map[string]any{"title": "Updated contact"}, plaintext, "", nil)
+	require.Equal(t, http.StatusPreconditionRequired, missing.Code, missing.Body.String())
+	stale := requestJSON(t, router, http.MethodPatch, path, map[string]any{"title": "Updated contact"}, plaintext, "", map[string]string{
+		constants.HeaderIfMatch: `"form-stale"`,
+	})
+	require.Equal(t, http.StatusPreconditionFailed, stale.Code, stale.Body.String())
+
+	currentETag := formETag(base)
+	success := requestJSON(t, router, http.MethodPatch, path, map[string]any{"title": "Updated contact"}, plaintext, "", map[string]string{
+		constants.HeaderIfMatch: currentETag,
+	})
+	require.Equal(t, http.StatusOK, success.Code, success.Body.String())
+	require.NotEqual(t, currentETag, success.Header().Get(constants.HeaderETag))
 }
 
 func TestRequestIDAcceptsSafeCorrelationAndReplacesUnsafeInput(t *testing.T) {

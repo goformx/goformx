@@ -10,6 +10,8 @@ const (
 	HeaderSchemaVersion  = "X-GoFormX-Schema-Version"
 	HeaderReplay         = "Idempotency-Replayed"
 	HeaderTraceID        = "X-Trace-Id"
+	HeaderETag           = "ETag"
+	HeaderIfMatch        = "If-Match"
 
 	ContentTypeJSONSchema = "application/schema+json"
 )

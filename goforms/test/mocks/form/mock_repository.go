@@ -319,18 +319,19 @@ func (c *MockRepositoryGetSubmissionByOrganizationCall) DoAndReturn(f func(conte
 }
 
 // ListForms mocks base method.
-func (m *MockRepository) ListForms(arg0 context.Context, arg1 string) ([]*model.Form, error) {
+func (m *MockRepository) ListForms(arg0 context.Context, arg1 string, arg2 model.FormListOptions) ([]*model.Form, int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListForms", arg0, arg1)
+	ret := m.ctrl.Call(m, "ListForms", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*model.Form)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(int64)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // ListForms indicates an expected call of ListForms.
-func (mr *MockRepositoryMockRecorder) ListForms(arg0, arg1 any) *MockRepositoryListFormsCall {
+func (mr *MockRepositoryMockRecorder) ListForms(arg0, arg1, arg2 any) *MockRepositoryListFormsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListForms", reflect.TypeOf((*MockRepository)(nil).ListForms), arg0, arg1)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListForms", reflect.TypeOf((*MockRepository)(nil).ListForms), arg0, arg1, arg2)
 	return &MockRepositoryListFormsCall{Call: call}
 }
 
@@ -340,19 +341,19 @@ type MockRepositoryListFormsCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockRepositoryListFormsCall) Return(arg0 []*model.Form, arg1 error) *MockRepositoryListFormsCall {
-	c.Call = c.Call.Return(arg0, arg1)
+func (c *MockRepositoryListFormsCall) Return(arg0 []*model.Form, arg1 int64, arg2 error) *MockRepositoryListFormsCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRepositoryListFormsCall) Do(f func(context.Context, string) ([]*model.Form, error)) *MockRepositoryListFormsCall {
+func (c *MockRepositoryListFormsCall) Do(f func(context.Context, string, model.FormListOptions) ([]*model.Form, int64, error)) *MockRepositoryListFormsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRepositoryListFormsCall) DoAndReturn(f func(context.Context, string) ([]*model.Form, error)) *MockRepositoryListFormsCall {
+func (c *MockRepositoryListFormsCall) DoAndReturn(f func(context.Context, string, model.FormListOptions) ([]*model.Form, int64, error)) *MockRepositoryListFormsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -437,17 +438,17 @@ func (c *MockRepositoryPublishSchemaVersionCall) DoAndReturn(f func(context.Cont
 }
 
 // UpdateForm mocks base method.
-func (m *MockRepository) UpdateForm(arg0 context.Context, arg1 *model.Form) error {
+func (m *MockRepository) UpdateForm(arg0 context.Context, arg1 *model.Form, arg2 time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateForm", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpdateForm", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // UpdateForm indicates an expected call of UpdateForm.
-func (mr *MockRepositoryMockRecorder) UpdateForm(arg0, arg1 any) *MockRepositoryUpdateFormCall {
+func (mr *MockRepositoryMockRecorder) UpdateForm(arg0, arg1, arg2 any) *MockRepositoryUpdateFormCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateForm", reflect.TypeOf((*MockRepository)(nil).UpdateForm), arg0, arg1)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateForm", reflect.TypeOf((*MockRepository)(nil).UpdateForm), arg0, arg1, arg2)
 	return &MockRepositoryUpdateFormCall{Call: call}
 }
 
@@ -463,13 +464,13 @@ func (c *MockRepositoryUpdateFormCall) Return(arg0 error) *MockRepositoryUpdateF
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRepositoryUpdateFormCall) Do(f func(context.Context, *model.Form) error) *MockRepositoryUpdateFormCall {
+func (c *MockRepositoryUpdateFormCall) Do(f func(context.Context, *model.Form, time.Time) error) *MockRepositoryUpdateFormCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRepositoryUpdateFormCall) DoAndReturn(f func(context.Context, *model.Form) error) *MockRepositoryUpdateFormCall {
+func (c *MockRepositoryUpdateFormCall) DoAndReturn(f func(context.Context, *model.Form, time.Time) error) *MockRepositoryUpdateFormCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
