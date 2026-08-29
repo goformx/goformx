@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,16 @@ import (
 type unavailableTokens struct{}
 
 type readinessStub struct{ err error }
+
+type assertionVerifierStub struct{ principal auth.FirstPartyPrincipal }
+
+func (stub assertionVerifierStub) VerifyAndConsume(
+	context.Context,
+	string,
+	time.Time,
+) (auth.FirstPartyPrincipal, error) {
+	return stub.principal, nil
+}
 
 func (stub readinessStub) Ping(context.Context) error { return stub.err }
 
@@ -67,6 +78,27 @@ func TestProductionRouterRejectsLegacyAssertionHeaders(t *testing.T) {
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusUnauthorized, response.Code)
 	require.Contains(t, response.Body.String(), "unauthorized")
+}
+
+func TestProductionRouterConvergesFirstPartyIdentityOnOwnedQueries(t *testing.T) {
+	t.Parallel()
+	repository := mockform.NewMockRepository(gomock.NewController(t))
+	organizationID := "22222222-2222-4222-8222-222222222222"
+	repository.EXPECT().ListForms(gomock.Any(), organizationID, gomock.Any()).Return(nil, int64(0), nil)
+	assertions := assertionVerifierStub{principal: auth.FirstPartyPrincipal{
+		AssertionID: "33333333-3333-4333-8333-333333333333",
+		SubjectID:   "11111111-1111-4111-8111-111111111111", OrganizationID: organizationID,
+		RequestID: "44444444-4444-4444-8444-444444444444",
+		Scopes:    map[auth.Scope]struct{}{auth.ScopeFormsRead: {}},
+	}}
+	router := newRouterWithAssertions(&config.Config{}, repository, unavailableTokens{}, readinessStub{}, nil, assertions)
+	request := httptest.NewRequest(http.MethodGet, "/v1/forms", nil)
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"EdDSA","typ":"gofx-fpa+jwt","kid":"test"}`))
+	request.Header.Set("Authorization", "Bearer "+header+".claims.signature")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.Equal(t, assertions.principal.RequestID, response.Header().Get("X-Trace-Id"))
 }
 
 func TestReadinessReflectsDatabaseAvailability(t *testing.T) {

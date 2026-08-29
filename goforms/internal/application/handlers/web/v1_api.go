@@ -105,8 +105,13 @@ func NewV1APIHandlerWithLimits(
 	tokens serviceauth.Repository,
 	logger RequestLogger,
 	limits V1Limits,
+	assertions ...serviceauth.AssertionVerifier,
 ) *V1APIHandler {
-	return newV1APIHandlerWithLimits(repository, tokens, validation.NewComprehensiveValidator(), logger, limits)
+	handler := newV1APIHandlerWithLimits(repository, tokens, validation.NewComprehensiveValidator(), logger, limits)
+	if len(assertions) > 0 && assertions[0] != nil {
+		handler.auth = serviceauth.NewWithAssertions(tokens, assertions[0])
+	}
+	return handler
 }
 
 func newV1APIHandler(
@@ -995,6 +1000,9 @@ func boundedInt(raw string, defaultValue, minimum, maximum int, name string) (in
 
 func requestID(c echo.Context) string {
 	id := c.Request().Header.Get(constants.HeaderTraceID)
+	if principal, ok := serviceauth.PrincipalFrom(c); ok && principal.RequestID != "" {
+		id = principal.RequestID
+	}
 	if !traceIDPattern.MatchString(id) {
 		id = "req_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}

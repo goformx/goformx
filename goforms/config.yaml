@@ -1,4 +1,11 @@
 security:
+  first_party:
+    enabled: false
+    issuer: https://goformx.com
+    audience: https://api.goformx.com
+    jwks_url: https://goformx.com/.well-known/goformx-control-plane-jwks.json
+    jwks_snapshot: ""
+    refresh_interval: 30s
   rate_limit:
     enabled: true
     rps: 100
