@@ -22,6 +22,13 @@ type Repository interface {
 type Principal struct {
 	TokenID string
 	OwnerID string
+	Scopes  map[auth.Scope]struct{}
+}
+
+// HasScope reports whether the authenticated principal may perform or delegate a scope.
+func (p Principal) HasScope(scope auth.Scope) bool {
+	_, ok := p.Scopes[scope]
+	return ok
 }
 
 type Middleware struct {
@@ -53,7 +60,11 @@ func (m *Middleware) Require(scope auth.Scope) echo.MiddlewareFunc {
 			if err := m.repository.MarkUsed(c.Request().Context(), token.ID, now); err != nil {
 				return echo.NewHTTPError(http.StatusServiceUnavailable, "service token audit update failed")
 			}
-			c.Set(principalContextKey, Principal{TokenID: token.ID, OwnerID: token.OwnerID})
+			scopes := make(map[auth.Scope]struct{}, len(token.Scopes))
+			for granted := range token.Scopes {
+				scopes[granted] = struct{}{}
+			}
+			c.Set(principalContextKey, Principal{TokenID: token.ID, OwnerID: token.OwnerID, Scopes: scopes})
 			return next(c)
 		}
 	}

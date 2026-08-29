@@ -44,9 +44,9 @@ func TestRotateAtomicallyRevokesAndLinksReplacement(t *testing.T) {
 	scopes, err := json.Marshal([]string{string(auth.ScopeFormsRead), string(auth.ScopeFormsWrite)})
 	require.NoError(t, err)
 	_, err = connection.Exec(t.Context(), `
-		INSERT INTO service_tokens (token_id, organization_id, token_hash, scopes, created_at, expires_at)
-		VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-	`, original.ID, original.OwnerID, original.Hash[:], string(scopes), original.CreatedAt, original.ExpiresAt)
+		INSERT INTO service_tokens (token_id, name, organization_id, token_hash, scopes, created_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
+	`, original.ID, original.Name, original.OwnerID, original.Hash[:], string(scopes), original.CreatedAt, original.ExpiresAt)
 	require.NoError(t, err)
 
 	require.NoError(t, rotate(t.Context(), []string{

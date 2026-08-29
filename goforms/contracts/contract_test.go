@@ -20,9 +20,11 @@ type operation struct {
 }
 
 type pathItem struct {
-	Get   *operation `yaml:"get"`
-	Post  *operation `yaml:"post"`
-	Patch *operation `yaml:"patch"`
+	Get    *operation `yaml:"get"`
+	Post   *operation `yaml:"post"`
+	Patch  *operation `yaml:"patch"`
+	Put    *operation `yaml:"put"`
+	Delete *operation `yaml:"delete"`
 }
 
 type contract struct {
@@ -61,7 +63,9 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 		"tokens:read": {}, "tokens:write": {}, "webhooks:read": {}, "webhooks:write": {},
 	}
 	for path, item := range api.Paths {
-		for method, op := range map[string]*operation{"get": item.Get, "post": item.Post, "patch": item.Patch} {
+		for method, op := range map[string]*operation{
+			"get": item.Get, "post": item.Post, "patch": item.Patch, "put": item.Put, "delete": item.Delete,
+		} {
 			if op == nil {
 				continue
 			}

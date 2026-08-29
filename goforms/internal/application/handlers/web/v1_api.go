@@ -42,6 +42,7 @@ type V1APIHandler struct {
 	validator    *validation.ComprehensiveValidator
 	admission    *submissionLimiter
 	webhooks     WebhookRepository
+	tokens       ServiceTokenManagementRepository
 	destinations *deliveryapp.DestinationPolicy
 	logger       RequestLogger
 	requests     atomic.Uint64
@@ -69,6 +70,13 @@ type WebhookRepository interface {
 	DeleteWebhookEndpoint(context.Context, string) error
 	ListWebhookDeliveries(context.Context, string, int) ([]*domainwebhook.Delivery, error)
 	ReplayWebhookDelivery(context.Context, string, string) error
+}
+
+// ServiceTokenManagementRepository exposes organization-scoped metadata and lifecycle operations.
+type ServiceTokenManagementRepository interface {
+	Save(context.Context, *auth.ServiceToken) error
+	ListByOrganization(context.Context, string, int) ([]*auth.ServiceToken, error)
+	RevokeByOrganization(context.Context, string, string, time.Time) error
 }
 
 // RequestLogger keeps the HTTP application boundary independent of logging implementations.
@@ -116,8 +124,12 @@ func newV1APIHandlerWithLimits(
 	if candidate, ok := repository.(WebhookRepository); ok {
 		webhooks = candidate
 	}
+	var tokenManagement ServiceTokenManagementRepository
+	if candidate, ok := tokens.(ServiceTokenManagementRepository); ok {
+		tokenManagement = candidate
+	}
 	return &V1APIHandler{repository: repository, auth: serviceauth.New(tokens), validator: validator,
-		admission: newSubmissionLimiter(limits), webhooks: webhooks,
+		admission: newSubmissionLimiter(limits), webhooks: webhooks, tokens: tokenManagement,
 		destinations: deliveryapp.NewDestinationPolicy(nil), logger: logger}
 }
 
@@ -136,6 +148,11 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.GET("/:formId/deliveries", h.instrument("list_deliveries", h.listWebhookDeliveries), h.require(auth.ScopeSubmissionsRead))
 	control.POST("/:formId/deliveries/:deliveryId/replay", h.instrument("replay_delivery", h.replayWebhookDelivery),
 		h.require(auth.ScopeWebhooksWrite))
+
+	tokens := e.Group(constants.PathV1ServiceTokens)
+	tokens.GET("", h.instrument("list_service_tokens", h.listServiceTokens), h.require(auth.ScopeTokensRead))
+	tokens.POST("", h.instrument("create_service_token", h.createServiceToken), h.require(auth.ScopeTokensWrite))
+	tokens.DELETE("/:tokenId", h.instrument("revoke_service_token", h.revokeServiceToken), h.require(auth.ScopeTokensWrite))
 
 	public := e.Group(constants.PathV1PublicForms)
 	public.Use(h.publicCORS())
@@ -806,7 +823,8 @@ func validateOrigins(origins []string) []validation.Error {
 }
 
 func formResource(formModel *model.Form) map[string]any {
-	return map[string]any{"id": formModel.ID, "name": formModel.Name, "title": formModel.Title,
+	return map[string]any{"id": formModel.ID, "organizationId": formModel.OrganizationID,
+		"name": formModel.Name, "title": formModel.Title,
 		"description": formModel.Description, "publicKey": formModel.PublicKey, "status": formModel.Status,
 		"currentVersion": formModel.CurrentSchemaVersion, "createdAt": formModel.CreatedAt.UTC().Format(time.RFC3339),
 		"updatedAt": formModel.UpdatedAt.UTC().Format(time.RFC3339)}

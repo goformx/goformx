@@ -31,6 +31,8 @@ Service tokens:
 - can be rotated atomically, revoking the previous token with revocation_reason=rotated and a replaced_by_token_id lineage;
 - can be revoked directly by non-secret token ID.
 
+An authenticated organization principal with `tokens:read` may list bounded token metadata; hashes and plaintext are never selected for that response. A principal with `tokens:write` may issue a named token only with a subset of its own scopes. The plaintext is returned once under `Cache-Control: no-store` and cannot be recovered or replayed, so issuance is intentionally not an idempotent retry operation. Organization-scoped revocation is idempotent and returns the same not-found behavior for foreign and absent token IDs. The privileged CLI remains the bootstrap and incident-recovery path.
+
 The supported scopes are `forms:read`, `forms:write`, `forms:publish`, `submissions:read`, `tokens:read`, `tokens:write`, `webhooks:read`, and `webhooks:write`. The assertion `scp` claim and service-token scope set use this same registry. Adding a scope changes both credential contracts and requires tests, fixtures, and documentation in the same change.
 
 ## First-party assertion lifecycle

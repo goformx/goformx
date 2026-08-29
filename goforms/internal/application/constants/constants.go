@@ -2,8 +2,9 @@
 package constants
 
 const (
-	PathV1Forms       = "/v1/forms"
-	PathV1PublicForms = "/v1/public/forms"
+	PathV1Forms         = "/v1/forms"
+	PathV1ServiceTokens = "/v1/service-tokens"
+	PathV1PublicForms   = "/v1/public/forms"
 
 	HeaderIdempotencyKey = "Idempotency-Key"
 	HeaderSchemaVersion  = "X-GoFormX-Schema-Version"

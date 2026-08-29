@@ -55,6 +55,7 @@ func (s Scope) Valid() bool {
 // ServiceToken is the persisted token metadata. Only Hash is stored; Plaintext is returned once.
 type ServiceToken struct {
 	ID                string
+	Name              string
 	OwnerID           string
 	Hash              [sha256.Size]byte
 	Scopes            map[Scope]struct{}
@@ -64,6 +65,12 @@ type ServiceToken struct {
 	LastUsedAt        *time.Time
 	ReplacedByTokenID string
 	RevocationReason  string
+}
+
+// HasScope reports whether the token was granted one exact canonical scope.
+func (t *ServiceToken) HasScope(scope Scope) bool {
+	_, ok := t.Scopes[scope]
+	return ok
 }
 
 func Issue(ownerID string, scopes []Scope, ttl time.Duration, now time.Time) (*ServiceToken, string, error) {
@@ -92,7 +99,7 @@ func Issue(ownerID string, scopes []Scope, ttl time.Duration, now time.Time) (*S
 		scopeSet[scope] = struct{}{}
 	}
 
-	return &ServiceToken{ID: id, OwnerID: ownerID, Hash: hash, Scopes: scopeSet,
+	return &ServiceToken{ID: id, Name: "Service token", OwnerID: ownerID, Hash: hash, Scopes: scopeSet,
 		CreatedAt: now.UTC(), ExpiresAt: now.Add(ttl).UTC()}, plaintext, nil
 }
 
