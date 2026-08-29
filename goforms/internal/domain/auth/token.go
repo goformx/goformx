@@ -20,7 +20,37 @@ const (
 	ScopeFormsWrite      Scope = "forms:write"
 	ScopeFormsPublish    Scope = "forms:publish"
 	ScopeSubmissionsRead Scope = "submissions:read"
+	ScopeTokensRead      Scope = "tokens:read"
+	ScopeTokensWrite     Scope = "tokens:write"
+	ScopeWebhooksRead    Scope = "webhooks:read"
+	ScopeWebhooksWrite   Scope = "webhooks:write"
 )
+
+var canonicalScopes = [...]Scope{
+	ScopeFormsRead,
+	ScopeFormsWrite,
+	ScopeFormsPublish,
+	ScopeSubmissionsRead,
+	ScopeTokensRead,
+	ScopeTokensWrite,
+	ScopeWebhooksRead,
+	ScopeWebhooksWrite,
+}
+
+// AllScopes returns a copy of the versioned management scope registry.
+func AllScopes() []Scope {
+	return append([]Scope(nil), canonicalScopes[:]...)
+}
+
+// Valid reports whether the scope belongs to the versioned management contract.
+func (s Scope) Valid() bool {
+	for _, candidate := range canonicalScopes {
+		if s == candidate {
+			return true
+		}
+	}
+	return false
+}
 
 // ServiceToken is the persisted token metadata. Only Hash is stored; Plaintext is returned once.
 type ServiceToken struct {
@@ -56,6 +86,9 @@ func Issue(ownerID string, scopes []Scope, ttl time.Duration, now time.Time) (*S
 	id := base64.RawURLEncoding.EncodeToString(hash[:12])
 	scopeSet := make(map[Scope]struct{}, len(scopes))
 	for _, scope := range scopes {
+		if !scope.Valid() {
+			return nil, "", fmt.Errorf("unsupported scope %q", scope)
+		}
 		scopeSet[scope] = struct{}{}
 	}
 

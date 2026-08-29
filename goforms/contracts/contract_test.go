@@ -58,6 +58,7 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 	seenIDs := make(map[string]struct{})
 	allowedScopes := map[string]struct{}{
 		"forms:read": {}, "forms:write": {}, "forms:publish": {}, "submissions:read": {},
+		"tokens:read": {}, "tokens:write": {}, "webhooks:read": {}, "webhooks:write": {},
 	}
 	for path, item := range api.Paths {
 		for method, op := range map[string]*operation{"get": item.Get, "post": item.Post, "patch": item.Patch} {
@@ -125,6 +126,15 @@ func TestFirstPartyAssertionContractAndNegativeFixtures(t *testing.T) {
 	require.JSONEq(t, `{"const":"https://goformx.com"}`, string(schema.Properties["iss"]))
 	require.JSONEq(t, `{"const":"https://api.goformx.com"}`, string(schema.Properties["aud"]))
 	require.JSONEq(t, `{"const":1}`, string(schema.Properties["ver"]))
+	require.JSONEq(t, `{
+		"type":"array",
+		"minItems":1,
+		"uniqueItems":true,
+		"items":{"enum":[
+			"forms:read","forms:write","forms:publish","submissions:read",
+			"tokens:read","tokens:write","webhooks:read","webhooks:write"
+		]}
+	}`, string(schema.Properties["scp"]))
 	var schemaResource any
 	require.NoError(t, json.Unmarshal(schemaDocument, &schemaResource))
 	compiler := jsonschema.NewCompiler()

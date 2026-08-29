@@ -242,7 +242,7 @@ paths:
       operationId: getWebhookEndpoint
       tags: [Control plane]
       security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
-      x-goformx-required-scopes: [forms:read]
+      x-goformx-required-scopes: [webhooks:read]
       responses:
         '200':
           description: Webhook endpoint metadata
@@ -256,7 +256,7 @@ paths:
       operationId: putWebhookEndpoint
       tags: [Control plane]
       security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
-      x-goformx-required-scopes: [forms:write]
+      x-goformx-required-scopes: [webhooks:write]
       requestBody:
         required: true
         content:
@@ -275,7 +275,7 @@ paths:
       operationId: deleteWebhookEndpoint
       tags: [Control plane]
       security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
-      x-goformx-required-scopes: [forms:write]
+      x-goformx-required-scopes: [webhooks:write]
       responses:
         '204': { description: Endpoint deleted; already-enqueued deliveries retain their encrypted snapshot }
         default: { $ref: '#/components/responses/Error' }
@@ -319,7 +319,7 @@ paths:
       operationId: replayWebhookDelivery
       tags: [Control plane]
       security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
-      x-goformx-required-scopes: [forms:write]
+      x-goformx-required-scopes: [webhooks:write]
       responses:
         '202':
           description: Dead-letter delivery requeued with the same delivery identifier and payload

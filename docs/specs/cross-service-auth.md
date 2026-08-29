@@ -31,7 +31,7 @@ Service tokens:
 - can be rotated atomically, revoking the previous token with revocation_reason=rotated and a replaced_by_token_id lineage;
 - can be revoked directly by non-secret token ID.
 
-The supported scopes are forms:read, forms:write, forms:publish, and submissions:read. The assertion `scp` claim and service-token scope set use this same registry. Adding a scope changes both credential contracts and requires tests, fixtures, and documentation in the same change.
+The supported scopes are `forms:read`, `forms:write`, `forms:publish`, `submissions:read`, `tokens:read`, `tokens:write`, `webhooks:read`, and `webhooks:write`. The assertion `scp` claim and service-token scope set use this same registry. Adding a scope changes both credential contracts and requires tests, fixtures, and documentation in the same change.
 
 ## First-party assertion lifecycle
 
