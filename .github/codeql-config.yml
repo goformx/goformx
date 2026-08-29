@@ -17,9 +17,3 @@ paths-ignore:
 - "**/dist/**"
 - "**/build/**"
 - "**/vendor/**"
-
-query-filters:
-- exclude:
-    id: go/path-injection
-- exclude:
-    id: js/incomplete-sanitization

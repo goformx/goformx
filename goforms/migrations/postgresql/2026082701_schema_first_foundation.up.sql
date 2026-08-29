@@ -32,10 +32,6 @@ ALTER TABLE form_schemas DROP COLUMN IF EXISTS deleted_at;
 ALTER TABLE form_schemas ADD CONSTRAINT form_schemas_state_check CHECK (state IN ('draft', 'published', 'retired'));
 CREATE UNIQUE INDEX IF NOT EXISTS form_schemas_form_version_unique ON form_schemas (form_id, version);
 
--- Convert the retained demo definition; production definitions must already be JSON Schema.
-UPDATE forms SET schema = '{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"email":{"type":"string","format":"email"}},"required":["email"],"additionalProperties":false}'::json
-WHERE uuid = '22222222-2222-4222-8222-222222222222' AND schema::jsonb ? 'components';
-
 INSERT INTO form_schemas (uuid, form_id, schema, version, state, created_at)
 SELECT gen_random_uuid()::text, uuid, schema::jsonb, 1, CASE WHEN status = 'published' THEN 'published' ELSE 'draft' END, created_at
 FROM forms

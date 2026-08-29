@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -35,8 +36,14 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
 	require.NoError(t, err)
 	store := tokenstore.NewStore(&integrationDB{db: db})
+	ownerID := uuid.NewString()
+	require.NoError(t, db.Exec(`
+		INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
+		VALUES (?, ?, 'not-used', 'Token', 'Fixture')
+	`, ownerID, ownerID+"@example.test").Error)
+	t.Cleanup(func() { _ = db.Exec("DELETE FROM users WHERE uuid = ?", ownerID).Error })
 	now := time.Now().UTC()
-	token, plaintext, err := auth.Issue("11111111-1111-4111-8111-111111111111",
+	token, plaintext, err := auth.Issue(ownerID,
 		[]auth.Scope{auth.ScopeFormsRead, auth.ScopeFormsWrite}, time.Hour, now)
 	require.NoError(t, err)
 	require.NoError(t, store.Save(t.Context(), token))

@@ -2,7 +2,7 @@
 
 ## Scope and production data flow
 
-This model covers the supported `goforms/cmd/api` runtime, PostgreSQL persistence, service-token operator CLI, and CI/release path. The deleted-or-quarantined human-first web and Form.io runtimes are outside this boundary and are owned by issue #83.
+This model covers the supported `goforms/cmd/api` runtime, PostgreSQL persistence, service-token operator CLI, and CI/release path. Retired human-first and renderer-specific runtimes were removed under issue #83 and are not part of the dependency or scan graph.
 
 ```text
 control-plane caller -- scoped service token --> Go API -- parameterized transaction --> PostgreSQL
@@ -68,4 +68,4 @@ The security-gate change closes these paths with local-reference and complexity 
 - Medium: shared-service resource exhaustion, tenant-planted validation amplification, or constrained internal-network access requiring a tenant token.
 - Low: same-tenant availability abuse, high-entropy existence oracles, or metadata-only exposure with restrictive prerequisites.
 
-The completed review found two medium and two low issues, with no high or critical findings.
+The schema-first gate review found and fixed two medium and two low issues. The webhook diff review found and fixed one additional low integrity issue. No high or critical findings remain.

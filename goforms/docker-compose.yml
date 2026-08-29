@@ -7,13 +7,14 @@ services:
     restart: unless-stopped
     user: "${UID:-1000}:${GID:-1000}"
     env_file:
-      - .env
+      - path: .env
+        required: false
     ports:
       - "8090:8090"
     environment:
       # Application Configuration
       - APP_NAME=${APP_NAME}
-      - APP_ENV=${APP_ENV}
+      - APP_ENVIRONMENT=${APP_ENVIRONMENT}
       - APP_DEBUG=${APP_DEBUG}
       - APP_LOG_LEVEL=${APP_LOG_LEVEL}
       - APP_SCHEME=${APP_SCHEME}
@@ -21,33 +22,20 @@ services:
       # Listen on all interfaces so port 8090 is reachable from host (e.g. DDEV → host.docker.internal:8090)
       - APP_HOST=${APP_HOST:-0.0.0.0}
 
-      # Database Configuration (mapped to Viper's DATABASE_ prefix)
+      # Database Configuration
       # Host must match the postgres service name on the Compose network
-      - DATABASE_DRIVER=${DB_DRIVER}
-      - DATABASE_HOST=postgres-dev
-      - DATABASE_PORT=${DB_PORT}
-      - DATABASE_NAME=${DB_NAME}
-      - DATABASE_USERNAME=${DB_USERNAME}
-      - DATABASE_PASSWORD=${DB_PASSWORD}
-      - DATABASE_MAX_OPEN_CONNS=${DB_MAX_OPEN_CONNS}
-      - DATABASE_MAX_IDLE_CONNS=${DB_MAX_IDLE_CONNS}
+      - DB_DRIVER=${DB_DRIVER}
+      - DB_HOST=postgres-dev
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_MAX_OPEN_CONNS=${DB_MAX_OPEN_CONNS}
+      - DB_MAX_IDLE_CONNS=${DB_MAX_IDLE_CONNS}
 
-      # Security Configuration
-      - SESSION_SECRET=${SESSION_SECRET}
-      - SECURITY_CSRF_SECRET=${SECURITY_CSRF_SECRET}
-      - SECURE_COOKIES=${SECURE_COOKIES}
-
-      # CSP Configuration
-      - SECURITY_CSP_SCRIPT_SRC=${SECURITY_CSP_SCRIPT_SRC}
-      - SECURITY_CSP_STYLE_SRC=${SECURITY_CSP_STYLE_SRC}
-      - SECURITY_CSP_CONNECT_SRC=${SECURITY_CSP_CONNECT_SRC}
-
-      # CORS Configuration
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
-      - CORS_ALLOWED_METHODS=${CORS_ALLOWED_METHODS}
-      - CORS_ALLOWED_HEADERS=${CORS_ALLOWED_HEADERS}
-      - CORS_ALLOW_CREDENTIALS=${CORS_ALLOW_CREDENTIALS}
-      - CORS_MAX_AGE=${CORS_MAX_AGE}
+      - SECURITY_RATE_LIMIT_ENABLED=${SECURITY_RATE_LIMIT_ENABLED:-true}
+      - SECURITY_RATE_LIMIT_RPS=${SECURITY_RATE_LIMIT_RPS:-100}
+      - SECURITY_RATE_LIMIT_BURST=${SECURITY_RATE_LIMIT_BURST:-200}
       - SECURITY_RATE_LIMIT_PUBLIC_SUBMISSION_RPS=${SECURITY_RATE_LIMIT_PUBLIC_SUBMISSION_RPS:-1}
       - SECURITY_RATE_LIMIT_PUBLIC_SUBMISSION_BURST=${SECURITY_RATE_LIMIT_PUBLIC_SUBMISSION_BURST:-10}
       - SECURITY_RATE_LIMIT_SUBMISSIONS_PER_DAY=${SECURITY_RATE_LIMIT_SUBMISSIONS_PER_DAY:-1000}
@@ -60,11 +48,10 @@ services:
       - WEBHOOK_BACKOFF_BASE=${WEBHOOK_BACKOFF_BASE:-5s}
       - WEBHOOK_BACKOFF_MAX=${WEBHOOK_BACKOFF_MAX:-1h}
 
-      # Timeouts
-      - READ_TIMEOUT=${READ_TIMEOUT}
-      - WRITE_TIMEOUT=${WRITE_TIMEOUT}
-      - IDLE_TIMEOUT=${IDLE_TIMEOUT}
-      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT}
+      - APP_READ_TIMEOUT=${APP_READ_TIMEOUT:-15s}
+      - APP_WRITE_TIMEOUT=${APP_WRITE_TIMEOUT:-15s}
+      - APP_IDLE_TIMEOUT=${APP_IDLE_TIMEOUT:-60s}
+      - APP_REQUEST_TIMEOUT=${APP_REQUEST_TIMEOUT:-30s}
     depends_on:
       postgres-dev:
         condition: service_healthy
@@ -85,7 +72,8 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USERNAME}

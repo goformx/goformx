@@ -8,8 +8,7 @@ GoFormX is being rebuilt as an AI-first, schema-driven Go service. Work toward t
 - JSON Schema Draft 2020-12 is the canonical form definition.
 - OpenAPI is the machine-readable HTTP contract.
 - PostgreSQL is the supported database.
-- `goformx-web/` and `goformx-formio/` are legacy reference code pending issue #83. Do not add features or dependencies there.
-- Dashboard UI, billing, browser sessions, Laravel/Waaseyaa migration, and Form.io compatibility are not v1 requirements.
+- Dashboard UI, billing, browser sessions, framework migrations, and renderer-specific schemas are not v1 requirements. Their retired implementations remain available in Git history, not in the working tree.
 
 ## Required workflow
 

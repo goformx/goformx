@@ -100,7 +100,3 @@ tasks:
     desc: Roll back one supported Postgres migration
     dir: ./goforms
     cmd: task migrate:down
-
-  legacy:web:
-    desc: Explain the status of the retained human-first code
-    cmd: echo "goformx-web and goformx-formio are legacy reference code; see issue #83."

@@ -117,7 +117,7 @@ func TestForm_Validate(t *testing.T) {
 			errContains: "invalid schema: type must be object",
 		},
 		{
-			name: "Form.io format is not canonical",
+			name: "renderer component format is not canonical",
 			form: model.NewForm(
 				"user123",
 				"Test Form",
@@ -176,7 +176,7 @@ func TestForm_Validate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.name != "Form.io format is not canonical" {
+			if tt.name != "renderer component format is not canonical" {
 				tt.form.Schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 			}
 			err := tt.form.Validate()
