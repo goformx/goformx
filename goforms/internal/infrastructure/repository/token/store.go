@@ -18,7 +18,7 @@ func NewStore(db database.DB) *Store { return &Store{db: db} }
 
 type record struct {
 	TokenID           string       `gorm:"column:token_id;primaryKey"`
-	OwnerID           string       `gorm:"column:owner_id"`
+	OwnerID           string       `gorm:"column:organization_id"`
 	TokenHash         []byte       `gorm:"column:token_hash"`
 	Scopes            []auth.Scope `gorm:"serializer:json;type:jsonb"`
 	CreatedAt         time.Time

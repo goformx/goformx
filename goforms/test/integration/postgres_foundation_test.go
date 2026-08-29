@@ -28,7 +28,7 @@ func TestSchemaFirstPostgresFoundation(t *testing.T) {
 	`, ownerID, ownerID+"@example.test")
 	require.NoError(t, err)
 	_, err = pool.Exec(t.Context(), `
-		INSERT INTO forms (uuid, user_id, name, title, description, active, status, public_key,
+		INSERT INTO forms (uuid, organization_id, name, title, description, active, status, public_key,
 			current_schema_version, cors_origins, cors_methods, cors_headers)
 		VALUES ($1, $2, 'schema-fixture', 'Schema Fixture', '', true, 'draft', $3, 1, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb)
 	`, formID, ownerID, publicKey)
@@ -39,7 +39,10 @@ func TestSchemaFirstPostgresFoundation(t *testing.T) {
 			1, 'draft', now())
 	`, schemaID, formID)
 	require.NoError(t, err)
-	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE uuid = $1", ownerID) })
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM forms WHERE organization_id = $1", ownerID)
+		_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE uuid = $1", ownerID)
+	})
 
 	var storedKey string
 	var currentVersion int

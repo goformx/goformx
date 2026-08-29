@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,8 +62,8 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			return nil
 		},
 	)
-	repository.EXPECT().GetFormByID(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, _ string) (*model.Form, error) { return formModel, nil },
+	repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", gomock.Any()).DoAndReturn(
+		func(_ context.Context, _, _ string) (*model.Form, error) { return formModel, nil },
 	).AnyTimes()
 	repository.EXPECT().CreateSchemaVersion(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(_ context.Context, formID string, schema model.JSON) (*model.SchemaVersion, error) {
@@ -196,9 +197,7 @@ func TestValidateOriginsAcceptsOriginsAndRejectsURLsOrDuplicates(t *testing.T) {
 func TestControlPlaneRejectsCrossOwnerFormAccess(t *testing.T) {
 	t.Parallel()
 	repository := mockform.NewMockRepository(gomock.NewController(t))
-	repository.EXPECT().GetFormByID(gomock.Any(), "form-owned-by-b").Return(
-		&model.Form{ID: "form-owned-by-b", UserID: "owner-b"}, nil,
-	)
+	repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", "form-owned-by-b").Return(nil, errors.New("not found"))
 	now := time.Now()
 	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeFormsRead}, time.Hour, now)
 	require.NoError(t, err)

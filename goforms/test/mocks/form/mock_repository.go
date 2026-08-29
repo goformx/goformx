@@ -161,18 +161,18 @@ func (c *MockRepositoryCreateSubmissionIdempotentCall) DoAndReturn(f func(contex
 }
 
 // GetFormByID mocks base method.
-func (m *MockRepository) GetFormByID(arg0 context.Context, arg1 string) (*model.Form, error) {
+func (m *MockRepository) GetFormByID(arg0 context.Context, arg1, arg2 string) (*model.Form, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetFormByID", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetFormByID", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*model.Form)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetFormByID indicates an expected call of GetFormByID.
-func (mr *MockRepositoryMockRecorder) GetFormByID(arg0, arg1 any) *MockRepositoryGetFormByIDCall {
+func (mr *MockRepositoryMockRecorder) GetFormByID(arg0, arg1, arg2 any) *MockRepositoryGetFormByIDCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFormByID", reflect.TypeOf((*MockRepository)(nil).GetFormByID), arg0, arg1)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFormByID", reflect.TypeOf((*MockRepository)(nil).GetFormByID), arg0, arg1, arg2)
 	return &MockRepositoryGetFormByIDCall{Call: call}
 }
 
@@ -188,13 +188,13 @@ func (c *MockRepositoryGetFormByIDCall) Return(arg0 *model.Form, arg1 error) *Mo
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockRepositoryGetFormByIDCall) Do(f func(context.Context, string) (*model.Form, error)) *MockRepositoryGetFormByIDCall {
+func (c *MockRepositoryGetFormByIDCall) Do(f func(context.Context, string, string) (*model.Form, error)) *MockRepositoryGetFormByIDCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockRepositoryGetFormByIDCall) DoAndReturn(f func(context.Context, string) (*model.Form, error)) *MockRepositoryGetFormByIDCall {
+func (c *MockRepositoryGetFormByIDCall) DoAndReturn(f func(context.Context, string, string) (*model.Form, error)) *MockRepositoryGetFormByIDCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

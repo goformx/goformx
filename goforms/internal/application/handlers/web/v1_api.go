@@ -53,7 +53,7 @@ type V1APIHandler struct {
 type V1Repository interface {
 	CreateForm(context.Context, *model.Form) error
 	ListForms(context.Context, string) ([]*model.Form, error)
-	GetFormByID(context.Context, string) (*model.Form, error)
+	GetFormByID(context.Context, string, string) (*model.Form, error)
 	UpdateForm(context.Context, *model.Form) error
 	CreateSchemaVersion(context.Context, string, model.JSON) (*model.SchemaVersion, error)
 	GetSchemaVersion(context.Context, string, int) (*model.SchemaVersion, error)
@@ -286,13 +286,14 @@ func (h *V1APIHandler) listForms(c echo.Context) error {
 }
 
 func (h *V1APIHandler) ownedForm(c echo.Context) (*model.Form, bool) {
-	formModel, err := h.repository.GetFormByID(c.Request().Context(), c.Param("formId"))
-	if err != nil {
-		_ = h.writeRepositoryError(c, err)
+	principal, ok := serviceauth.PrincipalFrom(c)
+	if !ok {
+		_ = h.writeError(c, http.StatusUnauthorized, "unauthorized", "Authentication is required.", nil)
 		return nil, false
 	}
-	if err := serviceauth.RequireOwner(c, formModel.UserID); err != nil {
-		_ = h.writeError(c, http.StatusNotFound, "not_found", "The requested resource was not found.", nil)
+	formModel, err := h.repository.GetFormByID(c.Request().Context(), principal.OwnerID, c.Param("formId"))
+	if err != nil {
+		_ = h.writeRepositoryError(c, err)
 		return nil, false
 	}
 	return formModel, true
@@ -344,7 +345,7 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 	if err := h.repository.UpdateForm(c.Request().Context(), formModel); err != nil {
 		return h.writeRepositoryError(c, err)
 	}
-	updated, err := h.repository.GetFormByID(c.Request().Context(), formModel.ID)
+	updated, err := h.repository.GetFormByID(c.Request().Context(), formModel.OrganizationID, formModel.ID)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
