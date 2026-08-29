@@ -182,6 +182,23 @@ paths:
   /v1/forms/{formId}/versions:
     parameters:
       - $ref: '#/components/parameters/FormId'
+    get:
+      summary: List immutable schema versions, newest first
+      operationId: listSchemaVersions
+      tags: [Control plane]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:read]
+      parameters:
+        - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/PageOffset'
+      responses:
+        '200':
+          description: Organization-owned schema version page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchemaVersionCollection' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
     post:
       summary: Create an immutable schema version
       operationId: createSchemaVersion
@@ -201,6 +218,24 @@ paths:
       responses:
         '201':
           description: Immutable draft schema version created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SchemaVersionEnvelope' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
+  /v1/forms/{formId}/versions/{version}:
+    parameters:
+      - $ref: '#/components/parameters/FormId'
+      - $ref: '#/components/parameters/Version'
+    get:
+      summary: Get one immutable schema version
+      operationId: getSchemaVersion
+      tags: [Control plane]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [forms:read]
+      responses:
+        '200':
+          description: Organization-owned schema version
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SchemaVersionEnvelope' }
@@ -716,6 +751,14 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/SchemaVersion' }
+    SchemaVersionCollection:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SchemaVersion' }
+        meta: { $ref: '#/components/schemas/OffsetPageMeta' }
     SubmissionEnvelope:
       type: object
       required: [data]

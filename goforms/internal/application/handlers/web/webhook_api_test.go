@@ -29,7 +29,7 @@ type webhookAPIRepository struct {
 
 func (r *webhookAPIRepository) PutWebhookEndpoint(
 	_ context.Context,
-	formID, destinationURL string,
+	_, formID, destinationURL string,
 	config domainwebhook.SecretConfig,
 	enabled bool,
 ) (*domainwebhook.Endpoint, error) {
@@ -40,23 +40,23 @@ func (r *webhookAPIRepository) PutWebhookEndpoint(
 	return r.endpoint, nil
 }
 
-func (r *webhookAPIRepository) GetWebhookEndpoint(context.Context, string) (*domainwebhook.Endpoint, error) {
+func (r *webhookAPIRepository) GetWebhookEndpoint(context.Context, string, string) (*domainwebhook.Endpoint, error) {
 	if r.endpoint == nil {
 		return nil, domainwebhook.ErrNotFound
 	}
 	return r.endpoint, nil
 }
 
-func (r *webhookAPIRepository) DeleteWebhookEndpoint(context.Context, string) error {
+func (r *webhookAPIRepository) DeleteWebhookEndpoint(context.Context, string, string) error {
 	r.endpoint = nil
 	return nil
 }
 
-func (r *webhookAPIRepository) ListWebhookDeliveries(context.Context, string, int) ([]*domainwebhook.Delivery, error) {
+func (r *webhookAPIRepository) ListWebhookDeliveries(context.Context, string, string, int) ([]*domainwebhook.Delivery, error) {
 	return r.deliveries, nil
 }
 
-func (r *webhookAPIRepository) ReplayWebhookDelivery(_ context.Context, _ string, deliveryID string) error {
+func (r *webhookAPIRepository) ReplayWebhookDelivery(_ context.Context, _, _ string, deliveryID string) error {
 	r.replayed = deliveryID
 	return nil
 }
