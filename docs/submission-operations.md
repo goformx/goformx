@@ -101,18 +101,86 @@ These tests do not prove that proxy/access logs, database-server logging, crash
 dumps, or external collectors are correctly configured. Audit those during #125;
 this code change does not erase historical logs or establish a production leak.
 
+## Bounded audited exports (development contract 1.2.0)
+
+`POST /v1/forms/{formId}/submissions/export` requires `submissions:read`, with
+the same two distinct credential classes as reads. The JSON body requires
+`format: "json"` or `format: "csv"` and optionally the existing `receivedFrom`,
+`receivedBefore`, `status`, and `schemaVersion` filters. Filter values never
+belong in a URL. Query strings, unknown/duplicate/null/empty fields, cursor or
+limit overrides, invalid ranges, and bodies larger than 4096 bytes fail with a
+generic 400 response. Integral numeric spellings such as `1.0` and `1e0` select
+version 1; near-integers are not rounded.
+
+The database reads one statement snapshot ordered by acceptance time and ID
+descending, joining each row to its exact accepted schema's root privacy policy.
+It does not join to the current form version or repeatedly fetch full schemas.
+The row count and source size are evaluated **before PostgreSQL sends payloads**.
+Source size includes payload/policy text, request/status metadata and a fixed
+per-row allowance. The extra sentinel row detects overflow, not a partial page.
+
+| Budget | Limit |
+| --- | ---: |
+| Accepted rows | 1,000 |
+| Candidate source data | 8 MiB |
+| Encoded download | 8 MiB |
+| Application processing deadline | 10 seconds |
+| CSV columns, including metadata | 256 |
+| Nested CSV object levels | 32 |
+| Concurrent exports per API instance | 1 |
+
+OpenAPI exposes these as `x-goformx-export-limits`, checked against domain
+constants. Source/row/output/depth/column overflow returns 413 with no download;
+narrow the filters and retry. A timeout returns 504. A second concurrent export
+receives 429 with `Retry-After: 1`, without entering a wait queue; authorization
+still runs before this admission check. Deployment traffic and memory budgets
+still require capacity validation: decoded JSON uses more memory than its wire
+representation, and this admission limit is per instance, not cluster-wide.
+One very large historical row can
+require a separately reviewed administrative recovery path instead of this API.
+
+JSON contains the normal redacted submission resources plus
+`meta.exportId`, `meta.preparedAt`, and `meta.rowCount`. Exact JSON numbers are
+preserved. CSV contains ID, form ID, accepted schema version, request ID, status,
+acceptance time, and redacted-path metadata, followed by sorted `data:/pointer`
+columns. Objects are flattened using escaped JSON Pointers; arrays and empty
+objects remain JSON text in a cell. Column selection follows the redacted
+projection, never the raw payload. Missing and empty string cells are not
+distinguishable in CSV; use JSON for that distinction and machine round trips.
+
+Every CSV cell is double-quoted, internal quotes doubled, and apostrophe-prefixed
+as text, including headers and numeric values. This protects the initial artifact
+against formula-leading text and avoids presenting large numbers as spreadsheet
+numbers. A strict CSV reader will see the apostrophe. Spreadsheet applications
+and re-save/import workflows can change these protections; this is not universal
+round-trip safety. See [OWASP's CSV injection guidance](https://owasp.org/www-community/attacks/CSV_Injection).
+Do not remove the text prefix and then treat untrusted cells as formulas.
+
+Before any attachment headers or bytes are released, a mandatory repository
+operation rechecks form ownership/deletion and persists an `export.prepared`
+audit record. Audit failure returns 503, not an unaudited download. Records
+include export/organization/form IDs, actor ID, credential class and non-secret
+lookup ID, request ID, format, row/byte counts and time. They do not include
+payloads, schema, filters, bearer credentials, or body digests. `prepared` means
+the artifact was prepared and audited; it does not claim the client received it.
+The audit ID is also returned in `X-GoFormX-Export-ID`; filenames use only that
+generated UUID, never a user-provided form title.
+
+Migration `2026083002` adds the audit table without foreign-key cascades. Audit
+rows survive form/token deletion, and ordinary UPDATE, DELETE, and TRUNCATE are
+rejected by triggers. This is not tamper-proof against a privileged database
+administrator. Down migration succeeds only while the table is empty; once an
+export is recorded, roll back the application without dropping audit history.
+Include the new table in backup/restore and retention decisions before #125.
+
 ## Remaining delivery contract — required before closing #122
 
 The following remain required before closing #122:
 
 - UI detail rendering uses the exact accepted schema, retaining numeric precision.
   Delivery state and trace metadata remain distinct from acceptance state.
-- Exports must use the same Go redaction policy as reads; exports are not yet
-  implemented. UI masking alone is insufficient.
-- JSON/CSV exports require explicit authorization, a hard row and byte budget,
-  lossless JSON values, CSV formula-injection defenses, and an audit record that
-  excludes payload values and secret-bearing selectors. Incomplete exports must
-  be explicit, not silently truncated. Audit persistence failures fail closed.
+- The control-plane export action must use this Go API directly, with no browser
+  credentials, client-side re-redaction, or alternate unaudited export path.
 - The control plane will authorize owner/admin submission operations on fresh
   membership resolution; ordinary members retain form/schema-only access.
 - Empty/loading/error/populated UI, exact-version display, bounded exports,

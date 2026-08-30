@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,25 @@ func TestNumericResourceLimitsMatchTheRuntime(t *testing.T) {
 
 type parameter struct {
 	Ref string `yaml:"$ref"`
+}
+
+func TestExportResourceLimitsMatchRuntime(t *testing.T) {
+	document, err := os.ReadFile("openapi.v1.yaml")
+	require.NoError(t, err)
+	var api struct {
+		Paths map[string]struct {
+			Post struct {
+				Limits map[string]int `yaml:"x-goformx-export-limits"`
+			} `yaml:"post"`
+		} `yaml:"paths"`
+	}
+	require.NoError(t, yaml.Unmarshal(document, &api))
+	require.Equal(t, map[string]int{
+		"rows": submission.MaxExportRows, "sourceBytes": submission.MaxExportSourceBytes,
+		"outputBytes": submission.MaxExportBytes, "processingSeconds": int(submission.ExportTimeout / time.Second),
+		"csvColumns": submission.MaxExportColumns, "csvDepth": submission.MaxExportDepth, "requestBytes": submission.MaxExportRequestBytes,
+		"concurrentExports": submission.MaxConcurrentExports,
+	}, api.Paths["/v1/forms/{formId}/submissions/export"].Post.Limits)
 }
 
 func TestSubmissionFilterBoundsMatchTheDomain(t *testing.T) {

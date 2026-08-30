@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/goformx/goforms/internal/application/handlers/web"
 	"github.com/goformx/goforms/internal/domain/auth"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	"github.com/goformx/goforms/internal/domain/submission"
 	"github.com/goformx/goforms/internal/infrastructure/config"
 	databasepackage "github.com/goformx/goforms/internal/infrastructure/database"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -91,6 +93,15 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 		require.NoError(t, err)
 		require.Equal(t, expected, response.StatusCode, "synthetic %s %s", method, path)
 		require.Equal(t, "no-store", response.Header.Get("Cache-Control"))
+		if strings.HasSuffix(path, "/submissions/export") {
+			if expected == http.StatusOK {
+				require.NotEmpty(t, response.Header.Get("X-GoFormX-Export-ID"))
+				require.Regexp(t, `^attachment; filename="goformx-submissions-[0-9a-f-]+\.(json|csv)"$`, response.Header.Get("Content-Disposition"))
+			} else {
+				require.Empty(t, response.Header.Get("Content-Disposition"))
+				require.Empty(t, response.Header.Get("X-GoFormX-Export-ID"))
+			}
+		}
 		require.NotContains(t, string(encoded), "private-canary")
 		return encoded
 	}
@@ -149,6 +160,63 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 	request("GET", path+"/submissions/"+one.Data.ID, "", foreignCredential, "", 404)
 	request("GET", path+"/submissions/"+one.Data.ID, "", formOnlyCredential, "", 403)
 	request("GET", path+"/submissions/"+one.Data.ID, "", "", "", 401)
+	// Both export encodings use the accepted version, with a durable audit before
+	// any attachment headers or bytes are released.
+	exportPath := path + "/submissions/export"
+	jsonExport := request("POST", exportPath, `{"format":"json"}`, credential, "", 200)
+	var exported struct {
+		Data []submission.Projection `json:"data"`
+		Meta submission.ExportMeta   `json:"meta"`
+	}
+	require.NoError(t, json.Unmarshal(jsonExport, &exported))
+	require.Len(t, exported.Data, 2)
+	require.Equal(t, 2, exported.Meta.RowCount)
+	byID := map[string]submission.Projection{}
+	for _, row := range exported.Data {
+		byID[row.ID] = row
+	}
+	require.Equal(t, "visible-name", byID[one.Data.ID].Data["name"])
+	require.NotContains(t, byID[two.Data.ID].Data, "name")
+	var audit struct {
+		OrganizationID  string
+		SubjectID       string
+		CredentialClass string
+		CredentialID    string
+		Format          string
+		RowCount        int
+		ByteCount       int
+	}
+	require.NoError(t, db.Table("submission_export_audit").Where("export_id = ?", exported.Meta.ExportID).Take(&audit).Error)
+	require.Equal(t, organization, audit.OrganizationID)
+	require.Equal(t, "service_token", audit.CredentialClass)
+	require.Equal(t, auth.LookupID(credential), audit.CredentialID)
+	require.Equal(t, audit.CredentialID, audit.SubjectID)
+	require.Equal(t, "json", audit.Format)
+	require.Equal(t, 2, audit.RowCount)
+	require.Equal(t, len(jsonExport), audit.ByteCount)
+	csvExport := request("POST", exportPath, `{"format":"csv","schemaVersion":1}`, credential, "", 200)
+	csvRows, err := csv.NewReader(strings.NewReader(string(csvExport))).ReadAll()
+	require.NoError(t, err)
+	require.Len(t, csvRows, 2, "One version-one row plus header")
+	require.Contains(t, csvRows[1], "'"+one.Data.ID)
+	require.Contains(t, csvRows[1], "'visible-name")
+	request("POST", exportPath, `{"format":"json"}`, foreignCredential, "", 404)
+	request("POST", exportPath, `{"format":"json"}`, formOnlyCredential, "", 403)
+	request("POST", exportPath, `{"format":"json"}`, "", "", 401)
+	request("POST", exportPath, `{"format":"json","payload":"private-canary"}`, credential, "", 400)
+	request("POST", exportPath, `{"format":"json","format":"csv"}`, credential, "", 400)
+	var auditCount int64
+	require.NoError(t, db.Table("submission_export_audit").Where("organization_id = ?", organization).Count(&auditCount).Error)
+	require.EqualValues(t, 2, auditCount)
+	require.NoError(t, db.Callback().Raw().Before("gorm:raw").Register("privacy_test:audit_failure", func(tx *gorm.DB) {
+		if strings.Contains(tx.Statement.SQL.String(), "INSERT INTO submission_export_audit") {
+			failure := tx.Session(&gorm.Session{NewDB: true}).Exec("DO $$ BEGIN RAISE EXCEPTION 'private-canary-audit-failure'; END $$").Error
+			_ = tx.AddError(failure)
+		}
+	}))
+	request("POST", exportPath, `{"format":"csv"}`, credential, "", 503)
+	require.NoError(t, db.Table("submission_export_audit").Where("organization_id = ?", organization).Count(&auditCount).Error)
+	require.EqualValues(t, 2, auditCount, "Failed and denied exports do not create prepared audit records")
 	request("POST", path+"/versions", `{"schema":`+strings.Replace(schema, `"/secret"`, `"#/secret"`, 1)+`}`, credential, "", 422)
 	// Syntactically valid policy that cannot traverse this instance fails before persistence.
 	badShape := strings.Replace(schema, `"/absent"]`, `"/name/child"]`, 1)

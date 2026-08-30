@@ -155,6 +155,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/forms/{formId}/submissions/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formId: components["parameters"]["FormId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prepare a bounded redacted submission download and durable audit record
+         * @description Exports one owned, non-deleted form from a single database statement
+         *     snapshot, newest received time and ID first. Filters belong in the JSON
+         *     body, never a query string. Unknown, repeated, null, and empty fields
+         *     are rejected. Body limit is 4096 bytes; there is no cursor or limit override.
+         *     Hard bounds are 1000 rows, 8 MiB of source payload/policy/metadata, 8 MiB
+         *     of encoded output, and a 10-second application processing deadline.
+         *     Exceeding a bound releases no partial download. The accepted version's
+         *     privacy policy applies identically to normal reads. No reveal mode exists.
+         *     Before returning any download bytes, the service persists an append-only
+         *     export.prepared audit containing actor, organization, form, credential
+         *     class/non-secret ID, request ID, format, row/byte counts and time, but no
+         *     payloads or filters. Prepared does not prove client receipt.
+         *     JSON preserves exact numeric values. CSV flattens nested objects to
+         *     JSON-Pointer columns; arrays/empty objects remain JSON cell text. CSV is
+         *     limited to 256 total columns and 32 nested object levels. Every cell,
+         *     including headers and numbers, is double-quoted, quote-escaped and
+         *     apostrophe-prefixed as spreadsheet text. This is an initial-download
+         *     defense, not a guarantee after arbitrary spreadsheet edits/re-saves.
+         *     One export at a time is admitted per API instance, without a wait queue;
+         *     concurrent authorized requests receive 429 with Retry-After.
+         *     Use JSON for machine round trips, distinguishing missing/empty cells,
+         *     and exact numeric processing. Responses are attachments with no-store.
+         */
+        post: operations["exportSubmissions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forms/{formId}/submissions/{submissionId}": {
         parameters: {
             query?: never;
@@ -956,6 +999,100 @@ export interface operations {
                         data: components["schemas"]["Submission"][];
                         meta?: components["schemas"]["CursorPageMeta"];
                     };
+                };
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    exportSubmissions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formId: components["parameters"]["FormId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    format: "json" | "csv";
+                    /**
+                     * Format: date-time
+                     * @description Inclusive lower bound; explicit offset and at most microsecond precision.
+                     */
+                    receivedFrom?: string;
+                    /**
+                     * Format: date-time
+                     * @description Exclusive upper bound; must be later than receivedFrom.
+                     */
+                    receivedBefore?: string;
+                    /** @enum {string} */
+                    status?: "accepted";
+                    schemaVersion?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Complete bounded export prepared and durably audited */
+            200: {
+                headers: {
+                    "X-GoFormX-Export-ID"?: string;
+                    "Content-Disposition"?: string;
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["Submission"][];
+                        meta: {
+                            /** Format: uuid */
+                            exportId: string;
+                            /** Format: date-time */
+                            preparedAt: string;
+                            rowCount: number;
+                        };
+                    };
+                    "text/csv": string;
+                };
+            };
+            /** @description Row, source-byte, output-byte, CSV depth, or column budget exceeded; narrow filters */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Another export is active on this API instance; retry later */
+            429: {
+                headers: {
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Durable audit failed; no download was released */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description Export processing deadline exceeded */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
                 };
             };
             default: components["responses"]["Error"];

@@ -38,6 +38,10 @@ func submissionListOptions(c echo.Context) (submission.ListOptions, error) {
 			return submission.ListOptions{}, errors.New("submission filters must not be empty")
 		}
 	}
+	return submissionOptionsFromParameters(parameters)
+}
+
+func submissionOptionsFromParameters(parameters url.Values) (submission.ListOptions, error) {
 	limit, err := submissionPageLimit(parameters.Get("limit"))
 	if err != nil {
 		return submission.ListOptions{}, err
