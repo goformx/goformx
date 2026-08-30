@@ -32,10 +32,6 @@ jobs:
           HAS_SUBSCRIPTION_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         with:
           script: |
-            if (process.env.HAS_SUBSCRIPTION_TOKEN !== 'true') {
-              core.setFailed('Add CLAUDE_CODE_OAUTH_TOKEN from Claude Max. API billing is not configured.');
-              return;
-            }
             const {data: pr} = await github.rest.pulls.get({
               ...context.repo, pull_number: context.issue.number
             });
@@ -45,14 +41,28 @@ jobs:
             }
             core.setOutput('head_sha', pr.head.sha);
             core.setOutput('base_sha', pr.base.sha);
+            const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const {data: comment} = await github.rest.issues.createComment({
+              ...context.repo, issue_number: context.issue.number,
+              body: `Claude review requested. Status: running; no verdict yet.\nHead: ${pr.head.sha}\nBase: ${pr.base.sha}\nWorkflow: ${runURL}\nIf this status remains running, inspect the linked run for cancellation or runner failure.`
+            });
+            core.setOutput('comment_id', comment.id);
+            if (process.env.HAS_SUBSCRIPTION_TOKEN !== 'true') {
+              core.setFailed('Add CLAUDE_CODE_OAUTH_TOKEN from Claude Max. API billing is not configured.');
+            }
 
       - name: Checkout trusted default branch
+        id: checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 1
+          ref: ${{ github.sha }}
 
-      - name: Review with Claude Max
+      - name: Research with Claude Max
+        id: research
+        timeout-minutes: 8
+        continue-on-error: true
         uses: anthropics/claude-code-action@a874e9ecd7bb36efdad65429c6b35815f5a08f10 # v1, Claude Code 2.1.251
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -60,6 +70,7 @@ jobs:
           # Comments are attributed to github-actions[bot] and labeled Claude.
           github_token: ${{ github.token }}
           include_fix_links: false
+          classify_inline_comments: false
           show_full_output: false
           settings: '{"disableAllHooks":true}'
           prompt: |
@@ -69,7 +80,7 @@ jobs:
             Expected base: ${{ steps.request.outputs.base_sha }}.
 
             Use gh pr view and gh pr diff with the explicit PR number and --repo.
-            Verify the head and base match before reviewing and again before posting.
+            Verify the head and base match before reviewing.
             If either changed, stop and report that a new manual request is needed.
             The local checkout is the trusted default branch, NOT the PR head.
             Follow applicable AGENTS.md and CLAUDE.md review guidance from that checkout.
@@ -83,32 +94,71 @@ jobs:
             formatting complaints, and unsupported claims. Distinguish verified evidence
             from uncertainty. If context is insufficient, explicitly say so.
 
-            Post ONE review summary using gh pr comment on this PR. Start the body with
-            "Claude review (manual, requested by jonesrussell)". Include the reviewed head
-            and base SHAs, severity, affected file and line, concrete impact, and suggested
-            correction for each finding. If there are no findings, say so without claiming
-            that tests passed or that the code is proven safe. State that no tests were run.
-            Do not include an @mention that could trigger another agent.
+            Budget: finish research by turn 12 and return a final text summary before
+            the 16-turn hard cap. Batch file reads and do not retry denied tools.
+            Return severity, affected file/line, concrete impact and correction for
+            each supported finding. State uncertainty and coverage limits. If there
+            are no findings, say so without claiming tests ran or code is proven safe.
+            DO NOT post comments or modify GitHub. Deterministic workflow code will
+            validate the current revision and publish your final text. No mentions,
+            credentials, tool transcripts or raw environment values in the summary.
           claude_args: >-
             --max-turns 16
             --permission-mode default
             --setting-sources user
             --strict-mcp-config
             --tools "Read,Glob,Grep,Bash"
-            --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*)"
+            --allowedTools "Read,Glob,Grep,Bash(gh pr view:*),Bash(gh pr diff:*)"
             --disallowedTools "Edit,Write,NotebookEdit"
 
-      - name: Check reviewed revision is still current
-        if: success()
+      - name: Capture private execution and sanitized diagnostics
+        id: capture
+        if: always() && steps.checkout.outcome == 'success'
+        run: node .github/scripts/manual-review.cjs prepare
+
+      - name: Summarize exhausted research without tools
+        if: always() && steps.capture.outputs.summarize == 'true'
+        timeout-minutes: 3
+        continue-on-error: true
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: node .github/scripts/manual-review.cjs summarize
+
+      - name: Publish final review or failure status
+        if: always()
+        timeout-minutes: 2
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
-          REVIEWED_HEAD: ${{ steps.request.outputs.head_sha }}
-          REVIEWED_BASE: ${{ steps.request.outputs.base_sha }}
+          REVIEW_HEAD: ${{ steps.request.outputs.head_sha }}
+          REVIEW_BASE: ${{ steps.request.outputs.base_sha }}
+          REVIEW_COMMENT_ID: ${{ steps.request.outputs.comment_id }}
+          RESEARCH_OUTCOME: ${{ steps.research.outcome }}
+          REVIEW_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         with:
           script: |
-            const {data: pr} = await github.rest.pulls.get({
-              ...context.repo, pull_number: context.issue.number
-            });
-            if (pr.head.sha !== process.env.REVIEWED_HEAD || pr.base.sha !== process.env.REVIEWED_BASE) {
-              core.setFailed('The PR changed during review. Findings are stale; request a new manual review.');
+            try {
+              const reporter = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/manual-review.cjs`);
+              await reporter.publish({github, context, core});
+            } catch {
+              // Must also work when checkout/setup failed and the helper is absent.
+              // Never include raw provider/API errors or transcript text here.
+              const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+              const body = `Claude review: INCOMPLETE. Setup, execution, or publishing failed; no valid verdict is available.\nWorkflow: ${runURL}`;
+              const commentID = Number(process.env.REVIEW_COMMENT_ID);
+              if (Number.isSafeInteger(commentID) && commentID > 0) {
+                await github.rest.issues.updateComment({...context.repo, comment_id: commentID, body});
+              } else {
+                await github.rest.issues.createComment({...context.repo, issue_number: context.issue.number, body});
+              }
+              core.setFailed('Manual review failed; see the PR status comment and workflow diagnostics.');
             }
+
+      - name: Retain sanitized diagnostics only
+        if: always() && steps.capture.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: manual-review-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/manual-review-diagnostics.json
+          retention-days: 7
+          if-no-files-found: error

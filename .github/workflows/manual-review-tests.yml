@@ -1,0 +1,36 @@
+name: Manual review reporting tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/manual-review*'
+      - '.github/workflows/manual*review*.yml'
+      - '.github/MANUAL_REVIEWS.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/manual-review*'
+      - '.github/workflows/manual*review*.yml'
+      - '.github/MANUAL_REVIEWS.md'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - run: node --test .github/scripts/manual-review.test.cjs
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: goforms/go.mod
+          cache: false
+      - name: Validate workflow syntax and expressions
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= -pyflakes= .github/workflows/manual-claude-review.yml .github/workflows/manual-review-tests.yml
