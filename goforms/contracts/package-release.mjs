@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -9,7 +9,9 @@ if (git("status", "--porcelain").toString().trim()) {
   throw new Error("Package only a clean, verified commit; commit source and generated artifacts first.");
 }
 const revision = git("rev-parse", "HEAD").toString().trim();
-const openapi = readFileSync(new URL("./generated/openapi.json", import.meta.url));
+// Hash committed bytes, not a checkout's platform-dependent line endings.
+const committed = name => git("show", `HEAD:goforms/contracts/generated/${name}`);
+const openapi = committed("openapi.json");
 const version = JSON.parse(openapi).info.version;
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Contract release requires an explicit semantic version.");
 const output = new URL("../.contract-release/", import.meta.url);
@@ -21,9 +23,9 @@ const base = `https://raw.githubusercontent.com/goformx/goformx/${revision}/gofo
 const manifest = Buffer.from(JSON.stringify({
   schema: "goformx.contract-release.v1", version, sourceRevision: revision,
   openapi: { url: `${base}openapi.json`, sha256: sha256(openapi) },
-  formSchema: { url: `${base}schema/form-definition.schema.json`, sha256: sha256(readFileSync(new URL("./generated/schema/form-definition.schema.json", import.meta.url))) },
-  assertionSchema: { url: `${base}auth/first-party-assertion.claims.schema.json`, sha256: sha256(readFileSync(new URL("./generated/auth/first-party-assertion.claims.schema.json", import.meta.url))) },
-  clientTypes: { url: `${base}api.d.ts`, sha256: sha256(readFileSync(new URL("./generated/api.d.ts", import.meta.url))) },
+  formSchema: { url: `${base}schema/form-definition.schema.json`, sha256: sha256(committed("schema/form-definition.schema.json")) },
+  assertionSchema: { url: `${base}auth/first-party-assertion.claims.schema.json`, sha256: sha256(committed("auth/first-party-assertion.claims.schema.json")) },
+  clientTypes: { url: `${base}api.d.ts`, sha256: sha256(committed("api.d.ts")) },
   clientExample: { url: `https://github.com/goformx/goformx/releases/download/contract-v${version}/${archiveName}`, sha256: sha256(archive) },
 }, null, 2) + "\n");
 const files = { "openapi.json": openapi, "manifest.json": manifest, [archiveName]: archive };
