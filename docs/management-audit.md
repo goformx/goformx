@@ -1,6 +1,7 @@
-# Credential mutation audit
+# Credential and webhook mutation audit
 
-GoFormX commits service-token issuance, revocation, and operator rotation with an
+GoFormX commits service-token issuance, revocation, operator rotation, and webhook
+configuration/replay changes with an
 append-only `management_audit` record in the **same PostgreSQL transaction**.
 There is no best-effort logging fallback. HTTP audit-write failure returns
 `503 management_audit_unavailable` without revealing an issued token or committing
@@ -39,17 +40,36 @@ separate operational security log; last-use updates are not credential mutations
 Authorized operators can query the table by `organization_id`, `target_id` and
 `occurred_at`, and correlate the `request_id` with the response/operational log.
 Generated trace IDs now remain stable throughout one request. Request correlation
-is not authorization. This slice does **not** expose an audit-list HTTP/UI endpoint
-or implement webhook mutation audits; those remain #123 work.
+is not authorization. This slice does **not** expose an audit-list HTTP/UI endpoint.
 
-Apply migration `2026083003` before the audited binary. Audit records have no
+Webhook records add the form UUID and, for live-endpoint configuration changes,
+the resulting `enabled` flag. Target IDs identify endpoints, or deliveries for
+replay. Events are `webhook.created`, `webhook.updated` (full replacement),
+`webhook.paused`, `webhook.resumed`, `webhook.signing_secret_rotated`,
+`webhook.deleted`, and `webhook.delivery_replayed`. They never contain the
+destination URL/origin, headers, signing keys, ciphertext, or submission data.
+Ownership checks, configuration/replay changes and audit insertion share one
+transaction. The owned form is locked before the endpoint to serialize initial
+creation and concurrent updates. Repeating an already-current enabled value is a
+successful no-op: no timestamp change and no new mutation audit. PUT replacement
+and explicit signing-secret rotation each write a new encrypted configuration and
+produce a record. Audit failure returns `503 management_audit_unavailable` and
+rolls back the entire webhook change. Network/commit uncertainty still requires
+inspecting metadata rather than assuming success or failure.
+
+Apply migrations through `2026083004` before this binary (`2026083003` introduced
+token audits; `2026083004` adds webhook events and typed fields). Audit records have no
 cascading foreign keys, so credential/account cleanup cannot erase history.
 Database triggers reject update, delete and truncate. A routine down migration
-refuses to drop a populated audit table. These are application/operator mistake
+refuses to drop a populated audit table; the webhook migration refuses to remove
+its schema if any webhook history exists. These are application/operator mistake
 guards, not tamper-proof protection against a database owner who can alter DDL.
 
 Keep the audited binary for ordinary rollback. A pre-audit binary must not serve
 credential mutations after rollback, because it does not implement this boundary.
+A token-audit-only binary must likewise not resume webhook mutation traffic after
+the webhook audit boundary has been enabled. Pause those routes during an older
+binary rollback; retained audit history must not be deleted to permit rollback.
 Retain the audit table with consistent backups, restrict direct SQL access, and
 establish retention, capacity and restore evidence under #125 before public launch.
 No production migration or deployment is implied by merged code.
@@ -70,4 +90,8 @@ foreign-organization denial, duplicate/concurrent revocation, missing actor
 rejection, immutable retained records and populated-down refusal. CLI tests prove
 issue/rotate/revoke atomicity and database-role attribution. A retained-red trace
 regression demonstrates the former repeated-ID-generation bug; the fixed handler
-keeps audit, response and logging correlation aligned.
+keeps audit, response and logging correlation aligned. Webhook tests exercise
+real HTTP and PostgreSQL for both credentials, missing/mismatched actors,
+audit-failure rollback for creation/replacement/pause/rotation/deletion/replay,
+concurrent pause, encrypted-field preservation, retained delivery snapshots,
+replay after deletion, secret-free records and populated-webhook-down refusal.

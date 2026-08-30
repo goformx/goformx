@@ -4,12 +4,37 @@ package webhook
 import (
 	"errors"
 	"time"
+	"unicode/utf8"
 )
 
 var (
-	ErrDisabled = errors.New("webhook delivery is not configured")
-	ErrNotFound = errors.New("webhook resource not found")
+	ErrDisabled      = errors.New("webhook delivery is not configured")
+	ErrNotFound      = errors.New("webhook resource not found")
+	ErrInvalidChange = errors.New("exactly one valid webhook lifecycle change is required")
 )
+
+// EndpointChange never requires reading a stored secret back through the API.
+type EndpointChange struct {
+	Enabled       *bool   `json:"enabled"`
+	SigningSecret *string `json:"signingSecret"`
+}
+
+func (c EndpointChange) Validate() error {
+	if (c.Enabled == nil) == (c.SigningSecret == nil) {
+		return ErrInvalidChange
+	}
+	if c.SigningSecret != nil && !ValidSigningSecret(*c.SigningSecret) {
+		return ErrInvalidChange
+	}
+	return nil
+}
+
+// ValidSigningSecret uses Unicode character counts, as required by the OpenAPI
+// minLength/maxLength contract. It never estimates the secret's entropy.
+func ValidSigningSecret(secret string) bool {
+	length := utf8.RuneCountInString(secret)
+	return utf8.ValidString(secret) && length >= 32 && length <= 256
+}
 
 type DeliveryStatus string
 

@@ -14,9 +14,16 @@ import (
 type Kind string
 
 const (
-	TokenCreated Kind = "service_token.created"
-	TokenRevoked Kind = "service_token.revoked"
-	TokenRotated Kind = "service_token.rotated"
+	TokenCreated                Kind = "service_token.created"
+	TokenRevoked                Kind = "service_token.revoked"
+	TokenRotated                Kind = "service_token.rotated"
+	WebhookCreated              Kind = "webhook.created"
+	WebhookUpdated              Kind = "webhook.updated"
+	WebhookPaused               Kind = "webhook.paused"
+	WebhookResumed              Kind = "webhook.resumed"
+	WebhookSigningSecretRotated Kind = "webhook.signing_secret_rotated"
+	WebhookDeleted              Kind = "webhook.deleted"
+	WebhookDeliveryReplayed     Kind = "webhook.delivery_replayed"
 )
 
 var (
@@ -35,6 +42,8 @@ type Event struct {
 	RelatedID  string
 	Scopes     []auth.Scope
 	ExpiresAt  *time.Time
+	FormID     string
+	Enabled    *bool
 	OccurredAt time.Time
 }
 
@@ -52,7 +61,12 @@ func (e Event) Validate() error {
 		if !identifierPattern.MatchString(e.RelatedID) || e.RelatedID == e.TargetID {
 			return ErrInvalid
 		}
+	case WebhookCreated, WebhookUpdated, WebhookPaused, WebhookResumed, WebhookSigningSecretRotated, WebhookDeleted, WebhookDeliveryReplayed:
+		return e.validateWebhook()
 	default:
+		return ErrInvalid
+	}
+	if e.FormID != "" || e.Enabled != nil {
 		return ErrInvalid
 	}
 	if e.Kind == TokenRevoked {
@@ -70,6 +84,23 @@ func (e Event) Validate() error {
 			return ErrInvalid
 		}
 		seen[scope] = true
+	}
+	return nil
+}
+
+func (e Event) validateWebhook() error {
+	if _, err := uuid.Parse(e.FormID); err != nil {
+		return ErrInvalid
+	}
+	if _, err := uuid.Parse(e.TargetID); err != nil || e.RelatedID != "" || len(e.Scopes) != 0 || e.ExpiresAt != nil {
+		return ErrInvalid
+	}
+	if e.Kind == WebhookDeleted || e.Kind == WebhookDeliveryReplayed {
+		if e.Enabled != nil {
+			return ErrInvalid
+		}
+	} else if e.Enabled == nil || (e.Kind == WebhookPaused && *e.Enabled) || (e.Kind == WebhookResumed && !*e.Enabled) {
+		return ErrInvalid
 	}
 	return nil
 }

@@ -75,11 +75,12 @@ type V1Repository interface {
 }
 
 type WebhookRepository interface {
-	PutWebhookEndpoint(context.Context, string, string, string, domainwebhook.SecretConfig, bool) (*domainwebhook.Endpoint, error)
+	PutWebhookEndpoint(context.Context, string, string, string, domainwebhook.SecretConfig, bool, auth.AuditActor) (*domainwebhook.Endpoint, error)
+	PatchWebhookEndpoint(context.Context, string, string, domainwebhook.EndpointChange, auth.AuditActor) (*domainwebhook.Endpoint, error)
 	GetWebhookEndpoint(context.Context, string, string) (*domainwebhook.Endpoint, error)
-	DeleteWebhookEndpoint(context.Context, string, string) error
+	DeleteWebhookEndpoint(context.Context, string, string, auth.AuditActor) error
 	ListWebhookDeliveries(context.Context, string, string, int) ([]*domainwebhook.Delivery, error)
-	ReplayWebhookDelivery(context.Context, string, string, string) error
+	ReplayWebhookDelivery(context.Context, string, string, string, auth.AuditActor) error
 }
 
 // ServiceTokenManagementRepository exposes organization-scoped metadata and lifecycle operations.
@@ -162,6 +163,7 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.POST("/:formId/submissions/export", h.instrument("export_submissions", h.exportSubmissions), h.require(auth.ScopeSubmissionsRead))
 	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead))
 	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite))
+	control.PATCH("/:formId/webhook", h.instrument("patch_webhook", h.patchWebhook), h.require(auth.ScopeWebhooksWrite))
 	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeWebhooksRead))
 	control.DELETE("/:formId/webhook", h.instrument("delete_webhook", h.deleteWebhook), h.require(auth.ScopeWebhooksWrite))
 	control.GET("/:formId/deliveries", h.instrument("list_deliveries", h.listWebhookDeliveries), h.require(auth.ScopeSubmissionsRead))
@@ -593,7 +595,7 @@ func (h *V1APIHandler) putWebhook(c echo.Context) error {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Webhook destination is invalid.",
 			[]validation.Error{{Pointer: "/url", Code: "unsafe_destination", Message: err.Error()}})
 	}
-	if len(request.SigningSecret) < 32 || len(request.SigningSecret) > 256 {
+	if !domainwebhook.ValidSigningSecret(request.SigningSecret) {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Webhook secret is invalid.",
 			[]validation.Error{{Pointer: "/signingSecret", Code: "length",
 				Message: "Signing secret must contain between 32 and 256 characters."}})
@@ -608,13 +610,13 @@ func (h *V1APIHandler) putWebhook(c echo.Context) error {
 	}
 	endpoint, err := h.webhooks.PutWebhookEndpoint(c.Request().Context(), formModel.OrganizationID, formModel.ID, target.String(),
 		domainwebhook.SecretConfig{DestinationURL: target.String(),
-			Headers: request.Headers, SigningSecret: request.SigningSecret}, enabled)
+			Headers: request.Headers, SigningSecret: request.SigningSecret}, enabled, managementAuditActor(c))
 	if err != nil {
 		if errors.Is(err, domainwebhook.ErrDisabled) {
 			return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
 				"Webhook delivery is not configured on this service.", nil)
 		}
-		return h.writeRepositoryError(c, err)
+		return h.writeWebhookMutationError(c, err)
 	}
 	return c.JSON(http.StatusOK, map[string]any{"data": webhookEndpointResource(endpoint)})
 }
@@ -684,11 +686,11 @@ func (h *V1APIHandler) deleteWebhook(c echo.Context) error {
 		return h.writeError(c, http.StatusServiceUnavailable, "webhooks_disabled",
 			"Webhook delivery is not configured on this service.", nil)
 	}
-	if err := h.webhooks.DeleteWebhookEndpoint(c.Request().Context(), formModel.OrganizationID, formModel.ID); err != nil {
+	if err := h.webhooks.DeleteWebhookEndpoint(c.Request().Context(), formModel.OrganizationID, formModel.ID, managementAuditActor(c)); err != nil {
 		if errors.Is(err, domainwebhook.ErrNotFound) {
 			return h.writeError(c, http.StatusNotFound, "not_found", "Webhook endpoint was not found.", nil)
 		}
-		return h.writeRepositoryError(c, err)
+		return h.writeWebhookMutationError(c, err)
 	}
 	return c.NoContent(http.StatusNoContent)
 }
@@ -733,12 +735,12 @@ func (h *V1APIHandler) replayWebhookDelivery(c echo.Context) error {
 		return h.writeError(c, http.StatusNotFound, "not_found", "Webhook delivery was not found.", nil)
 	}
 	if err := h.webhooks.ReplayWebhookDelivery(
-		c.Request().Context(), formModel.OrganizationID, formModel.ID, deliveryID,
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, deliveryID, managementAuditActor(c),
 	); err != nil {
 		if errors.Is(err, domainwebhook.ErrNotFound) {
 			return h.writeError(c, http.StatusNotFound, "not_found", "Webhook delivery was not found.", nil)
 		}
-		return h.writeRepositoryError(c, err)
+		return h.writeWebhookMutationError(c, err)
 	}
 	return c.JSON(http.StatusAccepted, map[string]any{"data": map[string]string{
 		"id": deliveryID, "status": string(domainwebhook.DeliveryPending),

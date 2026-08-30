@@ -29,6 +29,8 @@ func TestEventRejectsMissingActorAndNonCanonicalMetadata(t *testing.T) {
 		func(e *Event) { e.ExpiresAt = nil },
 		func(e *Event) { e.Kind = TokenRevoked },
 		func(e *Event) { e.Kind = TokenRotated },
+		func(e *Event) { e.FormID = uuid.NewString() },
+		func(e *Event) { e.Enabled = new(bool) },
 	} {
 		event := valid
 		change(&event)
@@ -38,4 +40,37 @@ func TestEventRejectsMissingActorAndNonCanonicalMetadata(t *testing.T) {
 	require.NoError(t, valid.Validate())
 	valid.Kind, valid.RelatedID, valid.ExpiresAt, valid.Scopes = TokenRevoked, "", nil, nil
 	require.NoError(t, valid.Validate())
+}
+
+func TestWebhookAuditHasOnlyTypedNonSecretMetadata(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []Kind{WebhookCreated, WebhookUpdated, WebhookPaused, WebhookResumed, WebhookSigningSecretRotated, WebhookDeleted, WebhookDeliveryReplayed} {
+		enabled := kind != WebhookPaused
+		event := Event{ID: uuid.NewString(), Actor: auth.DatabaseAuditActor("fixture", uuid.NewString()),
+			Kind: kind, TargetID: uuid.NewString(), FormID: uuid.NewString(), Enabled: &enabled, OccurredAt: time.Now()}
+		if kind == WebhookDeleted || kind == WebhookDeliveryReplayed {
+			event.Enabled = nil
+		}
+		require.NoError(t, event.Validate(), kind)
+		for _, change := range []func(*Event){
+			func(e *Event) { e.FormID = "" }, func(e *Event) { e.TargetID = "not-a-uuid" },
+			func(e *Event) { e.RelatedID = "secret" }, func(e *Event) { e.Scopes = []auth.Scope{auth.ScopeFormsRead} },
+			func(e *Event) { now := time.Now(); e.ExpiresAt = &now },
+			func(e *Event) {
+				if e.Enabled == nil {
+					e.Enabled = new(bool)
+				} else {
+					e.Enabled = nil
+				}
+			},
+		} {
+			invalid := event
+			change(&invalid)
+			require.ErrorIs(t, invalid.Validate(), ErrInvalid, kind)
+		}
+		if kind == WebhookPaused || kind == WebhookResumed {
+			enabled = !enabled
+			require.ErrorIs(t, event.Validate(), ErrInvalid)
+		}
+	}
 }

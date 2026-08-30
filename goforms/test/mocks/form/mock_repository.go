@@ -618,17 +618,17 @@ func (m *MockWebhookRepository) EXPECT() *MockWebhookRepositoryMockRecorder {
 }
 
 // DeleteWebhookEndpoint mocks base method.
-func (m *MockWebhookRepository) DeleteWebhookEndpoint(arg0 context.Context, arg1, arg2 string) error {
+func (m *MockWebhookRepository) DeleteWebhookEndpoint(arg0 context.Context, arg1, arg2 string, arg3 auth.AuditActor) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteWebhookEndpoint", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "DeleteWebhookEndpoint", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // DeleteWebhookEndpoint indicates an expected call of DeleteWebhookEndpoint.
-func (mr *MockWebhookRepositoryMockRecorder) DeleteWebhookEndpoint(arg0, arg1, arg2 any) *MockWebhookRepositoryDeleteWebhookEndpointCall {
+func (mr *MockWebhookRepositoryMockRecorder) DeleteWebhookEndpoint(arg0, arg1, arg2, arg3 any) *MockWebhookRepositoryDeleteWebhookEndpointCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).DeleteWebhookEndpoint), arg0, arg1, arg2)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).DeleteWebhookEndpoint), arg0, arg1, arg2, arg3)
 	return &MockWebhookRepositoryDeleteWebhookEndpointCall{Call: call}
 }
 
@@ -644,13 +644,13 @@ func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) Return(arg0 error) *Moc
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) Do(f func(context.Context, string, string) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
+func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) Do(f func(context.Context, string, string, auth.AuditActor) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
+func (c *MockWebhookRepositoryDeleteWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string, auth.AuditActor) error) *MockWebhookRepositoryDeleteWebhookEndpointCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
@@ -733,19 +733,58 @@ func (c *MockWebhookRepositoryListWebhookDeliveriesCall) DoAndReturn(f func(cont
 	return c
 }
 
-// PutWebhookEndpoint mocks base method.
-func (m *MockWebhookRepository) PutWebhookEndpoint(arg0 context.Context, arg1, arg2, arg3 string, arg4 webhook.SecretConfig, arg5 bool) (*webhook.Endpoint, error) {
+// PatchWebhookEndpoint mocks base method.
+func (m *MockWebhookRepository) PatchWebhookEndpoint(arg0 context.Context, arg1, arg2 string, arg3 webhook.EndpointChange, arg4 auth.AuditActor) (*webhook.Endpoint, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PutWebhookEndpoint", arg0, arg1, arg2, arg3, arg4, arg5)
+	ret := m.ctrl.Call(m, "PatchWebhookEndpoint", arg0, arg1, arg2, arg3, arg4)
+	ret0, _ := ret[0].(*webhook.Endpoint)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PatchWebhookEndpoint indicates an expected call of PatchWebhookEndpoint.
+func (mr *MockWebhookRepositoryMockRecorder) PatchWebhookEndpoint(arg0, arg1, arg2, arg3, arg4 any) *MockWebhookRepositoryPatchWebhookEndpointCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PatchWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).PatchWebhookEndpoint), arg0, arg1, arg2, arg3, arg4)
+	return &MockWebhookRepositoryPatchWebhookEndpointCall{Call: call}
+}
+
+// MockWebhookRepositoryPatchWebhookEndpointCall wrap *gomock.Call
+type MockWebhookRepositoryPatchWebhookEndpointCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockWebhookRepositoryPatchWebhookEndpointCall) Return(arg0 *webhook.Endpoint, arg1 error) *MockWebhookRepositoryPatchWebhookEndpointCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockWebhookRepositoryPatchWebhookEndpointCall) Do(f func(context.Context, string, string, webhook.EndpointChange, auth.AuditActor) (*webhook.Endpoint, error)) *MockWebhookRepositoryPatchWebhookEndpointCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockWebhookRepositoryPatchWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string, webhook.EndpointChange, auth.AuditActor) (*webhook.Endpoint, error)) *MockWebhookRepositoryPatchWebhookEndpointCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// PutWebhookEndpoint mocks base method.
+func (m *MockWebhookRepository) PutWebhookEndpoint(arg0 context.Context, arg1, arg2, arg3 string, arg4 webhook.SecretConfig, arg5 bool, arg6 auth.AuditActor) (*webhook.Endpoint, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PutWebhookEndpoint", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	ret0, _ := ret[0].(*webhook.Endpoint)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PutWebhookEndpoint indicates an expected call of PutWebhookEndpoint.
-func (mr *MockWebhookRepositoryMockRecorder) PutWebhookEndpoint(arg0, arg1, arg2, arg3, arg4, arg5 any) *MockWebhookRepositoryPutWebhookEndpointCall {
+func (mr *MockWebhookRepositoryMockRecorder) PutWebhookEndpoint(arg0, arg1, arg2, arg3, arg4, arg5, arg6 any) *MockWebhookRepositoryPutWebhookEndpointCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).PutWebhookEndpoint), arg0, arg1, arg2, arg3, arg4, arg5)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutWebhookEndpoint", reflect.TypeOf((*MockWebhookRepository)(nil).PutWebhookEndpoint), arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 	return &MockWebhookRepositoryPutWebhookEndpointCall{Call: call}
 }
 
@@ -761,29 +800,29 @@ func (c *MockWebhookRepositoryPutWebhookEndpointCall) Return(arg0 *webhook.Endpo
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryPutWebhookEndpointCall) Do(f func(context.Context, string, string, string, webhook.SecretConfig, bool) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
+func (c *MockWebhookRepositoryPutWebhookEndpointCall) Do(f func(context.Context, string, string, string, webhook.SecretConfig, bool, auth.AuditActor) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryPutWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string, string, webhook.SecretConfig, bool) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
+func (c *MockWebhookRepositoryPutWebhookEndpointCall) DoAndReturn(f func(context.Context, string, string, string, webhook.SecretConfig, bool, auth.AuditActor) (*webhook.Endpoint, error)) *MockWebhookRepositoryPutWebhookEndpointCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // ReplayWebhookDelivery mocks base method.
-func (m *MockWebhookRepository) ReplayWebhookDelivery(arg0 context.Context, arg1, arg2, arg3 string) error {
+func (m *MockWebhookRepository) ReplayWebhookDelivery(arg0 context.Context, arg1, arg2, arg3 string, arg4 auth.AuditActor) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReplayWebhookDelivery", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "ReplayWebhookDelivery", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // ReplayWebhookDelivery indicates an expected call of ReplayWebhookDelivery.
-func (mr *MockWebhookRepositoryMockRecorder) ReplayWebhookDelivery(arg0, arg1, arg2, arg3 any) *MockWebhookRepositoryReplayWebhookDeliveryCall {
+func (mr *MockWebhookRepositoryMockRecorder) ReplayWebhookDelivery(arg0, arg1, arg2, arg3, arg4 any) *MockWebhookRepositoryReplayWebhookDeliveryCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplayWebhookDelivery", reflect.TypeOf((*MockWebhookRepository)(nil).ReplayWebhookDelivery), arg0, arg1, arg2, arg3)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplayWebhookDelivery", reflect.TypeOf((*MockWebhookRepository)(nil).ReplayWebhookDelivery), arg0, arg1, arg2, arg3, arg4)
 	return &MockWebhookRepositoryReplayWebhookDeliveryCall{Call: call}
 }
 
@@ -799,13 +838,13 @@ func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) Return(arg0 error) *Moc
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) Do(f func(context.Context, string, string, string) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
+func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) Do(f func(context.Context, string, string, string, auth.AuditActor) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) DoAndReturn(f func(context.Context, string, string, string) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
+func (c *MockWebhookRepositoryReplayWebhookDeliveryCall) DoAndReturn(f func(context.Context, string, string, string, auth.AuditActor) error) *MockWebhookRepositoryReplayWebhookDeliveryCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
