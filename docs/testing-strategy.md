@@ -62,5 +62,10 @@ least-privilege service token. It covers create/version/publish, conditional
 metadata update, unauthenticated public schema discovery, invalid submission,
 idempotent retry, and submission list/detail provenance. The test verifies the
 stored owner and single accepted row and rejects credentials on public requests.
+The current development client also downloads JSON and CSV exports as text and
+verifies that both export IDs correspond to durable organization/form/credential
+audit records. Reading JSON as text avoids introducing JavaScript numeric
+rounding into the downloadable artifact. This tests the candidate client; it does
+not publish a new contract release or change the stable release's example.
 Node and the compiled example are required when PostgreSQL integration is enabled;
 the test does not silently skip a missing client build in canonical verification.

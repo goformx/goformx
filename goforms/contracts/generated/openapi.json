@@ -676,6 +676,219 @@
         }
       }
     },
+    "/v1/forms/{formId}/submissions/export": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        }
+      ],
+      "post": {
+        "summary": "Prepare a bounded redacted submission download and durable audit record",
+        "operationId": "exportSubmissions",
+        "x-goformx-export-limits": {
+          "rows": 1000,
+          "sourceBytes": 8388608,
+          "outputBytes": 8388608,
+          "processingSeconds": 10,
+          "csvColumns": 256,
+          "csvDepth": 32,
+          "requestBytes": 4096,
+          "concurrentExports": 1
+        },
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "submissions:read"
+        ],
+        "description": "Exports one owned, non-deleted form from a single database statement\nsnapshot, newest received time and ID first. Filters belong in the JSON\nbody, never a query string. Unknown, repeated, null, and empty fields\nare rejected. Body limit is 4096 bytes; there is no cursor or limit override.\nHard bounds are 1000 rows, 8 MiB of source payload/policy/metadata, 8 MiB\nof encoded output, and a 10-second application processing deadline.\nExceeding a bound releases no partial download. The accepted version's\nprivacy policy applies identically to normal reads. No reveal mode exists.\nBefore returning any download bytes, the service persists an append-only\nexport.prepared audit containing actor, organization, form, credential\nclass/non-secret ID, request ID, format, row/byte counts and time, but no\npayloads or filters. Prepared does not prove client receipt.\nJSON preserves exact numeric values. CSV flattens nested objects to\nJSON-Pointer columns; arrays/empty objects remain JSON cell text. CSV is\nlimited to 256 total columns and 32 nested object levels. Every cell,\nincluding headers and numbers, is double-quoted, quote-escaped and\napostrophe-prefixed as spreadsheet text. This is an initial-download\ndefense, not a guarantee after arbitrary spreadsheet edits/re-saves.\nOne export at a time is admitted per API instance, without a wait queue;\nconcurrent authorized requests receive 429 with Retry-After.\nUse JSON for machine round trips, distinguishing missing/empty cells,\nand exact numeric processing. Responses are attachments with no-store.\nContent-Length declares the complete artifact size; download proxies must\nverify it against received bytes before offering the file to a browser.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "format"
+                ],
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "json",
+                      "csv"
+                    ]
+                  },
+                  "receivedFrom": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Inclusive lower bound; explicit offset and at most microsecond precision."
+                  },
+                  "receivedBefore": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Exclusive upper bound; must be later than receivedFrom."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "accepted"
+                    ]
+                  },
+                  "schemaVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Complete bounded export prepared and durably audited",
+            "headers": {
+              "Content-Length": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8388608
+                }
+              },
+              "X-GoFormX-Export-ID": {
+                "schema": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "maxItems": 1000,
+                      "items": {
+                        "$ref": "#/components/schemas/Submission"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "exportId",
+                        "preparedAt",
+                        "rowCount"
+                      ],
+                      "properties": {
+                        "exportId": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "preparedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "rowCount": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 1000
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Row, source-byte, output-byte, CSV depth, or column budget exceeded; narrow filters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Another export is active on this API instance; retry later",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Durable audit failed; no download was released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Export processing deadline exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/v1/forms/{formId}/submissions/{submissionId}": {
       "parameters": [
         {

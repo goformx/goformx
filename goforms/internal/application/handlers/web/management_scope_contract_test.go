@@ -159,7 +159,7 @@ func runManagementScopeCase(t *testing.T, operation managementOperation, credent
 	handler.RegisterRoutes(router)
 
 	allowed := slices.Contains(scopes, operation.Scopes[0])
-	fixture := managementSuccessFixture(t, operation.ID, repositories, tokens.MockServiceTokenManagementRepository, allowed)
+	fixture := managementSuccessFixture(t, operation.ID, repositories, tokens.MockServiceTokenManagementRepository, allowed, credentialClass)
 	status := http.StatusForbidden
 	if credentialClass == "anonymous" {
 		status = http.StatusUnauthorized
@@ -191,7 +191,7 @@ type managementFixture struct {
 }
 
 func managementSuccessFixture(t *testing.T, operation string, repositories scopeRepositories,
-	tokens *mockform.MockServiceTokenManagementRepository, allowed bool,
+	tokens *mockform.MockServiceTokenManagementRepository, allowed bool, credentialClass string,
 ) managementFixture {
 	t.Helper()
 	fixture := managementFixture{status: http.StatusOK}
@@ -263,6 +263,26 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 		if allowed {
 			repositories.MockRepository.EXPECT().GetSchemaVersion(gomock.Any(), scopeOrganizationID, scopeFormID, 1).Return(version, nil)
 			repositories.MockRepository.EXPECT().GetSubmissionByOrganization(gomock.Any(), scopeOrganizationID, scopeFormID, scopeResourceID).Return(submission, nil)
+		}
+	case "exportSubmissions":
+		ownedForm()
+		fixture.body = map[string]string{"format": "json"}
+		if allowed {
+			repositories.MockRepository.EXPECT().ReadSubmissionExport(gomock.Any(), scopeOrganizationID, scopeFormID, domainsubmission.ExportFilters{}).
+				Return([]domainsubmission.ExportRecord{{Submission: submission, SchemaFormID: scopeFormID, AcceptedVersion: 1, Policy: model.JSON{}}}, nil)
+			repositories.MockRepository.EXPECT().SaveSubmissionExportAudit(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, audit domainsubmission.ExportAudit) error {
+				require.NoError(t, audit.Validate())
+				require.Equal(t, scopeOrganizationID, audit.OrganizationID)
+				require.Equal(t, scopeFormID, audit.FormID)
+				require.Equal(t, 1, audit.RowCount)
+				require.Equal(t, map[string]string{"serviceToken": "service_token", "firstPartyAssertion": "first_party_assertion"}[credentialClass], audit.CredentialClass)
+				if credentialClass == "serviceToken" {
+					require.Equal(t, audit.CredentialID, audit.SubjectID)
+				} else {
+					require.NotEqual(t, audit.CredentialID, audit.SubjectID)
+				}
+				return nil
+			})
 		}
 	case "getWebhookEndpoint":
 		ownedForm()

@@ -50,6 +50,7 @@ type V1APIHandler struct {
 	logger       RequestLogger
 	requests     atomic.Uint64
 	errors       atomic.Uint64
+	exportActive atomic.Bool
 }
 
 // V1Repository is the persistence boundary used by the schema-first API.
@@ -64,6 +65,8 @@ type V1Repository interface {
 	GetSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
 	PublishSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
 	ListSubmissionsPage(context.Context, string, string, domainsubmission.ListOptions) ([]*model.FormSubmission, bool, error)
+	ReadSubmissionExport(context.Context, string, string, domainsubmission.ExportFilters) ([]domainsubmission.ExportRecord, error)
+	SaveSubmissionExportAudit(context.Context, domainsubmission.ExportAudit) error
 	GetSubmissionByOrganization(context.Context, string, string, string) (*model.FormSubmission, error)
 	GetPublishedSchemaVersion(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)
 	CreateSubmissionIdempotent(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)
@@ -154,6 +157,7 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.GET("/:formId/versions/:version", h.instrument("get_schema_version", h.getSchemaVersion), h.require(auth.ScopeFormsRead))
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead))
+	control.POST("/:formId/submissions/export", h.instrument("export_submissions", h.exportSubmissions), h.require(auth.ScopeSubmissionsRead))
 	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead))
 	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite))
 	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeWebhooksRead))
@@ -514,7 +518,7 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
-	data := make([]map[string]any, 0, len(submissions))
+	data := make([]*domainsubmission.Projection, 0, len(submissions))
 	versions := make(map[int]*model.SchemaVersion)
 	for _, submission := range submissions {
 		version := versions[submission.SchemaVersion]
@@ -556,8 +560,10 @@ func (h *V1APIHandler) getSubmission(c echo.Context) error {
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
-	resource["schema"] = version.Schema()
-	return c.JSON(http.StatusOK, map[string]any{"data": resource})
+	return c.JSON(http.StatusOK, map[string]any{"data": struct {
+		*domainsubmission.Projection
+		Schema model.JSON `json:"schema"`
+	}{resource, version.Schema()}})
 }
 
 type putWebhookRequest struct {
@@ -982,17 +988,11 @@ func schemaVersionResource(version *model.SchemaVersion) map[string]any {
 	return resource
 }
 
-func submissionResource(submission *model.FormSubmission, version *model.SchemaVersion) (map[string]any, error) {
-	if submission == nil || version == nil || version.FormID() != submission.FormID || version.Version() != submission.SchemaVersion {
+func submissionResource(submission *model.FormSubmission, version *model.SchemaVersion) (*domainsubmission.Projection, error) {
+	if version == nil {
 		return nil, domainsubmission.ErrRedactionPolicy
 	}
-	data, redacted, err := domainsubmission.Redact(version.Schema(), submission.Data)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"id": submission.ID, "formId": submission.FormID, "schemaVersion": submission.SchemaVersion,
-		"requestId": submission.RequestID, "status": submission.Status, "data": data, "redactedPaths": redacted,
-		"submittedAt": submission.SubmittedAt.UTC().Format(time.RFC3339Nano)}, nil
+	return domainsubmission.Project(submission, version.FormID(), version.Version(), version.Schema())
 }
 
 func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {

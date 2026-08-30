@@ -132,8 +132,25 @@ async function main(): Promise<void> {
   assert.equal(listed.data?.data.length, 1);
   assert.equal(listed.data?.data[0]?.id, submission.id);
 
+  const exportIds: string[] = [];
+  for (const format of ["json", "csv"] as const) {
+    // Preserve JSON numeric tokens as text. Do not silently round an export by
+    // feeding it through JavaScript's default JSON.parse/Number representation.
+    const download: { data?: string; response: Response } = await management.POST("/v1/forms/{formId}/submissions/export", {
+      params: { path: { formId: form.id } }, body: { format, schemaVersion: version }, parseAs: "text",
+    });
+    assert.equal(download.response.status, 200);
+    assert.ok(download.data?.includes(submission.id));
+    assert.equal(download.response.headers.get("Content-Length"), String(Buffer.byteLength(download.data ?? "")));
+    assert.equal(download.response.headers.get("Cache-Control"), "no-store");
+    const exportId = download.response.headers.get("X-GoFormX-Export-ID");
+    assert.ok(exportId);
+    assert.ok(download.response.headers.get("Content-Disposition")?.includes(`${exportId}.${format}`));
+    exportIds.push(exportId);
+  }
+
   // Only non-secret synthetic resource IDs are emitted; never log response bodies.
-  console.log(JSON.stringify({ formId: form.id, submissionId: submission.id, schemaVersion: version }));
+  console.log(JSON.stringify({ formId: form.id, submissionId: submission.id, schemaVersion: version, exportIds }));
 }
 
 main().catch(() => {

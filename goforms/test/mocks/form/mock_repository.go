@@ -478,6 +478,83 @@ func (c *MockRepositoryPublishSchemaVersionCall) DoAndReturn(f func(context.Cont
 	return c
 }
 
+// ReadSubmissionExport mocks base method.
+func (m *MockRepository) ReadSubmissionExport(arg0 context.Context, arg1, arg2 string, arg3 submission.ExportFilters) ([]submission.ExportRecord, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadSubmissionExport", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].([]submission.ExportRecord)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadSubmissionExport indicates an expected call of ReadSubmissionExport.
+func (mr *MockRepositoryMockRecorder) ReadSubmissionExport(arg0, arg1, arg2, arg3 any) *MockRepositoryReadSubmissionExportCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadSubmissionExport", reflect.TypeOf((*MockRepository)(nil).ReadSubmissionExport), arg0, arg1, arg2, arg3)
+	return &MockRepositoryReadSubmissionExportCall{Call: call}
+}
+
+// MockRepositoryReadSubmissionExportCall wrap *gomock.Call
+type MockRepositoryReadSubmissionExportCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryReadSubmissionExportCall) Return(arg0 []submission.ExportRecord, arg1 error) *MockRepositoryReadSubmissionExportCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryReadSubmissionExportCall) Do(f func(context.Context, string, string, submission.ExportFilters) ([]submission.ExportRecord, error)) *MockRepositoryReadSubmissionExportCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryReadSubmissionExportCall) DoAndReturn(f func(context.Context, string, string, submission.ExportFilters) ([]submission.ExportRecord, error)) *MockRepositoryReadSubmissionExportCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// SaveSubmissionExportAudit mocks base method.
+func (m *MockRepository) SaveSubmissionExportAudit(arg0 context.Context, arg1 submission.ExportAudit) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SaveSubmissionExportAudit", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SaveSubmissionExportAudit indicates an expected call of SaveSubmissionExportAudit.
+func (mr *MockRepositoryMockRecorder) SaveSubmissionExportAudit(arg0, arg1 any) *MockRepositorySaveSubmissionExportAuditCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SaveSubmissionExportAudit", reflect.TypeOf((*MockRepository)(nil).SaveSubmissionExportAudit), arg0, arg1)
+	return &MockRepositorySaveSubmissionExportAuditCall{Call: call}
+}
+
+// MockRepositorySaveSubmissionExportAuditCall wrap *gomock.Call
+type MockRepositorySaveSubmissionExportAuditCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositorySaveSubmissionExportAuditCall) Return(arg0 error) *MockRepositorySaveSubmissionExportAuditCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositorySaveSubmissionExportAuditCall) Do(f func(context.Context, submission.ExportAudit) error) *MockRepositorySaveSubmissionExportAuditCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositorySaveSubmissionExportAuditCall) DoAndReturn(f func(context.Context, submission.ExportAudit) error) *MockRepositorySaveSubmissionExportAuditCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // UpdateForm mocks base method.
 func (m *MockRepository) UpdateForm(arg0 context.Context, arg1 *model.Form, arg2 time.Time) error {
 	m.ctrl.T.Helper()

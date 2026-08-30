@@ -80,16 +80,17 @@ func TestPublishedClientCompletesManagementFlow(t *testing.T) {
 	require.False(t, strings.Contains(string(output), "example@example.test"), "client output contains an email")
 	require.False(t, strings.Contains(string(output), "Synthetic example"), "client output contains submission content")
 	var result struct {
-		FormID        string `json:"formId"`
-		SubmissionID  string `json:"submissionId"`
-		SchemaVersion int    `json:"schemaVersion"`
+		FormID        string   `json:"formId"`
+		SubmissionID  string   `json:"submissionId"`
+		SchemaVersion int      `json:"schemaVersion"`
+		ExportIDs     []string `json:"exportIds"`
 	}
 	require.NoError(t, json.Unmarshal(output, &result))
 	require.NoError(t, uuid.Validate(result.FormID))
 	require.NoError(t, uuid.Validate(result.SubmissionID))
 	require.Equal(t, 2, result.SchemaVersion)
 	require.EqualValues(t, 6, publicRequests.Load(), "schema, allowed/denied browser origins, invalid submission, accepted submission, retry")
-	require.EqualValues(t, 11, managementRequests.Load(), "create, forms list, version, publish, three detail reads, two metadata patches, submission detail/list")
+	require.EqualValues(t, 13, managementRequests.Load(), "create, forms list, version, publish, three detail reads, two metadata patches, submission detail/list, JSON/CSV exports")
 	require.Zero(t, leakedCredentials.Load())
 	var acceptedCount int64
 	require.NoError(t, db.Table("form_submissions").Where("form_id = ? AND schema_version = ?", result.FormID, 2).Count(&acceptedCount).Error)
@@ -97,4 +98,12 @@ func TestPublishedClientCompletesManagementFlow(t *testing.T) {
 	var ownedCount int64
 	require.NoError(t, db.Table("forms").Where("uuid = ? AND organization_id = ?", result.FormID, organizationID).Count(&ownedCount).Error)
 	require.EqualValues(t, 1, ownedCount)
+	require.Len(t, result.ExportIDs, 2)
+	for _, id := range result.ExportIDs {
+		require.NoError(t, uuid.Validate(id))
+	}
+	var auditedCount int64
+	require.NoError(t, db.Table("submission_export_audit").Where("export_id IN ? AND organization_id = ? AND form_id = ? AND credential_class = ? AND credential_id = ? AND row_count = 1 AND byte_count > 0",
+		result.ExportIDs, organizationID, result.FormID, "service_token", token.ID).Count(&auditedCount).Error)
+	require.EqualValues(t, 2, auditedCount, "Both downloads must have persisted audit records, not only successful responses")
 }
