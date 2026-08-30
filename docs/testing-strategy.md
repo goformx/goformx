@@ -25,3 +25,23 @@ The initial combined floor is 37%, matching the measured schema-first baseline w
 The combined gate must not be lowered to land a change. Raise it as legacy handlers leave the supported package or new schema-first behavior increases exercised statements. PostgreSQL repository behavior is separately mandatory through the disposable-database tests; it is not diluted into the unit-package percentage.
 
 Tests assert observable behavior. Retries do not mask flakes, and any future quarantine must name an owner, reason, and removal date.
+
+## Management authorization contract
+
+`TestManagementScopeContract` reads the canonical OpenAPI document and exercises
+the actual registered HTTP routes. The management route inventory must match in
+both directions; a new operation also needs an explicit successful request fixture.
+For every operation, the matrix checks:
+
+- A service token and a cryptographically verified first-party assertion, each
+  carrying only the declared required scope, successfully execute the operation.
+- Every other individual scope, and all other scopes combined, return 403.
+- An anonymous request returns 401.
+- Denied requests never dispatch a business handler or access any form, webhook,
+  or token-management repository. Successful calls have exact organization-bound
+  repository expectations and the operation's expected success status.
+
+This is route/scope conformance coverage, not a replacement for real PostgreSQL
+tenant-isolation, atomic assertion replay, credential lifecycle, or cross-service
+browser-to-control-plane integration tests. It runs in the regular race-enabled
+suite through `task verify`, without a separate opt-in gate.
