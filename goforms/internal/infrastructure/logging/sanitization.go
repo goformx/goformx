@@ -8,16 +8,12 @@ import (
 )
 
 // Sanitizer provides simplified field sanitization
-type Sanitizer struct {
-	// Cache for repeated sanitization operations
-	cache map[string]string
-}
+// Sanitizer is stateless: request values must not be retained in a shared cache.
+type Sanitizer struct{}
 
 // NewSanitizer creates a new sanitizer instance
 func NewSanitizer() *Sanitizer {
-	return &Sanitizer{
-		cache: make(map[string]string),
-	}
+	return &Sanitizer{}
 }
 
 // SanitizeField sanitizes a field value based on its key and type
@@ -41,18 +37,7 @@ func (s *Sanitizer) SanitizeField(key string, value any) string {
 
 // sanitizeString sanitizes a string value based on the field key
 func (s *Sanitizer) sanitizeString(key, value string) string {
-	// Check cache first
-	cacheKey := fmt.Sprintf("%s:%s", key, value)
-	if cached, exists := s.cache[cacheKey]; exists {
-		return cached
-	}
-
-	sanitized := s.sanitizeByKey(key, value)
-
-	// Cache the result
-	s.cache[cacheKey] = sanitized
-
-	return sanitized
+	return s.sanitizeByKey(key, value)
 }
 
 // sanitizeByKey determines the appropriate sanitization method based on the key
@@ -178,14 +163,4 @@ func (s *Sanitizer) sanitizeGenericString(value string) string {
 	}
 
 	return value
-}
-
-// ClearCache clears the sanitization cache
-func (s *Sanitizer) ClearCache() {
-	s.cache = make(map[string]string)
-}
-
-// GetCacheSize returns the current cache size
-func (s *Sanitizer) GetCacheSize() int {
-	return len(s.cache)
 }

@@ -75,6 +75,32 @@ not redacted and must never contain actual secrets. Historical submissions with
 no policy are not retroactively protected; do not rewrite immutable history to
 pretend otherwise. Review that exposure before rollout.
 
+## Runtime logging boundary (#149, #150)
+
+The runtime ORM adapter emits event severity, elapsed milliseconds, and a bounded
+error category (for example `conflict`, `invalid_data`, or `database_error`). It
+does not evaluate the SQL-rendering callback or forward SQL, parameters, literal
+values, arbitrary diagnostic arguments, or driver error messages. The old
+`parameterized` configuration field is retained for parsing compatibility but
+cannot enable value logging. Log levels, configured slow-query thresholds, and
+ignored not-found queries remain supported; the default slow threshold is 200 ms.
+Raw SQL and row-count diagnostics are deliberately not included in this adapter.
+
+HTTP repository failures retain their request ID but not the raw error; form
+repository error events likewise omit driver text. Field sanitization is
+stateless: it no longer memoizes original request values in an unbounded shared
+map. This removes both indefinite in-process value retention and a reproduced
+concurrent-map-write crash without adding another cache or locking policy.
+
+Regression evidence includes real production logging-factory output at debug
+level, real GORM query construction, real PostgreSQL driver errors, concurrent
+sanitization, and the HTTP/PostgreSQL submission flow with a connection-local
+fault-injection callback. The latter verifies that a failed insert does not
+persist a submission or echo the synthetic payload/error into ORM or HTTP logs.
+These tests do not prove that proxy/access logs, database-server logging, crash
+dumps, or external collectors are correctly configured. Audit those during #125;
+this code change does not erase historical logs or establish a production leak.
+
 ## Remaining delivery contract — required before closing #122
 
 The following remain required before closing #122:
@@ -92,8 +118,9 @@ The following remain required before closing #122:
 - Empty/loading/error/populated UI, exact-version display, bounded exports,
   telemetry/history privacy, and adversarial cross-tenant/form/membership tests
   must pass before claiming the complete submissions workflow.
-- Privacy verification must include the actual ORM/application/proxy logging
-  configuration and database failure paths, not only captured HTTP request logs.
+- Deployment privacy verification must include proxy/access logs, PostgreSQL
+  server logging, and external collectors; application regressions alone cannot
+  prove those independently configured boundaries.
 
 These remaining decisions and acceptance tests are not satisfied by a filter API
 or by the earlier numeric correction in #144. No deployment is implied.
