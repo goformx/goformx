@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/form/model"
 )
 
@@ -114,7 +115,7 @@ func TestForm_Validate(t *testing.T) {
 				},
 			),
 			wantErr:     true,
-			errContains: "invalid schema: type must be object",
+			errContains: "form schema type must be object",
 		},
 		{
 			name: "renderer component format is not canonical",
@@ -152,7 +153,7 @@ func TestForm_Validate(t *testing.T) {
 				},
 			),
 			wantErr:     true,
-			errContains: "schema must contain properties",
+			errContains: "properties",
 		},
 		{
 			name: "invalid property type",
@@ -170,7 +171,7 @@ func TestForm_Validate(t *testing.T) {
 				},
 			),
 			wantErr:     true,
-			errContains: "invalid type 'invalid' for property 'name'",
+			errContains: "invalid_schema",
 		},
 	}
 
@@ -179,7 +180,7 @@ func TestForm_Validate(t *testing.T) {
 			if tt.name != "renderer component format is not canonical" {
 				tt.form.Schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 			}
-			err := tt.form.Validate()
+			err := tt.form.Validate(validation.NewComprehensiveValidator())
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.errContains)
@@ -188,4 +189,9 @@ func TestForm_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFormValidationRequiresAnExplicitCanonicalValidator(t *testing.T) {
+	form := model.NewForm("organization", "Test form", "", model.JSON{})
+	require.EqualError(t, form.Validate(nil), "schema validator is required")
 }

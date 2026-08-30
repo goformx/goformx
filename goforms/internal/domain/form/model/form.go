@@ -258,117 +258,11 @@ func NewForm(organizationID, title, description string, schema JSON) *Form {
 	}
 }
 
-// validateProperty validates a single form property
-func validateProperty(name string, prop any) error {
-	property, isMap := prop.(map[string]any)
-	if !isMap {
-		return fmt.Errorf("invalid property format for '%s': must be an object", name)
+// Validate checks metadata and delegates schema policy to the canonical authority.
+func (f *Form) Validate(validator DefinitionValidator) error {
+	if validator == nil {
+		return errors.New("schema validator is required")
 	}
-
-	// Check for required property fields
-	if _, exists := property["type"]; !exists {
-		return fmt.Errorf("missing type for property '%s'", name)
-	}
-
-	// Validate property type
-	propType, isString := property["type"].(string)
-	if !isString {
-		return fmt.Errorf("invalid type format for property '%s'", name)
-	}
-
-	// Validate property type value
-	validTypes := map[string]bool{
-		"string":  true,
-		"number":  true,
-		"integer": true,
-		"boolean": true,
-		"array":   true,
-		"object":  true,
-	}
-
-	if !validTypes[propType] {
-		return fmt.Errorf("invalid type '%s' for property '%s'", propType, name)
-	}
-
-	return nil
-}
-
-// validateSchema validates the form schema
-func (f *Form) validateSchema() error {
-	// Validate required schema fields
-	if err := f.validateRequiredSchemaFields(); err != nil {
-		return err
-	}
-
-	// Validate schema type
-	if err := f.validateSchemaType(); err != nil {
-		return err
-	}
-
-	// Validate schema content
-	if err := f.validateSchemaContent(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// validateRequiredSchemaFields validates that all required schema fields are present
-func (f *Form) validateRequiredSchemaFields() error {
-	if f.Schema["$schema"] != JSONSchemaDraft202012URI {
-		return errors.New("schema must declare JSON Schema Draft 2020-12")
-	}
-	if _, hasType := f.Schema["type"]; !hasType {
-		return errors.New("schema must have a type field")
-	}
-
-	return nil
-}
-
-// validateSchemaType validates that the schema type is correct
-func (f *Form) validateSchemaType() error {
-	schemaType, typeOk := f.Schema["type"].(string)
-	if !typeOk || schemaType != "object" {
-		return errors.New("invalid schema: type must be object")
-	}
-
-	return nil
-}
-
-// validateSchemaContent validates the JSON Schema properties object.
-func (f *Form) validateSchemaContent() error {
-	hasProperties, propErr := f.validateProperties()
-
-	if propErr != nil {
-		return propErr
-	}
-
-	if !hasProperties {
-		return errors.New("schema must contain properties")
-	}
-
-	return nil
-}
-
-// validateProperties validates the properties section of the schema
-func (f *Form) validateProperties() (bool, error) {
-	properties, propsOk := f.Schema["properties"].(map[string]any)
-	if !propsOk {
-		return false, nil
-	}
-
-	// Validate each property
-	for name, prop := range properties {
-		if err := validateProperty(name, prop); err != nil {
-			return false, err
-		}
-	}
-
-	return true, nil
-}
-
-// Validate validates the form
-func (f *Form) Validate() error {
 	if f.Title == "" {
 		return errors.New("title is required")
 	}
@@ -385,7 +279,7 @@ func (f *Form) Validate() error {
 		return fmt.Errorf("description must not exceed %d characters", MaxDescriptionLength)
 	}
 
-	return f.validateSchema()
+	return validator.ValidateDefinition(f.Schema)
 }
 
 // Update updates the form with new values

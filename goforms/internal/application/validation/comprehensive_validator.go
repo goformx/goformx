@@ -11,6 +11,7 @@ import (
 
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 
+	"github.com/goformx/goforms/contracts"
 	"github.com/goformx/goforms/internal/domain/form/model"
 )
 
@@ -105,6 +106,21 @@ func (v *ComprehensiveValidator) compile(schema model.JSON) (*jsonschema.Schema,
 	if compiled := v.cached(digest); compiled != nil {
 		return compiled, Result{IsValid: true, Errors: []Error{}}
 	}
+	definition, err := compiledDefinitionContract()
+	if err != nil {
+		return nil, invalidResult("/", "invalid_schema", "canonical definition contract could not be compiled")
+	}
+	if err := definition.Validate(map[string]any(schema)); err != nil {
+		var validationErr *jsonschema.ValidationError
+		if errors.As(err, &validationErr) {
+			items := flattenValidationError(validationErr)
+			for index := range items {
+				items[index].Code = "invalid_schema"
+			}
+			return nil, Result{IsValid: false, Errors: items}
+		}
+		return nil, invalidResult("/", "invalid_schema", err.Error())
+	}
 	compiler := jsonschema.NewCompiler()
 	compiler.DefaultDraft(jsonschema.Draft2020)
 	compiler.AssertFormat()
@@ -118,6 +134,26 @@ func (v *ComprehensiveValidator) compile(schema model.JSON) (*jsonschema.Schema,
 	v.remember(digest, compiled)
 	return compiled, Result{IsValid: true, Errors: []Error{}}
 }
+
+// Compile the published envelope once. Draft metaschema references are provided
+// by the maintained compiler itself; no deployment filesystem or HTTP fetch is needed.
+var compiledDefinitionContract = sync.OnceValues(func() (*jsonschema.Schema, error) {
+	var document map[string]any
+	if err := json.Unmarshal([]byte(contracts.FormDefinition()), &document); err != nil {
+		return nil, err
+	}
+	id, ok := document["$id"].(string)
+	if !ok || id == "" {
+		return nil, errors.New("canonical definition contract must declare an ID")
+	}
+	compiler := jsonschema.NewCompiler()
+	compiler.DefaultDraft(jsonschema.Draft2020)
+	compiler.AssertFormat()
+	if err := compiler.AddResource(id, document); err != nil {
+		return nil, err
+	}
+	return compiler.Compile(id)
+})
 
 func (v *ComprehensiveValidator) cached(digest [sha256.Size]byte) *jsonschema.Schema {
 	v.cacheMu.RLock()
