@@ -26,6 +26,7 @@ import (
 	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
 	"github.com/goformx/goforms/internal/domain/auth"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	mockform "github.com/goformx/goforms/test/mocks/form"
 )
@@ -255,7 +256,7 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 	case "listSubmissions":
 		ownedForm()
 		if allowed {
-			repositories.MockRepository.EXPECT().ListSubmissionsPage(gomock.Any(), scopeOrganizationID, scopeFormID, time.Time{}, "", 25).Return([]*model.FormSubmission{submission}, false, nil)
+			repositories.MockRepository.EXPECT().ListSubmissionsPage(gomock.Any(), scopeOrganizationID, scopeFormID, domainsubmission.ListOptions{Limit: 25}).Return([]*model.FormSubmission{submission}, false, nil)
 		}
 	case "getSubmission":
 		if allowed {

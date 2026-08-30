@@ -13,6 +13,7 @@ import (
 
 	"github.com/goformx/goforms/contracts"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	"github.com/goformx/goforms/internal/domain/submission"
 )
 
 type operation struct {
@@ -41,6 +42,33 @@ func TestNumericResourceLimitsMatchTheRuntime(t *testing.T) {
 
 type parameter struct {
 	Ref string `yaml:"$ref"`
+}
+
+func TestSubmissionFilterBoundsMatchTheDomain(t *testing.T) {
+	t.Parallel()
+	document, err := os.ReadFile("openapi.v1.yaml")
+	require.NoError(t, err)
+	var api struct {
+		Components struct {
+			Parameters map[string]struct {
+				Schema struct {
+					Minimum int      `yaml:"minimum"`
+					Maximum int      `yaml:"maximum"`
+					Default any      `yaml:"default"`
+					Enum    []string `yaml:"enum"`
+				} `yaml:"schema"`
+			} `yaml:"parameters"`
+		} `yaml:"components"`
+	}
+	require.NoError(t, yaml.Unmarshal(document, &api))
+	limit := api.Components.Parameters["SubmissionLimit"].Schema
+	require.Equal(t, 1, limit.Minimum)
+	require.Equal(t, submission.MaxPageLimit, limit.Maximum)
+	require.Equal(t, submission.DefaultPageLimit, limit.Default)
+	version := api.Components.Parameters["SubmissionSchemaVersionFilter"].Schema
+	require.Equal(t, 1, version.Minimum)
+	require.Equal(t, submission.MaxSchemaVersion, version.Maximum)
+	require.Equal(t, []string{string(model.SubmissionStatusAccepted)}, api.Components.Parameters["SubmissionStatusFilter"].Schema.Enum)
 }
 
 type pathItem struct {
@@ -109,6 +137,12 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 			case "listSchemaVersions":
 				require.Equal(t, []string{
 					"#/components/parameters/PageLimit", "#/components/parameters/PageOffset",
+				}, parameterRefs(op.Parameters))
+			case "listSubmissions":
+				require.Equal(t, []string{
+					"#/components/parameters/SubmissionLimit", "#/components/parameters/SubmissionCursor",
+					"#/components/parameters/SubmissionReceivedFrom", "#/components/parameters/SubmissionReceivedBefore",
+					"#/components/parameters/SubmissionStatusFilter", "#/components/parameters/SubmissionSchemaVersionFilter",
 				}, parameterRefs(op.Parameters))
 			case "updateForm":
 				require.Equal(t, []string{"#/components/parameters/IfMatch"}, parameterRefs(op.Parameters))

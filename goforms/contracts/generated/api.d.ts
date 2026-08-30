@@ -393,8 +393,11 @@ export interface components {
             schemaVersion: number;
             /** @description Correlation identifier for the accepted public request; it contains no credential or payload data. */
             requestId: string;
-            /** @enum {string} */
-            status: "accepted" | "processing" | "completed" | "failed";
+            /**
+             * @description Immutable acceptance state. Delivery attempts have their own lifecycle.
+             * @enum {string}
+             */
+            status: "accepted";
             data: {
                 [key: string]: unknown;
             };
@@ -573,6 +576,14 @@ export interface components {
         };
     };
     parameters: {
+        /** @description Inclusive submittedAt lower bound, RFC 3339 with an explicit offset and at most microsecond precision. Indexed with formId. */
+        SubmissionReceivedFrom: string;
+        /** @description Exclusive submittedAt upper bound, RFC 3339 with an explicit offset and at most microsecond precision. Must be later than receivedFrom when both are present. */
+        SubmissionReceivedBefore: string;
+        /** @description Accepted payloads are immutable; webhook delivery progress is a separate resource, not a submission status transition. */
+        SubmissionStatusFilter: "accepted";
+        /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
+        SubmissionSchemaVersionFilter: number;
         FormId: string;
         /** @description Rotatable, non-secret identifier safe for browser embeds. */
         PublicKey: string;
@@ -903,6 +914,14 @@ export interface operations {
                 limit?: components["parameters"]["SubmissionLimit"];
                 /** @description Opaque cursor returned as meta.nextCursor by the previous page. */
                 cursor?: components["parameters"]["SubmissionCursor"];
+                /** @description Inclusive submittedAt lower bound, RFC 3339 with an explicit offset and at most microsecond precision. Indexed with formId. */
+                receivedFrom?: components["parameters"]["SubmissionReceivedFrom"];
+                /** @description Exclusive submittedAt upper bound, RFC 3339 with an explicit offset and at most microsecond precision. Must be later than receivedFrom when both are present. */
+                receivedBefore?: components["parameters"]["SubmissionReceivedBefore"];
+                /** @description Accepted payloads are immutable; webhook delivery progress is a separate resource, not a submission status transition. */
+                status?: components["parameters"]["SubmissionStatusFilter"];
+                /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
+                schemaVersion?: components["parameters"]["SubmissionSchemaVersionFilter"];
             };
             header?: never;
             path: {
@@ -912,7 +931,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Submissions for the form; sensitive payloads require explicit scope */
+            /**
+             * @description Submissions for the owned, non-deleted form, ordered by received time
+             *     and ID descending. Reuse the same filters with nextCursor; pagination
+             *     is not a snapshot of future inserts. Only the documented parameters
+             *     are supported; unknown, repeated, and invalid filters return 400.
+             *     The encoded query is limited to 4096 bytes.
+             *     Payloads require submissions:read, not merely forms:read.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;

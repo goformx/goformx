@@ -19,6 +19,7 @@ import (
 
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	formrepository "github.com/goformx/goforms/internal/infrastructure/repository/form"
 	mocklogging "github.com/goformx/goforms/test/mocks/logging"
@@ -178,17 +179,17 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.NotEmpty(t, second.ID)
 
 	foreignPage, foreignHasMore, err := store.ListSubmissionsPage(
-		t.Context(), foreignOrganizationID, form.ID, time.Time{}, "", 1,
+		t.Context(), foreignOrganizationID, form.ID, domainsubmission.ListOptions{Limit: 1},
 	)
 	require.NoError(t, err)
 	require.False(t, foreignHasMore)
 	require.Empty(t, foreignPage)
-	page, hasMore, err := store.ListSubmissionsPage(t.Context(), ownerID, form.ID, time.Time{}, "", 1)
+	page, hasMore, err := store.ListSubmissionsPage(t.Context(), ownerID, form.ID, domainsubmission.ListOptions{Limit: 1})
 	require.NoError(t, err)
 	require.True(t, hasMore)
 	require.Len(t, page, 1)
 	nextPage, hasMore, err := store.ListSubmissionsPage(
-		t.Context(), ownerID, form.ID, page[0].SubmittedAt, page[0].ID, 1,
+		t.Context(), ownerID, form.ID, domainsubmission.ListOptions{Before: page[0].SubmittedAt, BeforeID: page[0].ID, Limit: 1},
 	)
 	require.NoError(t, err)
 	require.False(t, hasMore)

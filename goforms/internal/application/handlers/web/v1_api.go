@@ -29,6 +29,7 @@ import (
 	"github.com/goformx/goforms/internal/domain/auth"
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 )
 
@@ -62,7 +63,7 @@ type V1Repository interface {
 	ListSchemaVersions(context.Context, string, string, int, int) ([]*model.SchemaVersion, int64, error)
 	GetSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
 	PublishSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
-	ListSubmissionsPage(context.Context, string, string, time.Time, string, int) ([]*model.FormSubmission, bool, error)
+	ListSubmissionsPage(context.Context, string, string, domainsubmission.ListOptions) ([]*model.FormSubmission, bool, error)
 	GetSubmissionByOrganization(context.Context, string, string, string) (*model.FormSubmission, error)
 	GetPublishedSchemaVersion(context.Context, string, int) (*model.Form, *model.SchemaVersion, error)
 	CreateSubmissionIdempotent(context.Context, *model.FormSubmission) (*model.FormSubmission, bool, error)
@@ -501,16 +502,12 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	if !ok {
 		return nil
 	}
-	limit, err := submissionPageLimit(c.QueryParam("limit"))
-	if err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
-	}
-	before, beforeID, err := decodeSubmissionCursor(c.QueryParam("cursor"))
+	options, err := submissionListOptions(c)
 	if err != nil {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 	submissions, hasMore, err := h.repository.ListSubmissionsPage(
-		c.Request().Context(), formModel.OrganizationID, formModel.ID, before, beforeID, limit,
+		c.Request().Context(), formModel.OrganizationID, formModel.ID, options,
 	)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
@@ -524,7 +521,7 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 		nextCursor = encodeSubmissionCursor(submissions[len(submissions)-1])
 	}
 	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{
-		"limit": limit, "nextCursor": nextCursor,
+		"limit": options.Limit, "nextCursor": nextCursor,
 	}})
 }
 
@@ -729,11 +726,6 @@ func webhookDeliveryResource(delivery *domainwebhook.Delivery) map[string]any {
 		"createdAt": delivery.CreatedAt, "updatedAt": delivery.UpdatedAt}
 }
 
-const (
-	defaultSubmissionPageSize = 25
-	maxSubmissionPageSize     = 100
-)
-
 type submissionCursor struct {
 	SubmittedAt time.Time `json:"submittedAt"`
 	ID          string    `json:"id"`
@@ -741,11 +733,11 @@ type submissionCursor struct {
 
 func submissionPageLimit(value string) (int, error) {
 	if value == "" {
-		return defaultSubmissionPageSize, nil
+		return domainsubmission.DefaultPageLimit, nil
 	}
 	limit, err := positiveInt(value)
-	if err != nil || limit > maxSubmissionPageSize {
-		return 0, fmt.Errorf("limit must be between 1 and %d", maxSubmissionPageSize)
+	if err != nil || limit > domainsubmission.MaxPageLimit {
+		return 0, fmt.Errorf("limit must be between 1 and %d", domainsubmission.MaxPageLimit)
 	}
 	return limit, nil
 }
@@ -942,7 +934,7 @@ func schemaVersionResource(version *model.SchemaVersion) map[string]any {
 func submissionResource(submission *model.FormSubmission) map[string]any {
 	return map[string]any{"id": submission.ID, "formId": submission.FormID, "schemaVersion": submission.SchemaVersion,
 		"requestId": submission.RequestID, "status": submission.Status, "data": submission.Data,
-		"submittedAt": submission.SubmittedAt.UTC().Format(time.RFC3339)}
+		"submittedAt": submission.SubmittedAt.UTC().Format(time.RFC3339Nano)}
 }
 
 func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {

@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: GoFormX API
-  version: 1.1.1
+  version: 1.2.0
   license:
     name: GNU Affero General Public License v3.0 or later
     identifier: AGPL-3.0-or-later
@@ -283,9 +283,19 @@ paths:
       parameters:
         - $ref: '#/components/parameters/SubmissionLimit'
         - $ref: '#/components/parameters/SubmissionCursor'
+        - $ref: '#/components/parameters/SubmissionReceivedFrom'
+        - $ref: '#/components/parameters/SubmissionReceivedBefore'
+        - $ref: '#/components/parameters/SubmissionStatusFilter'
+        - $ref: '#/components/parameters/SubmissionSchemaVersionFilter'
       responses:
         '200':
-          description: Submissions for the form; sensitive payloads require explicit scope
+          description: |
+            Submissions for the owned, non-deleted form, ordered by received time
+            and ID descending. Reuse the same filters with nextCursor; pagination
+            is not a snapshot of future inserts. Only the documented parameters
+            are supported; unknown, repeated, and invalid filters return 400.
+            The encoded query is limited to 4096 bytes.
+            Payloads require submissions:read, not merely forms:read.
           content:
             application/json:
               schema:
@@ -570,6 +580,26 @@ components:
       x-goformx-jwt-profile: gofx-fpa-v1
       x-goformx-jwks-uri: https://goformx.com/.well-known/goformx-control-plane-jwks.json
   parameters:
+    SubmissionReceivedFrom:
+      name: receivedFrom
+      in: query
+      description: Inclusive submittedAt lower bound, RFC 3339 with an explicit offset and at most microsecond precision. Indexed with formId.
+      schema: { type: string, format: date-time }
+    SubmissionReceivedBefore:
+      name: receivedBefore
+      in: query
+      description: Exclusive submittedAt upper bound, RFC 3339 with an explicit offset and at most microsecond precision. Must be later than receivedFrom when both are present.
+      schema: { type: string, format: date-time }
+    SubmissionStatusFilter:
+      name: status
+      in: query
+      description: Accepted payloads are immutable; webhook delivery progress is a separate resource, not a submission status transition.
+      schema: { type: string, enum: [accepted] }
+    SubmissionSchemaVersionFilter:
+      name: schemaVersion
+      in: query
+      description: Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version.
+      schema: { type: integer, minimum: 1, maximum: 2147483647 }
     FormId:
       name: formId
       in: path
@@ -756,7 +786,10 @@ components:
           minLength: 1
           maxLength: 128
           description: Correlation identifier for the accepted public request; it contains no credential or payload data.
-        status: { type: string, enum: [accepted, processing, completed, failed] }
+        status:
+          type: string
+          enum: [accepted]
+          description: Immutable acceptance state. Delivery attempts have their own lifecycle.
         data: { type: object, additionalProperties: true }
         submittedAt: { type: string, format: date-time }
     FormEnvelope:

@@ -14,6 +14,7 @@ import (
 
 	"github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	"github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	"github.com/goformx/goforms/internal/infrastructure/database"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -498,31 +499,41 @@ func (s *Store) ListSubmissionsPage(
 	ctx context.Context,
 	organizationID string,
 	formID string,
-	before time.Time,
-	beforeID string,
-	limit int,
+	options submission.ListOptions,
 ) ([]*model.FormSubmission, bool, error) {
-	if limit < 1 || limit > 100 {
-		return nil, false, errors.New("submission page limit must be between 1 and 100")
+	if err := options.Validate(); err != nil {
+		return nil, false, err
 	}
 	query := s.db.GetDB().WithContext(ctx).Model(&model.FormSubmission{}).
 		Select("form_submissions.*").
 		Joins("JOIN forms ON forms.uuid = form_submissions.form_id").
 		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND form_submissions.form_id = ?", organizationID, formID)
-	if !before.IsZero() {
+	if options.ReceivedFrom != nil {
+		query = query.Where("form_submissions.submitted_at >= ?", options.ReceivedFrom.UTC())
+	}
+	if options.ReceivedBefore != nil {
+		query = query.Where("form_submissions.submitted_at < ?", options.ReceivedBefore.UTC())
+	}
+	if options.Status != "" {
+		query = query.Where("form_submissions.status = ?", options.Status)
+	}
+	if options.SchemaVersion != 0 {
+		query = query.Where("form_submissions.schema_version = ?", options.SchemaVersion)
+	}
+	if !options.Before.IsZero() {
 		query = query.Where(
 			"(form_submissions.submitted_at < ? OR (form_submissions.submitted_at = ? AND form_submissions.uuid < ?))",
-			before, before, beforeID,
+			options.Before, options.Before, options.BeforeID,
 		)
 	}
 	var submissions []*model.FormSubmission
-	if err := query.Order("form_submissions.submitted_at DESC, form_submissions.uuid DESC").Limit(limit + 1).
+	if err := query.Order("form_submissions.submitted_at DESC, form_submissions.uuid DESC").Limit(options.Limit + 1).
 		Find(&submissions).Error; err != nil {
 		return nil, false, fmt.Errorf("list submission page: %w", err)
 	}
-	hasMore := len(submissions) > limit
+	hasMore := len(submissions) > options.Limit
 	if hasMore {
-		submissions = submissions[:limit]
+		submissions = submissions[:options.Limit]
 	}
 	return submissions, hasMore, nil
 }
@@ -546,7 +557,7 @@ func (s *Store) GetSubmissionByOrganization(
 		Table("form_submissions").
 		Select("form_submissions.*").
 		Joins("JOIN forms ON forms.uuid = form_submissions.form_id").
-		Where("forms.organization_id = ? AND forms.uuid = ? AND form_submissions.uuid = ?", organizationID, formID, submissionID).
+		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND forms.uuid = ? AND form_submissions.uuid = ?", organizationID, formID, submissionID).
 		First(&submission)
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("get submission: %w", common.NewNotFoundError("get", "submission", submissionID))
