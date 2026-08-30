@@ -42,6 +42,9 @@ Tracking mode is implementation-capable by default. At the pinned revision:
   The action restores PR-controlled Claude configuration from the base branch.
 - GITHUB_TOKEN has contents: read and pull-requests: write; no code-write grant.
   The reviewer must not execute repository code or claim tests ran.
+- Native context lists changed files but omits their patches. A trusted setup
+  step downloads the actual diff to runner-temporary storage for Read, with a
+  1 MiB bound and no truncation. Missing/invalid/oversized diffs fail before Claude.
 - Post-review validation is inline trusted workflow code. It never imports a
   helper from the PR checkout. A changed head/base, closed PR, wrong checkout,
   or failed revision lookup fails the job and posts a STALE or UNVERIFIED warning.
@@ -58,7 +61,8 @@ A successful process is not proof that a complete review was posted. Confirm the
 native comment contains a final review, the run succeeded, and the head/base
 still match. A failed or incomplete run is never a clean verdict.
 
-Native comments are provider-authored Markdown, not our previous inert-text
+Native comments use upstream sanitization and secret redaction, but remain
+provider-authored Markdown, not our previous inert-text
 publisher. An error finalizer or stale warning does not retract existing
 findings. Disregard feedback from failed, incomplete, stale or unverified runs.
 The post-check is a point-in-time guard, not protection against later pushes.

@@ -43,6 +43,33 @@ async function run(name, fixture, env) {
   );
 }
 
+test('trusted setup provides the actual diff without model shell access or truncated evidence', async () => {
+  for (const diff of ['diff --git a/file b/file\n+change', '', ' ', {}, 'x'.repeat(1048577), '\u00e9'.repeat(524289)]) {
+    const h = harness();
+    const writes = [];
+    h.github.rest.pulls.get = async input => {
+      assert.deepEqual(input, {...h.context.repo, pull_number: 172, mediaType: {format: 'diff'}});
+      return {data: diff};
+    };
+    h.require = name => {
+      if (name === 'node:path') return path;
+      assert.equal(name, 'node:fs');
+      return {writeFileSync: (...args) => writes.push(args)};
+    };
+    const result = run('Prepare review diff', h, {RUNNER_TEMP: '/runner-temp'});
+    if (typeof diff === 'string' && diff.trim() && Buffer.byteLength(diff, 'utf8') <= 1048576) {
+      await result;
+      assert.deepEqual(writes, [[path.join('/runner-temp', 'manual-claude-review.diff'), diff, {mode: 0o600, flag: 'wx'}]]);
+      assert.equal(h.outputs.path, writes[0][0]);
+    } else {
+      await assert.rejects(result, /diff is missing, invalid or exceeds/);
+      assert.equal(writes.length, 0);
+      assert.deepEqual(h.outputs, {});
+    }
+  }
+  assert.ok(workflow.includes('First Read the actual diff at $' + '{{ steps.diff.outputs.path }}'));
+});
+
 test('only an exact new human maintainer PR comment is eligible', () => {
   const expression = workflow.match(/    if: >-\n([\s\S]*?)    runs-on:/)[1].trim();
   const eligible = new Function('github', 'return Boolean(' + expression + ')');
