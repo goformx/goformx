@@ -80,6 +80,31 @@ func (c *Cipher) Decrypt(ciphertext []byte, formID string) (SecretConfig, error)
 	return config, nil
 }
 
+// RotateSigningSecret preserves all other encrypted fields, including fields
+// written by a newer compatible binary. Delivery snapshots are not changed.
+func (c *Cipher) RotateSigningSecret(ciphertext []byte, formID, secret string) ([]byte, error) {
+	if err := (EndpointChange{SigningSecret: &secret}).Validate(); err != nil {
+		return nil, err
+	}
+	plaintext, _, err := c.decryptBytes(ciphertext, formID)
+	if err != nil {
+		return nil, err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(plaintext, &fields); err != nil || fields == nil {
+		return nil, errors.New("encrypted webhook configuration is invalid")
+	}
+	fields["signingSecret"], err = json.Marshal(secret)
+	if err != nil {
+		return nil, errors.New("webhook signing secret encoding failed")
+	}
+	updated, err := json.Marshal(fields)
+	if err != nil {
+		return nil, errors.New("encrypted webhook configuration is invalid")
+	}
+	return c.encryptBytes(updated, formID)
+}
+
 func (c *Cipher) decryptBytes(ciphertext []byte, formID string) ([]byte, string, error) {
 	if c == nil {
 		return nil, "", ErrDisabled

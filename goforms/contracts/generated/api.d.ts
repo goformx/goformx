@@ -231,14 +231,24 @@ export interface paths {
         };
         /** Get the form webhook endpoint without secret material */
         get: operations["getWebhookEndpoint"];
-        /** Create or replace the form webhook endpoint and write-only secrets */
+        /**
+         * Create or replace the form webhook endpoint and write-only secrets
+         * @description Commits configuration and a secret-free actor audit atomically. Audit failure returns 503 management_audit_unavailable without committing the change. Existing deliveries retain their accepted configuration snapshot.
+         */
         put: operations["putWebhookEndpoint"];
         post?: never;
-        /** Disable future delivery by deleting the endpoint */
+        /**
+         * Disable future delivery by deleting the endpoint
+         * @description Deletion and a secret-free actor audit commit atomically. Audit failure returns 503 management_audit_unavailable without deleting the endpoint. Accepted deliveries remain eligible for dispatch and replay.
+         */
         delete: operations["deleteWebhookEndpoint"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Pause or resume future deliveries, or rotate the signing secret
+         * @description Send exactly one of enabled or signingSecret. Omitted secrets, destination and headers remain unchanged and are never returned. Pause affects future enqueueing, not already-accepted deliveries. Signing-secret rotation affects future snapshots only; receivers must retain the previous secret for outstanding deliveries and dead-letter replay. An actor audit commits atomically; audit failure returns 503 management_audit_unavailable with no change. A repeated enabled value is a successful no-op.
+         */
+        patch: operations["patchWebhookEndpoint"];
         trace?: never;
     };
     "/v1/forms/{formId}/deliveries": {
@@ -272,7 +282,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Requeue a dead-letter webhook delivery */
+        /**
+         * Requeue a dead-letter webhook delivery
+         * @description Requeue and a secret-free actor audit commit atomically. Audit failure returns 503 management_audit_unavailable without requeueing. The original delivery ID, payload and encrypted configuration are preserved, even if the endpoint is paused, rotated or deleted.
+         */
         post: operations["replayWebhookDelivery"];
         delete?: never;
         options?: never;
@@ -514,6 +527,10 @@ export interface components {
             signingSecret: string;
             /** @default true */
             enabled: boolean;
+        };
+        PatchWebhookEndpoint: {
+            enabled?: boolean;
+            signingSecret?: string;
         };
         WebhookEndpoint: {
             /** Format: uuid */
@@ -1199,6 +1216,34 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    patchWebhookEndpoint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                formId: components["parameters"]["FormId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchWebhookEndpoint"];
+            };
+        };
+        responses: {
+            /** @description Updated metadata; secret material is never returned */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebhookEndpointEnvelope"];
+                };
             };
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];

@@ -32,6 +32,7 @@ func (r *webhookAPIRepository) PutWebhookEndpoint(
 	_, formID, destinationURL string,
 	config domainwebhook.SecretConfig,
 	enabled bool,
+	_ auth.AuditActor,
 ) (*domainwebhook.Endpoint, error) {
 	r.secret = config
 	r.endpoint = &domainwebhook.Endpoint{ID: "22222222-2222-4222-8222-222222222222",
@@ -47,7 +48,7 @@ func (r *webhookAPIRepository) GetWebhookEndpoint(context.Context, string, strin
 	return r.endpoint, nil
 }
 
-func (r *webhookAPIRepository) DeleteWebhookEndpoint(context.Context, string, string) error {
+func (r *webhookAPIRepository) DeleteWebhookEndpoint(context.Context, string, string, auth.AuditActor) error {
 	r.endpoint = nil
 	return nil
 }
@@ -56,9 +57,22 @@ func (r *webhookAPIRepository) ListWebhookDeliveries(context.Context, string, st
 	return r.deliveries, nil
 }
 
-func (r *webhookAPIRepository) ReplayWebhookDelivery(_ context.Context, _, _ string, deliveryID string) error {
+func (r *webhookAPIRepository) ReplayWebhookDelivery(_ context.Context, _, _ string, deliveryID string, _ auth.AuditActor) error {
 	r.replayed = deliveryID
 	return nil
+}
+
+func (r *webhookAPIRepository) PatchWebhookEndpoint(_ context.Context, _, _ string, change domainwebhook.EndpointChange, _ auth.AuditActor) (*domainwebhook.Endpoint, error) {
+	if r.endpoint == nil {
+		return nil, domainwebhook.ErrNotFound
+	}
+	if change.Enabled != nil {
+		r.endpoint.Enabled = *change.Enabled
+	}
+	if change.SigningSecret != nil {
+		r.secret.SigningSecret = *change.SigningSecret
+	}
+	return r.endpoint, nil
 }
 
 type webhookResolver map[string][]netip.Addr

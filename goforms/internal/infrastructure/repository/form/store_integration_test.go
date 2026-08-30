@@ -17,6 +17,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
+	"github.com/goformx/goforms/internal/domain/auth"
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
@@ -251,11 +252,11 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		_ = db.Unscoped().Where("uuid = ?", webhookForm.ID).Delete(&model.Form{}).Error
 	})
 	_, err = webhookStore.PutWebhookEndpoint(t.Context(), foreignOrganizationID, webhookForm.ID, "https://hooks.example/receive",
-		domainwebhook.SecretConfig{SigningSecret: "repository-signing-secret-long-enough"}, true)
+		domainwebhook.SecretConfig{SigningSecret: "repository-signing-secret-long-enough"}, true, auth.DatabaseAuditActor("fixture", foreignOrganizationID))
 	require.ErrorIs(t, err, domainwebhook.ErrNotFound)
 	_, err = webhookStore.PutWebhookEndpoint(t.Context(), ownerID, webhookForm.ID, "https://hooks.example/receive",
 		domainwebhook.SecretConfig{Headers: map[string]string{"Authorization": "Bearer encrypted"},
-			SigningSecret: "repository-signing-secret-long-enough"}, true)
+			SigningSecret: "repository-signing-secret-long-enough"}, true, auth.DatabaseAuditActor("fixture", ownerID))
 	require.NoError(t, err)
 	webhookSubmission := &model.FormSubmission{FormID: webhookForm.ID, SchemaVersion: 1,
 		IdempotencyKey: "webhook-atomic-submit-0001", Data: model.JSON{"name": "Ada"},
@@ -298,8 +299,8 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), ownerID, webhookForm.ID, 25)
 	require.NoError(t, err)
 	require.Equal(t, domainwebhook.DeliveryDeadLetter, deliveries[0].Status)
-	require.ErrorIs(t, webhookStore.ReplayWebhookDelivery(t.Context(), foreignOrganizationID, webhookForm.ID, claimed.ID), domainwebhook.ErrNotFound)
-	require.NoError(t, webhookStore.ReplayWebhookDelivery(t.Context(), ownerID, webhookForm.ID, claimed.ID))
+	require.ErrorIs(t, webhookStore.ReplayWebhookDelivery(t.Context(), foreignOrganizationID, webhookForm.ID, claimed.ID, auth.DatabaseAuditActor("fixture", foreignOrganizationID)), domainwebhook.ErrNotFound)
+	require.NoError(t, webhookStore.ReplayWebhookDelivery(t.Context(), ownerID, webhookForm.ID, claimed.ID, auth.DatabaseAuditActor("fixture", ownerID)))
 	deliveries, err = webhookStore.ListWebhookDeliveries(t.Context(), ownerID, webhookForm.ID, 25)
 	require.NoError(t, err)
 	require.Equal(t, domainwebhook.DeliveryPending, deliveries[0].Status)
@@ -322,11 +323,11 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		_ = db.Exec("DROP TRIGGER IF EXISTS goformx_test_reject_outbox ON webhook_deliveries").Error
 		_ = db.Exec("DROP FUNCTION IF EXISTS goformx_test_reject_outbox()").Error
 	})
-	require.ErrorIs(t, webhookStore.DeleteWebhookEndpoint(t.Context(), foreignOrganizationID, webhookForm.ID), domainwebhook.ErrNotFound)
+	require.ErrorIs(t, webhookStore.DeleteWebhookEndpoint(t.Context(), foreignOrganizationID, webhookForm.ID, auth.DatabaseAuditActor("fixture", foreignOrganizationID)), domainwebhook.ErrNotFound)
 	_, err = webhookStore.GetWebhookEndpoint(t.Context(), ownerID, webhookForm.ID)
 	require.NoError(t, err)
 	_, err = webhookStore.PutWebhookEndpoint(t.Context(), ownerID, webhookForm.ID, "https://reject.example/hooks",
-		domainwebhook.SecretConfig{SigningSecret: "repository-signing-secret-long-enough"}, true)
+		domainwebhook.SecretConfig{SigningSecret: "repository-signing-secret-long-enough"}, true, auth.DatabaseAuditActor("fixture", ownerID))
 	require.NoError(t, err)
 	rollbackKey := "webhook-rollback-submit-0002"
 	_, _, err = webhookStore.CreateSubmissionIdempotent(t.Context(), &model.FormSubmission{

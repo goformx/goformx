@@ -21,7 +21,7 @@ PUT /v1/forms/{formId}/webhook requires webhooks:write and accepts:
 
 The URL must use HTTPS port 443 and cannot contain credentials, a query, or a fragment. Every resolved address must be public both when the endpoint is configured and when a connection is opened. Proxies and redirects are disabled. Loopback, private, link-local, carrier-grade NAT, multicast, documentation, benchmarking, and reserved ranges are rejected.
 
-The complete destination URL, headers, and signing secret are encrypted together with AES-256-GCM and bound to the form ID as authenticated data. Only the destination origin is returned or stored as plaintext; a potentially secret URL path never appears in API responses or delivery logs. Updating an endpoint requires supplying the complete desired secret configuration again.
+The complete destination URL, headers, and signing secret are encrypted together with AES-256-GCM and bound to the form ID as authenticated data. Only the destination origin is returned or stored as plaintext; a potentially secret URL path never appears in API responses or delivery logs. Full replacement with PUT requires supplying the complete desired secret configuration again; PATCH supports secret-preserving lifecycle changes as described below.
 
 Use GET /v1/forms/{formId}/deliveries?limit=25 with submissions:read to inspect recent status, attempt count, next attempt, HTTP status, and non-sensitive error category. Use POST /v1/forms/{formId}/deliveries/{deliveryId}/replay with webhooks:write to requeue a dead-letter delivery. Replay keeps the same delivery ID and event payload so receivers can remain idempotent.
 
@@ -64,3 +64,33 @@ The privileged `goformx-webhook-keys` binary is included under `/app/bin/` in th
 - To restore a pre-keyring backup, restore its matching legacy vault key and compatible binary/configuration, then rerun migration if desired. A database backup alone is insufficient. Tests exercise PostgreSQL logical ciphertext backup/restore, reverse rotation, interruption and wrong-key rollback; infrastructure-level full backup/vault restoration remains a production release gate.
 
 The operation intentionally has no online/HTTP rotation endpoint. Maintenance credentials grant database-wide access and belong only to the operator, never a tenant or the control-plane browser.
+
+## Dashboard-safe lifecycle changes
+
+`PATCH /v1/forms/{formId}/webhook` requires `webhooks:write` and accepts exactly
+one field: `{"enabled":false}` to pause, `{"enabled":true}` to resume, or
+`{"signingSecret":"<new 32–256 character secret>"}` to rotate the receiver signing
+secret. Nulls, empty updates and combined changes are rejected. The destination,
+custom headers and omitted secret fields remain unchanged; responses contain
+metadata only. Full destination/header replacement continues to use PUT with
+the complete write-only configuration. Both management credential classes use
+the same organization boundary. Do not put a management credential in a browser.
+
+**Pause means stop future enqueueing**, not cancel accepted deliveries. Already
+accepted snapshots remain dispatchable after pause, rotation or deletion; a
+dead-letter replay uses its original delivery ID, payload and signing secret.
+Resuming does not backfill submissions accepted while paused. The dashboard must
+make these semantics visible rather than claiming that pause stops all traffic.
+
+Install the new signing secret at the receiver before rotating GoFormX, and
+accept both old and new keys during the overlap. Retain the old receiver key
+until outstanding deliveries and intentionally retained dead letters no longer
+need replay. Do not retire it merely because new submissions use the new key.
+This is distinct from storage encryption-key rotation (#113), which does not
+change the receiver's signing secret. No secret-readback endpoint exists.
+
+Every successful configuration change and replay has an atomic, secret-free
+[management audit](management-audit.md). Audit failure means no change was
+committed. Other network/commit failures can be ambiguous; inspect metadata and
+delivery status before retrying. A repeated pause/resume value is a no-op, while
+replay only succeeds for a currently dead-letter delivery.

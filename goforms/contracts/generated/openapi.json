@@ -979,6 +979,7 @@
       },
       "put": {
         "summary": "Create or replace the form webhook endpoint and write-only secrets",
+        "description": "Commits configuration and a secret-free actor audit atomically. Audit failure returns 503 management_audit_unavailable without committing the change. Existing deliveries retain their accepted configuration snapshot.",
         "operationId": "putWebhookEndpoint",
         "tags": [
           "Control plane"
@@ -1023,8 +1024,56 @@
           }
         }
       },
+      "patch": {
+        "summary": "Pause or resume future deliveries, or rotate the signing secret",
+        "description": "Send exactly one of enabled or signingSecret. Omitted secrets, destination and headers remain unchanged and are never returned. Pause affects future enqueueing, not already-accepted deliveries. Signing-secret rotation affects future snapshots only; receivers must retain the previous secret for outstanding deliveries and dead-letter replay. An actor audit commits atomically; audit failure returns 503 management_audit_unavailable with no change. A repeated enabled value is a successful no-op.",
+        "operationId": "patchWebhookEndpoint",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "webhooks:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchWebhookEndpoint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated metadata; secret material is never returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
       "delete": {
         "summary": "Disable future delivery by deleting the endpoint",
+        "description": "Deletion and a secret-free actor audit commit atomically. Audit failure returns 503 management_audit_unavailable without deleting the endpoint. Accepted deliveries remain eligible for dispatch and replay.",
         "operationId": "deleteWebhookEndpoint",
         "tags": [
           "Control plane"
@@ -1137,6 +1186,7 @@
       ],
       "post": {
         "summary": "Requeue a dead-letter webhook delivery",
+        "description": "Requeue and a secret-free actor audit commit atomically. Audit failure returns 503 management_audit_unavailable without requeueing. The original delivery ID, payload and encrypted configuration are preserved, even if the endpoint is paused, rotated or deleted.",
         "operationId": "replayWebhookDelivery",
         "tags": [
           "Control plane"
@@ -2272,6 +2322,23 @@
           "enabled": {
             "type": "boolean",
             "default": true
+          }
+        }
+      },
+      "PatchWebhookEndpoint": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "maxProperties": 1,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "signingSecret": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256,
+            "writeOnly": true
           }
         }
       },

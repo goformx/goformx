@@ -294,13 +294,26 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 		secret := domainwebhook.SecretConfig{DestinationURL: "https://hooks.example.com/receive", SigningSecret: strings.Repeat("s", 32)}
 		fixture.body = map[string]any{"url": secret.DestinationURL, "signingSecret": secret.SigningSecret}
 		if allowed {
-			repositories.MockWebhookRepository.EXPECT().PutWebhookEndpoint(gomock.Any(), scopeOrganizationID, scopeFormID, secret.DestinationURL, secret, true).Return(endpoint, nil)
+			repositories.MockWebhookRepository.EXPECT().PutWebhookEndpoint(gomock.Any(), scopeOrganizationID, scopeFormID, secret.DestinationURL, secret, true, gomock.Cond(func(actor auth.AuditActor) bool {
+				return actor.Validate() == nil && actor.OrganizationID == scopeOrganizationID
+			})).Return(endpoint, nil)
+		}
+	case "patchWebhookEndpoint":
+		ownedForm()
+		enabled := false
+		fixture.body = map[string]bool{"enabled": enabled}
+		if allowed {
+			repositories.MockWebhookRepository.EXPECT().PatchWebhookEndpoint(gomock.Any(), scopeOrganizationID, scopeFormID, domainwebhook.EndpointChange{Enabled: &enabled}, gomock.Cond(func(actor auth.AuditActor) bool {
+				return actor.Validate() == nil && actor.OrganizationID == scopeOrganizationID
+			})).Return(endpoint, nil)
 		}
 	case "deleteWebhookEndpoint":
 		ownedForm()
 		fixture.status = http.StatusNoContent
 		if allowed {
-			repositories.MockWebhookRepository.EXPECT().DeleteWebhookEndpoint(gomock.Any(), scopeOrganizationID, scopeFormID).Return(nil)
+			repositories.MockWebhookRepository.EXPECT().DeleteWebhookEndpoint(gomock.Any(), scopeOrganizationID, scopeFormID, gomock.Cond(func(actor auth.AuditActor) bool {
+				return actor.Validate() == nil && actor.OrganizationID == scopeOrganizationID
+			})).Return(nil)
 		}
 	case "listWebhookDeliveries":
 		ownedForm()
@@ -311,7 +324,9 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 		ownedForm()
 		fixture.status = http.StatusAccepted
 		if allowed {
-			repositories.MockWebhookRepository.EXPECT().ReplayWebhookDelivery(gomock.Any(), scopeOrganizationID, scopeFormID, scopeResourceID).Return(nil)
+			repositories.MockWebhookRepository.EXPECT().ReplayWebhookDelivery(gomock.Any(), scopeOrganizationID, scopeFormID, scopeResourceID, gomock.Cond(func(actor auth.AuditActor) bool {
+				return actor.Validate() == nil && actor.OrganizationID == scopeOrganizationID
+			})).Return(nil)
 		}
 	case "listServiceTokens":
 		if allowed {
