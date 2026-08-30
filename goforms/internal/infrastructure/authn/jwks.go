@@ -34,6 +34,8 @@ type JWKSProvider struct {
 	refreshInterval time.Duration
 	lastRefresh     time.Time
 	lastUnknown     time.Time
+	refreshSequence uint64
+	appliedSequence uint64
 	client          *http.Client
 }
 
@@ -123,6 +125,8 @@ func (p *JWKSProvider) refresh(ctx context.Context, force bool) {
 	if !force {
 		p.lastUnknown = p.lastRefresh
 	}
+	p.refreshSequence++
+	sequence := p.refreshSequence
 	p.mu.Unlock()
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url, nil)
@@ -147,8 +151,29 @@ func (p *JWKSProvider) refresh(ctx context.Context, force bool) {
 		return
 	}
 	p.mu.Lock()
+	defer p.mu.Unlock()
+	// Negative trust information wins even if this response arrived late: key IDs
+	// cannot legitimately be un-revoked or reused by a newer discovery document.
+	for id, incoming := range keys {
+		if incoming.State == auth.VerificationKeyRevoked {
+			if previous, exists := p.keys[id]; !exists || previous.State != auth.VerificationKeyRevoked {
+				p.keys[id] = incoming
+			}
+		}
+	}
+	if sequence <= p.appliedSequence {
+		return // A later-started refresh has already supplied the accepted set.
+	}
+	// Explicit revocation is a tombstone for this provider's lifetime. Discovery
+	// must not undo a deployed or previously observed revocation, even by omitting
+	// the key temporarily and later reintroducing its ID with different material.
+	for id, previous := range p.keys {
+		if previous.State == auth.VerificationKeyRevoked {
+			keys[id] = previous
+		}
+	}
 	p.keys = keys
-	p.mu.Unlock()
+	p.appliedSequence = sequence
 }
 
 type jwksDocument struct {
