@@ -22,6 +22,8 @@ the human maintainer jonesrussell starts the job. Edits, pushes, labels, other
 users and bot comments do not. Preflight requires an open PR and the subscription
 secret and records its head/base. The workflow must be on the default branch
 before GitHub uses it for issue_comment events.
+The outer Actions condition is case-insensitive; trusted JavaScript preflight
+enforces the exact case and rejects extra text or newlines before any model call.
 
 With a custom prompt, track_progress: true selects the action's native tracking
 path. The action creates a progress comment and gives Claude a tool to update
@@ -38,10 +40,14 @@ Tracking mode is implementation-capable by default. At the pinned revision:
 - We override the permission mode, restrict built-in tools to Read/Glob/Grep,
   explicitly deny shell execution, edits, delegation, CI-log tools and file-op
   MCP tools, and retain only the supplied comment-writing capability.
+  Some denials are defense in depth for capabilities not enabled at this pin.
 - Hooks are disabled; only user settings and the action's MCP configuration load.
   The action restores PR-controlled Claude configuration from the base branch.
 - GITHUB_TOKEN has contents: read and pull-requests: write; no code-write grant.
   The reviewer must not execute repository code or claim tests ran.
+  Tag mode puts its job token in the checkout's Git remote configuration; Read
+  denies cover .git and its contents, including symlink targets. Denying Git
+  metadata also prevents Grep/Glob from searching that directory.
 - Native context lists changed files but omits their patches. A trusted setup
   step downloads the actual diff to runner-temporary storage for Read, with a
   1 MiB bound and no truncation. Missing/invalid/oversized diffs fail before Claude.

@@ -32,6 +32,14 @@ jobs:
           HAS_SUBSCRIPTION_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
         with:
           script: |
+            // Actions expression equality is case-insensitive; enforce the exact request here.
+            const comment = context.payload.comment;
+            if (!context.payload.issue?.pull_request || comment?.body !== '@claude review' ||
+                comment.user?.login !== 'jonesrussell' || comment.user?.type !== 'User' ||
+                context.actor !== 'jonesrussell') {
+              core.setFailed('An exact human maintainer review request is required.');
+              return;
+            }
             const {data: pr} = await github.rest.pulls.get({
               ...context.repo, pull_number: context.issue.number
             });
@@ -79,7 +87,8 @@ jobs:
           classify_inline_comments: false
           show_full_output: false
           display_report: false
-          settings: '{"disableAllHooks":true}'
+          # Tag mode stores its short-lived token in .git/config; keep metadata unreadable.
+          settings: '{"disableAllHooks":true,"permissions":{"deny":["Read(./.git)","Read(./.git/**)"]}}'
           prompt: |
             Perform one manual Claude review of pull request ${{ github.event.issue.number }}
             in ${{ github.repository }}. The authoring agent is Codex/ChatGPT.
@@ -110,6 +119,7 @@ jobs:
             Do not post elsewhere or make unrelated GitHub changes.
           # Tag mode adds implementation permissions. Denials are necessary:
           # its SDK parser accumulates allowedTools instead of replacing them.
+          # CI/file-op and delegation denials also guard against future defaults.
           claude_args: >-
             --max-turns 16
             --permission-mode default
