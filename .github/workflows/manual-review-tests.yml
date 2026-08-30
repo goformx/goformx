@@ -1,4 +1,4 @@
-name: Manual review reporting tests
+name: Manual review workflow tests
 
 on:
   pull_request:

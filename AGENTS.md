@@ -36,3 +36,9 @@ Tests must assert observable behavior. Logging TODOs or documenting expectations
 - Treat the personal-site contact flow in issue #57 as the release gate.
 
 When a change alters the API, schema rules, migrations, trust boundaries, or operational behavior, update the matching contract or decision document in the same pull request. Preserve unrelated user changes and never deploy or alter DNS from verification commands.
+
+## Code Review Rules
+
+- Flag changes that mix service-token and first-party-assertion authorization or let a resolved user act across organization boundaries. Require evidence from the actual request path, not a constructor signature alone.
+- Check API/schema/migration changes against the matching OpenAPI or decision contract and observable tests. Do not describe static inspection as executed verification.
+- Review automation must remain manually requested, subscription-only, and unable to modify repository code. Failed, incomplete, or stale reviewer output is not approval; do not weaken limits or add paid fallbacks to make a review pass.
