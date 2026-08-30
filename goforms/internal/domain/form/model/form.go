@@ -2,9 +2,12 @@
 package model
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -167,15 +170,15 @@ func (j *JSON) Scan(value any) error {
 		return nil
 	}
 
-	bytes, ok := value.([]byte)
+	encoded, ok := value.([]byte)
 	if !ok {
-		return fmt.Errorf("failed to unmarshal JSON value: %v", value)
+		return errors.New("JSON scan value must be bytes")
 	}
 
 	// First try to unmarshal as an object
 	var result map[string]any
 
-	err := json.Unmarshal(bytes, &result)
+	err := decodeExactJSON(encoded, &result)
 	if err == nil {
 		*j = JSON(result)
 
@@ -185,7 +188,7 @@ func (j *JSON) Scan(value any) error {
 	// If that fails, try to unmarshal as an array and convert to object
 	var arrayResult []any
 
-	err = json.Unmarshal(bytes, &arrayResult)
+	err = decodeExactJSON(encoded, &arrayResult)
 	if err != nil {
 		return fmt.Errorf("unmarshal JSON scan value: %w", err)
 	}
@@ -230,11 +233,89 @@ func (j *JSON) UnmarshalJSON(data []byte) error {
 		return ErrInvalidJSON
 	}
 
-	if err := json.Unmarshal(data, (*map[string]any)(j)); err != nil {
+	var result map[string]any
+	if err := decodeExactJSON(data, &result); err != nil {
 		return fmt.Errorf("unmarshal JSON from bytes: %w", err)
 	}
+	*j = JSON(result)
 
 	return nil
+}
+
+// A JSON number is not necessarily representable by float64. Keep the original
+// numeric token through validation, immutable snapshots and JSONB round trips.
+// Database JSONB may normalize notation, but must preserve the numeric value.
+func decodeExactJSON(data []byte, destination any) error {
+	if err := validateJSONNumbers(data); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+	if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
+		return errors.New("JSON must contain exactly one value")
+	}
+	return nil
+}
+
+// Bound arbitrary-precision work before a schema compiler or PostgreSQL can
+// expand a short exponent into an enormous value. These are lexical budgets,
+// not rounding rules: rejected input is never silently changed to zero/infinity.
+const (
+	MaxJSONNumberBytes    = 4096
+	MaxJSONExponent       = 1024
+	MaxJSONIntegerDigits  = 1024
+	MaxJSONFractionDigits = 1024
+)
+
+func validateJSONNumbers(data []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		number, ok := token.(json.Number)
+		if !ok {
+			continue
+		}
+		if len(number) > MaxJSONNumberBytes {
+			return fmt.Errorf("JSON numeric tokens must not exceed %d bytes", MaxJSONNumberBytes)
+		}
+		mantissa := strings.TrimPrefix(string(number), "-")
+		var exponent int64
+		if index := strings.IndexAny(mantissa, "eE"); index >= 0 {
+			var err error
+			exponent, err = strconv.ParseInt(mantissa[index+1:], 10, 32)
+			if err != nil || exponent < -MaxJSONExponent || exponent > MaxJSONExponent {
+				return fmt.Errorf("JSON numeric exponents must be between -%d and %d", MaxJSONExponent, MaxJSONExponent)
+			}
+			mantissa = mantissa[:index]
+		}
+		whole, fraction, _ := strings.Cut(mantissa, ".")
+		digits := whole + fraction
+		point := int64(len(whole)) + exponent
+		// JSONB preserves fractional scale, including trailing zeros and zero
+		// itself. Count those places so a stored value remains within budget.
+		if int64(len(digits))-point > MaxJSONFractionDigits {
+			return fmt.Errorf("JSON numeric values must fit %d fractional decimal places", MaxJSONFractionDigits)
+		}
+		nonzero := strings.TrimLeft(digits, "0")
+		if nonzero == "" {
+			continue
+		}
+		first := len(digits) - len(nonzero)
+		// Value-based limits stay valid when JSONB expands exponent notation.
+		if point-int64(first) > MaxJSONIntegerDigits {
+			return fmt.Errorf("JSON numeric values must fit %d integer decimal places", MaxJSONIntegerDigits)
+		}
+	}
 }
 
 // NewForm creates a new form instance

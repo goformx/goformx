@@ -12,7 +12,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -844,7 +843,7 @@ func (h *V1APIHandler) createSubmission(c echo.Context) error {
 		}
 		return h.writeRepositoryError(c, err)
 	}
-	if replayed && (stored.SchemaVersion != submission.SchemaVersion || !reflect.DeepEqual(stored.Data, submission.Data)) {
+	if replayed && (stored.SchemaVersion != submission.SchemaVersion || !model.EqualJSON(stored.Data, submission.Data)) {
 		return h.writeError(c, http.StatusConflict, "idempotency_conflict",
 			"The idempotency key was already used with a different submission.", nil)
 	}

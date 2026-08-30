@@ -2,12 +2,12 @@
   "openapi": "3.1.0",
   "info": {
     "title": "GoFormX API",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "license": {
       "name": "GNU Affero General Public License v3.0 or later",
       "identifier": "AGPL-3.0-or-later"
     },
-    "description": "The control plane manages forms and immutable schema versions. The public\ndata plane exposes published schemas and accepts validated submissions.\n"
+    "description": "The control plane manages forms and immutable schema versions. The public\ndata plane exposes published schemas and accepts validated submissions.\nSchema and submission JSON numbers preserve exact numeric values. Clients\nmust not round numbers through binary floating point before sending them or\nafter reading them. Numeric tokens are limited to 4096 bytes, explicit\nexponents to -1024 through 1024, and expanded values to 1024 integer and\n1024 fractional decimal places. Excessive numeric representations return\n400 rather than being rounded. JSONB may normalize numeric notation;\nnumerically equivalent retries remain idempotent.\n"
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "servers": [
@@ -2247,6 +2247,12 @@
         }
       }
     }
+  },
+  "x-goformx-numeric-limits": {
+    "maxTokenBytes": 4096,
+    "maxAbsoluteExponent": 1024,
+    "maxIntegerDigits": 1024,
+    "maxFractionDigits": 1024
   },
   "x-goformx-canonical-schema": "./schema/form-definition.schema.json"
 }

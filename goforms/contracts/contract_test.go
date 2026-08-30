@@ -12,6 +12,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/goformx/goforms/contracts"
+	"github.com/goformx/goforms/internal/domain/form/model"
 )
 
 type operation struct {
@@ -20,6 +21,22 @@ type operation struct {
 	RequiredScopes []string              `yaml:"x-goformx-required-scopes"`
 	Parameters     []parameter           `yaml:"parameters"`
 	Responses      map[string]any        `yaml:"responses"`
+}
+
+func TestNumericResourceLimitsMatchTheRuntime(t *testing.T) {
+	t.Parallel()
+	document, err := os.ReadFile("openapi.v1.yaml")
+	require.NoError(t, err)
+	var api struct {
+		Limits map[string]int `yaml:"x-goformx-numeric-limits"`
+	}
+	require.NoError(t, yaml.Unmarshal(document, &api))
+	require.Equal(t, map[string]int{
+		"maxTokenBytes":       model.MaxJSONNumberBytes,
+		"maxAbsoluteExponent": model.MaxJSONExponent,
+		"maxIntegerDigits":    model.MaxJSONIntegerDigits,
+		"maxFractionDigits":   model.MaxJSONFractionDigits,
+	}, api.Limits)
 }
 
 type parameter struct {
