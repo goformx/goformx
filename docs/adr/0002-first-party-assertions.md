@@ -93,10 +93,20 @@ Normal rotation is testable and ordered:
 1. Generate a new key in Waaseyaa custody with state `next` and publish its public JWK.
 2. Refresh GoFormX and prove both the active and next public keys verify fixtures.
 3. Promote the new key to `active`, move the previous key to `retiring`, and begin signing with the new `kid`.
-4. Keep the retiring public key for at least 65 seconds (maximum assertion lifetime plus skew), then remove it.
-5. Prove an assertion from the removed key is rejected while the active key continues to pass.
+4. Keep the retiring public key for at least 65 seconds (maximum assertion lifetime plus skew), then mark it revoked in discovery and deployment/rollback snapshots. Prove rejection before optionally omitting it from live discovery; retain the snapshot tombstone for restart safety.
+5. Prove an assertion from the retired key is rejected while the active key continues to pass, including when a stale publisher document reintroduces the retired key.
 
 Emergency revocation marks a `kid` revoked in GoFormX immediately, disables first-party assertion acceptance if the incident scope is unknown, rotates Waaseyaa signing custody, and only then restores traffic. Revoked keys are rejected even when their signatures and times are otherwise valid. Outstanding assertions need no per-user revocation service because they live for at most 60 seconds; a specific `jti` may also be deny-listed during investigation. External `gfst_` tokens have independent database revocation and are unaffected by assertion-key rotation.
+
+Revocation observed in the deployment snapshot or an accepted JWKS refresh is
+monotonic for that verifier process. The provider retains revoked-key tombstones
+across later discovery responses, including omissions or key-ID reuse, and ignores
+an older overlapping key-set replacement after a newer refresh has been accepted.
+Explicit revocations in an older valid response still take effect. Operators
+must retain revocations in deployment/rollback snapshots and live JWKS for restart
+safety; in-memory tombstones are not a durable revocation database. These rules
+enforce the existing rejection contract without changing assertion claims or API
+credential profiles.
 
 ## Trust-boundary diagram
 
