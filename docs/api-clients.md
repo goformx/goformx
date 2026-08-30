@@ -7,11 +7,12 @@ scrape the human dashboard. Downloads do not require an account.
 
 ## Discovery and version pinning
 
-- [Contract v1.1.0 release](https://github.com/goformx/goformx/releases/tag/contract-v1.1.0)
-- [v1.1.0 machine-readable manifest](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/manifest.json)
-- [v1.1.0 OpenAPI download](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/openapi.json)
-- [v1.1.0 client example archive](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/goformx-contract-1.1.0.zip)
-- [Checksums](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/SHA256SUMS)
+- [Contract v1.1.1 release](https://github.com/goformx/goformx/releases/tag/contract-v1.1.1)
+- [v1.1.1 machine-readable manifest](https://github.com/goformx/goformx/releases/download/contract-v1.1.1/manifest.json)
+- [v1.1.1 OpenAPI download](https://github.com/goformx/goformx/releases/download/contract-v1.1.1/openapi.json)
+- [v1.1.1 client example archive](https://github.com/goformx/goformx/releases/download/contract-v1.1.1/goformx-contract-1.1.1.zip)
+- [Checksums](https://github.com/goformx/goformx/releases/download/contract-v1.1.1/SHA256SUMS)
+- [Previous contract v1.1.0](https://github.com/goformx/goformx/releases/tag/contract-v1.1.0)
 - [Previous contract v1.0.0](https://github.com/goformx/goformx/releases/tag/contract-v1.0.0)
 - [Current development contract](https://raw.githubusercontent.com/goformx/goformx/main/goforms/contracts/generated/openapi.json)
 
@@ -96,6 +97,16 @@ records afterward: there is no supported form-delete API in this contract.
 
 ## Semantics clients must preserve
 
+- **Exact numbers (contract 1.1.1):** schemas and submission values retain numeric
+  precision; JSONB may normalize spelling, not value. Use a lossless codec for
+  values outside native precision. Numeric token/exponent/decimal-place budgets
+  are published in `x-goformx-numeric-limits`; excessive representations return
+  `400`. Numerically equivalent retries remain idempotent. Historical values
+  already rounded by earlier runtimes cannot be reconstructed from storage alone.
+  Contract 1.1.1 is published from `199f3689f4b2eff73e762be158d62e2ca87d2bb0`;
+  anonymous assets and all manifest-pinned hashes were verified, and the archived
+  client example compiled. Confirm deployment compatibility before use; this
+  publication does not establish that any production server has been upgraded.
 - **Allowed origins (contract 1.1.0):** form create, list, detail, and metadata
   update responses include the stored `allowedOrigins` array. Empty means no
   cross-origin browser grant, never wildcard access. Read the current value and
