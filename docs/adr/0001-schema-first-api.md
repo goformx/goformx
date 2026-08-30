@@ -31,6 +31,33 @@ The shared application validator embeds `contracts/schema/form-definition.schema
 
 This removes the creation/version contradiction found in #140 without changing published contract bytes. Before deploying the correction, check persisted versions for envelopes that earlier runtime paths incorrectly accepted (such as missing or empty properties). Do not silently rewrite immutable historical schemas: create and explicitly publish a conforming replacement where needed, and record compatibility evidence in the deployment release gate.
 
+## Exact numeric values
+
+The #144 correction preserves numeric tokens with `json.Number` at request and
+database decoding boundaries. Schema constraints, immutable snapshots, accepted
+payloads and management/public responses must not silently pass through float64.
+JSONB may change notation (for example `1e3` to `1000`), not the numeric value.
+Idempotency and immutable-schema comparisons therefore compare exact numeric
+values rather than Go types or token spelling.
+
+Arbitrary-precision validation has explicit resource budgets in OpenAPI's
+`x-goformx-numeric-limits`: 4096 bytes per numeric token, an explicit exponent
+between -1024 and 1024, and at most 1024 integer and 1024 fractional decimal
+places after expansion. Fractional scale includes trailing zeros because JSONB
+preserves them. These checks run before schema compilation. They reject excessive
+representations rather than rounding, and permit the normalized JSONB form to
+be read and submitted again. This policy is covered by contract/runtime tests.
+
+Clients must preserve exact numbers too; ordinary JavaScript `JSON.parse` and
+`JSON.stringify` can lose precision. Use source-aware parsing/raw numeric values
+or an equivalent audited codec when constraints or data exceed native precision.
+
+Before deployment, inventory existing numeric constraints and payloads that may
+have been rounded by earlier versions. Original values cannot be reconstructed
+from rounded storage alone. Do not rewrite immutable history; corrections need
+source evidence, a new explicit schema version where appropriate, and a recorded
+compatibility decision under #125.
+
 ## V1 non-goals
 
 - A dashboard or form-builder UI

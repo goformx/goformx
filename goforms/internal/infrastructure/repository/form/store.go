@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -203,7 +202,7 @@ func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form, expectedU
 		if err := tx.Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).First(&current).Error; err != nil {
 			return fmt.Errorf("load schema for update: %w", err)
 		}
-		if formModel.Schema != nil && !reflect.DeepEqual(map[string]any(formModel.Schema), map[string]any(current.Schema)) {
+		if formModel.Schema != nil && !model.EqualJSON(formModel.Schema, current.Schema) {
 			formModel.CurrentSchemaVersion++
 			next := schemaRecord{ID: uuid.NewString(), FormID: formModel.ID, Schema: formModel.Schema,
 				Version: formModel.CurrentSchemaVersion, State: string(model.SchemaVersionDraft), CreatedAt: time.Now().UTC()}
