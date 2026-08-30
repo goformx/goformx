@@ -84,7 +84,7 @@ partial summary stays labeled **INCOMPLETE**, and the workflow stays failed.
 It is never reported as a clean or completed review. Other provider/setup failures
 are reported without automatically retrying subscription requests.
 
-A different observed case is SDK `success` with a reported turn count above 16.
+A different observed case is SDK `success` with a reported count above the configured limit.
 The pinned action rejects this after saving the transcript. The reporter classifies
 it as `over_budget`, retains any available text as sanitized **partial evidence**,
 and reports **INCOMPLETE** with the observed count and configured limit. This is

@@ -129,7 +129,7 @@ function render({ research, summary, outcome, stale, revisionUnverified = false,
     : complete ? 'Completed static review. No tests were run.'
     : 'INCOMPLETE — no completed review verdict. No tests were run.';
   const reason = research.status === 'over_budget'
-    ? `Research reported ${research.turns} turns, exceeding the ${RESEARCH_MAX_TURNS}-turn limit. Retained text is partial evidence, not a completed verdict.`
+    ? `Research reported ${research.turns} turns, exceeding the ${RESEARCH_MAX_TURNS}-turn limit. Over-budget output is not a completed verdict.`
     : research.status === 'turn_limit' ? `Research reached its ${RESEARCH_MAX_TURNS}-turn limit.`
     : !complete ? 'Review setup, execution, or result validation did not complete.' : '';
   const text = stale ? '' : researchComplete || research.status === 'over_budget' ? research.text : summary.status === 'success' ? summary.text : '';
@@ -139,7 +139,7 @@ function render({ research, summary, outcome, stale, revisionUnverified = false,
     `Workflow: ${runURL}`, '',
     `Denied tool calls: ${integer(research.denied_count)} (${(research.denied_tools || []).join(', ') || 'none recorded'}).`,
     'Sanitized status/count/tool-name diagnostics are attached to the workflow when available.',
-    text ? '\n' + (complete ? 'Review summary:' : 'Partial evidence only:') + '\n```text\n' + safeText(text, secrets) + '\n```' : '',
+    text?.trim() ? '\n' + (complete ? 'Review summary:' : 'Partial evidence only:') + '\n```text\n' + safeText(text, secrets) + '\n```' : '',
     '', 'Advisory feedback only; this does not approve or merge the PR.',
   ].filter(line => line !== undefined).join('\n');
   return { body, complete };

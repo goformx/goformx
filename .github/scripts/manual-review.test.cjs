@@ -150,7 +150,7 @@ test('over-budget evidence is still suppressed for a stale revision', async t =>
   const api = apiMock({ stale: true });
   await reporter.publish({ ...api, env });
   assert.match(api.calls[0].body, /STALE/);
-  assert.doesNotMatch(api.calls[0].body, /Preserved evidence/);
+  assert.doesNotMatch(api.calls[0].body, /Preserved evidence|Retained text is/);
   assert.equal(api.failures.length, 1);
 });
 
@@ -174,6 +174,7 @@ test('exact 16-turn success can complete, but an unrelated action failure still 
 test('empty over-budget text stays incomplete, and errored success never leaks text', async t => {
   for (const record of [
     { ...success(''), num_turns: 17 },
+    { ...success('\n \n'), num_turns: 22 },
     { ...success('invalid-result-canary'), num_turns: 22, is_error: true },
   ]) {
     const env = fixture(t, record);
