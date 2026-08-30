@@ -1,146 +1,129 @@
 # Manual cross-provider reviews
 
-The implementation author and reviewer should be different providers:
+| Code author | Reviewer | Maintainer's new PR comment | Integration |
+| --- | --- | --- | --- |
+| Codex / ChatGPT | Claude | @claude review | Pinned Claude Code Action, native progress tracking |
+| Claude | Codex | @codex review | Hosted Codex GitHub integration; no repository Action |
 
-| Code author | Reviewer | New PR conversation comment |
-| --- | --- | --- |
-| Codex / ChatGPT | Claude | `@claude review` |
-| Claude | Codex | `@codex review` |
+The maintainer chooses the reviewer, including for mixed-provider changes.
+Agents may request a review only when explicitly authorized; never start reciprocal
+review loops. GitHub authorship does not identify the authoring provider.
+Feedback is advisory, not approval or a substitute for required checks.
 
-Reviews are requested by the maintainer when the change is ready. Agents must
-not request each other's reviews automatically. Do not infer the authoring
-provider from the GitHub author: both tools can commit as the same person.
-For mixed-provider work, the maintainer chooses which review to request.
+## Claude: supported tracking, constrained to review
 
-The Claude workflow accepts only a newly created PR conversation comment from
-`jonesrussell` whose entire body is `@claude review`. Opening a PR, pushing a
-commit, editing a comment, adding a label, or receiving a bot comment does not
-start Claude. A changed revision needs a fresh manual request. Ordinary GitHub
-CI checks are unaffected.
+The workflow adapts the official
+[progress-tracked review example](https://github.com/anthropics/claude-code-action/blob/a874e9ecd7bb36efdad65429c6b35815f5a08f10/examples/pr-review-comprehensive.yml)
+at the same immutable action revision. It retains our manual-only trigger and
+subscription authentication, not the example's automatic PR trigger.
 
-The workflow posts a status comment immediately, then updates it with a summary
-labeled **Claude review** under `github-actions[bot]`. Claude does not post it.
-The job token can read repository contents and write PR feedback, but cannot
-push repository code. The reviewer does not run project code or tests. Findings
-include the head and base SHAs; a changed revision invalidates the review. Agent
-feedback is advisory and never substitutes for required checks or human approval.
+Only a new PR conversation comment whose entire body is @claude review from
+the human maintainer jonesrussell starts the job. Edits, pushes, labels, other
+users and bot comments do not. Preflight requires an open PR and the subscription
+secret and records its head/base. The workflow must be on the default branch
+before GitHub uses it for issue_comment events.
 
-## Account setup
+With a custom prompt, track_progress: true selects the action's native tracking
+path. The action creates a progress comment and gives Claude a tool to update
+that comment with findings. Its finalizer marks caught execution failures as
+errors and links the run. We no longer parse SDK transcripts, resume the CLI,
+render a second report or upload custom diagnostics artifacts.
 
-Claude uses `CLAUDE_CODE_OAUTH_TOKEN`, a GitHub Actions repository secret generated
-with `claude setup-token` while signed into the maintainer's Claude Max plan.
-Store it through `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo OWNER/REPO` using
-the hidden interactive prompt. Never paste credentials into issues, PRs, source
-files, chat, or command-line arguments. Use a separate repository secret for
-each authorized repository, not an organization-wide subscription secret.
+### Read-only adaptations
 
-This workflow does not use `ANTHROPIC_API_KEY` and does not use the separately
-billed managed Claude Code Review or ultrareview services. There is no API-key
-fallback. Missing or expired subscription credentials fail the run. Max usage
-limits still apply. Keep Claude extra usage disabled to avoid paid overflow.
+Tracking mode is implementation-capable by default. At the pinned revision:
 
-GitHub-hosted execution consumes Actions minutes. Private repositories must stay
-within the included GitHub allowance; keep the applicable Actions spending
-budget set to stop usage at the included allowance to prevent overage charges.
-Each job has a 20-minute timeout. Research requests a 16-turn limit and has an
-8-minute step timeout; the action rejects results reported beyond that turn limit.
-Only turn exhaustion with a valid retained session allows one tools-disabled
-summary attempt (2 turns, a 120-second process timeout and a 3-minute step limit).
-Publication has a separate 2-minute allowance. These are bounds, not a guarantee
-of zero cost if paid overflow has been enabled elsewhere.
+- Tag mode checks out the PR head and adds implementation permissions.
+- User arguments follow the mode defaults, but allowed-tool lists accumulate.
+- We override the permission mode, restrict built-in tools to Read/Glob/Grep,
+  explicitly deny shell execution, edits, delegation, CI-log tools and file-op
+  MCP tools, and retain only the supplied comment-writing capability.
+- Hooks are disabled; only user settings and the action's MCP configuration load.
+  The action restores PR-controlled Claude configuration from the base branch.
+- GITHUB_TOKEN has contents: read and pull-requests: write; no code-write grant.
+  The reviewer must not execute repository code or claim tests ran.
+- Post-review validation is inline trusted workflow code. It never imports a
+  helper from the PR checkout. A changed head/base, closed PR, wrong checkout,
+  or failed revision lookup fails the job and posts a STALE or UNVERIFIED warning.
 
-The SDK can report a successful result beyond the requested turn limit; that
-result is rejected, not accepted as a completed review. The 8-minute limit
-reserves time for failure reporting; it does not guarantee transcript recovery.
-The pinned action writes its transcript after receiving a result or catching an
-execution error, not continuously. A hard step timeout can therefore leave no
-transcript: reporting then posts INCOMPLETE without evidence or a resume attempt.
-Increasing the clock limit would not make transcript recovery unconditional.
+Review this composition again when changing the action pin, especially
+[src/modes/tag/index.ts](https://github.com/anthropics/claude-code-action/blob/a874e9ecd7bb36efdad65429c6b35815f5a08f10/src/modes/tag/index.ts),
+[the argument parser](https://github.com/anthropics/claude-code-action/blob/a874e9ecd7bb36efdad65429c6b35815f5a08f10/base-action/src/parse-sdk-options.ts),
+and [the execution finalizer](https://github.com/anthropics/claude-code-action/blob/a874e9ecd7bb36efdad65429c6b35815f5a08f10/src/entrypoints/run.ts).
+These restrictions are our adaptation, not guarantees made by a stock recipe.
 
-For Codex, connect this repository through the ChatGPT GitHub app. Keep personal
-**Auto review**, repository automatic review options, and **Enable credits use**
-off. Then request `@codex review` manually. Reviews use the ChatGPT Pro review
-allowance; wait for the allowance to reset rather than buying extra credits.
+### Failure and revision limits
 
-The workflow must be merged to the default branch before GitHub processes its
-`issue_comment` trigger. The presence of this file alone does not establish that
-account connections and secrets have been configured or a live review has passed.
+A successful process is not proof that a complete review was posted. Confirm the
+native comment contains a final review, the run succeeded, and the head/base
+still match. A failed or incomplete run is never a clean verdict.
 
-## Failure reporting and recovery
+Native comments are provider-authored Markdown, not our previous inert-text
+publisher. An error finalizer or stale warning does not retract existing
+findings. Disregard feedback from failed, incomplete, stale or unverified runs.
+The post-check is a point-in-time guard, not protection against later pushes.
 
-The initial status comment links the workflow and records the requested head and
-base. Workflow code, not a model tool call, updates that same comment on success,
-turn exhaustion, missing/invalid output or setup failure. Head/base changes are
-checked immediately before and after publication; stale output is withheld.
-The fallback publisher is inline so it can run even when checkout failed.
-If the post-publication revision lookup fails transiently, the same comment keeps
-its sanitized evidence but becomes INCOMPLETE with an explicit unverified-revision
-warning, and the job fails. A confirmed changed revision still suppresses evidence.
+Setup failures before comment creation, hard cancellation/timeouts, runner loss
+or GitHub outages can prevent terminal reporting. Inspect the Actions run when a
+comment is absent or still running. No raw transcript artifact or automatic
+recovery call is retained. Native reporting cannot recover findings from an
+earlier runner or repair the SDK's turn-limit behavior.
 
-If research returns `error_max_turns`, the action-installed CLI resumes its local
-session once with **no tools**, hooks disabled and an empty MCP configuration.
-This is synthesis of evidence already gathered, not another research pass. A
-partial summary stays labeled **INCOMPLETE**, and the workflow stays failed.
-It is never reported as a clean or completed review. Other provider/setup failures
-are reported without automatically retrying subscription requests.
+## Subscription and spending policy
 
-A different observed case is SDK `success` with a reported count above the configured limit.
-The pinned action rejects this after saving the transcript. The reporter classifies
-it as `over_budget`, retains any available text as sanitized **partial evidence**,
-and reports **INCOMPLETE** with the observed count and configured limit. This is
-never a completed verdict, even if an action outcome incorrectly says success.
-No additional model call is made; an empty result remains incomplete without text.
-Stale revisions still suppress the evidence. In-budget results from otherwise
-failed actions remain withheld. Tests guard the reporter/action limit against drift.
+Claude uses the repository secret CLAUDE_CODE_OAUTH_TOKEN from the maintainer's
+Max subscription. Generate it with claude setup-token and store it using the
+hidden interactive prompt of gh secret set; never put credentials in source,
+issues, chat, command arguments or review text. Use a separate repository secret
+for each authorized repository. See
+[official authentication options](https://code.claude.com/docs/en/github-actions).
 
-This preserves evidence without increasing limits or attempting to repair upstream
-turn-count enforcement. The raw transcript from a finished runner is not retained,
-so this change cannot recover text from an earlier run's diagnostics-only artifact.
+There is no API-key fallback, managed Code Review service, paid overflow or
+automatic subscription retry. Keep Claude extra usage disabled. Requested
+research is limited to 16 turns and eight minutes; the job has a 20-minute limit.
+The pinned action rejects even SDK success reported beyond the turn limit.
+This workflow does not attempt a second synthesis call.
 
-The workflow retains `manual-review-diagnostics-RUN-ATTEMPT` for seven days when
-capture succeeds. Its JSON contains only an allowlisted execution status, turn
-and duration counts, permission-denial counts/names and a resumability boolean.
-It excludes prompts, tool arguments/results, arbitrary error messages, final
-review text, session IDs and credentials. Unknown tool names become `other`.
-Raw transcripts remain in runner-temporary storage and are **not uploaded**.
-Keep full-output/debug logging disabled; the upstream action enables verbose
-output when Actions step debugging is explicitly enabled.
+Actions minutes also count toward GitHub's allowance. Keep paid Actions overage
+disabled. These workflow bounds do not enforce external account spending
+settings. Keep full-output and Actions step-debug logging disabled. Do not
+upload transcripts or enable debugging to recover a failed review.
 
-Model-authored review text is bounded, credential-redacted and rendered as inert
-text, not executable workflow input or active Markdown. This is defensive
-filtering, not permission to expose secrets to the reviewer.
+## Codex recipe audit
 
-Hard job cancellation, runner loss or GitHub API outages can prevent final
-delivery: the initial status/run link is the fallback, not a promise that a dead
-runner can post a terminal comment. Inspect the linked run before retrying. No
-comment means preflight could not reach GitHub either. Request a new review only
-after fixing the cause and confirming the intended revision; do not weaken tool
-permissions merely because calls were denied.
+Use the [official hosted GitHub review setup](https://learn.chatgpt.com/docs/third-party/github):
+configure Codex cloud for this repository and enable repository Code review.
+Leave automatic reviews and personal auto-review disabled. Request @codex review
+manually; expect an acknowledgement followed by GitHub review feedback.
 
-## Regression verification
+Current documentation says GitHub reviews flag P0/P1 issues. No findings is not
+a comprehensive tech-debt audit. Root AGENTS.md contains three scoped Code Review
+Rules. Other @codex requests can start implementation tasks; do not request fixes
+as part of this review-only workflow.
 
-Run `node --test .github/scripts/manual-review.test.cjs` and pinned actionlint:
+The separate [Codex Action recipe](https://learn.chatgpt.com/docs/github-action)
+uses openai/codex-action with an OpenAI API key and a separate feedback-posting
+step. We do not add it: that documented authentication path does not fit our
+subscription-only policy.
 
-```sh
-go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= -pyflakes= .github/workflows/manual-claude-review.yml .github/workflows/manual-review-tests.yml
-```
+Use the included plan allowance and keep paid credit use disabled; wait for
+reset rather than buying overflow. See [usage documentation](https://learn.chatgpt.com/docs/pricing).
+Account connections, review toggles, allowances and spending controls were not
+verified or changed by this repository audit. Verify them before a live request.
 
-The separate **Manual review reporting tests** workflow runs on changes to this
-workflow, its helper/tests or this guide. It has no subscription secret or PR-write
-permission. Tests use synthetic SDK/CLI records and mocked GitHub/provider calls;
-they do not invoke Claude or post real comments. Live subscription/resume behavior
-must still be observed after this workflow is merged to the default branch.
+## Verification and rollout
 
-The pinned action exposes a local `claude-execution-output.json` transcript even
-on turn exhaustion. Its SDK argument parser drops an empty `--tools` argument,
-so tools-disabled synthesis invokes the **same action-installed CLI version**
-directly rather than routing that argument through a second action invocation.
-The native 2.1.251 CLI's `--help` explicitly documents `--tools ""` as disabling all
-tools. That local parser contract is distinct from live hosted resume verification.
-Recheck these interfaces when updating the action pin.
+Run from the repository root:
 
-## References
+    node --test .github/scripts/manual-review.test.cjs
+    go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck= -pyflakes= .github/workflows/manual-claude-review.yml .github/workflows/manual-review-tests.yml
 
-- [Claude Code GitHub Actions](https://code.claude.com/docs/en/github-actions)
-- [Codex GitHub reviews](https://learn.chatgpt.com/docs/third-party/github)
-- [Codex pricing and limits](https://learn.chatgpt.com/docs/pricing)
+The Manual review workflow tests job uses Node 22, pinned actionlint, mocked
+GitHub responses and no model calls or subscription secrets. It checks request
+eligibility, workflow guardrails and executable preflight/revision-check behavior;
+it does not prove the provider's runtime tool enforcement or native delivery.
+
+After independent review and an authorized merge, a separately authorized live
+request must verify native final-comment delivery and failure handling on the
+exact reviewed revision. Do not merge or retry an unrelated PR to test this
+workflow. Do not treat the existence of this file as successful account setup.
