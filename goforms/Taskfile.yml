@@ -54,8 +54,10 @@ tasks:
       - task: build:backend
 
   build:backend:
-    desc: Build the API binary
-    cmd: go build -ldflags "{{.LDFLAGS}}" -o bin/goforms ./cmd/api
+    desc: Build the API and webhook key maintenance binaries
+    cmds:
+      - go build -ldflags "{{.LDFLAGS}}" -o bin/goforms ./cmd/api
+      - go build -trimpath -ldflags "-s -w" -o bin/goformx-webhook-keys ./cmd/goformx-webhook-keys
 
   dev:
     desc: Run the API with pinned Air installed by task install

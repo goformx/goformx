@@ -26,6 +26,8 @@ RUN go generate ./...
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w -X github.com/goformx/goforms/internal/infrastructure/version.Version=${VERSION} -X github.com/goformx/goforms/internal/infrastructure/version.BuildTime=${BUILD_TIME} -X github.com/goformx/goforms/internal/infrastructure/version.GitCommit=${GIT_COMMIT} -X github.com/goformx/goforms/internal/infrastructure/version.GoVersion=${GO_VERSION}" \
     -o bin/goforms ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
+    -o bin/goformx-webhook-keys ./cmd/goformx-webhook-keys
 
 # Production stage
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
@@ -41,6 +43,7 @@ WORKDIR /app
 
 # Copy binary from builder
 COPY --from=go-builder /app/bin/goforms ./bin/goforms
+COPY --from=go-builder /app/bin/goformx-webhook-keys ./bin/goformx-webhook-keys
 
 # Switch to non-root user
 USER goforms
