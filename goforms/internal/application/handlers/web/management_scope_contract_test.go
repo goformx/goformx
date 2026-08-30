@@ -320,8 +320,12 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 	case "createServiceToken":
 		fixture.status, fixture.body = http.StatusCreated, map[string]any{"name": "Delegated token", "scopes": []auth.Scope{auth.ScopeTokensWrite}}
 		if allowed {
-			tokens.EXPECT().Save(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, token *auth.ServiceToken) error {
+			tokens.EXPECT().Save(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, token *auth.ServiceToken, actor auth.AuditActor) error {
 				require.Equal(t, scopeOrganizationID, token.OwnerID)
+				require.NoError(t, actor.Validate())
+				require.Equal(t, scopeOrganizationID, actor.OrganizationID)
+				require.Equal(t, map[string]auth.CredentialClass{"serviceToken": auth.CredentialClassServiceToken,
+					"firstPartyAssertion": auth.CredentialClassFirstPartyAssertion}[credentialClass], actor.CredentialClass)
 				require.Equal(t, map[auth.Scope]struct{}{auth.ScopeTokensWrite: {}}, token.Scopes)
 				return nil
 			})
@@ -329,7 +333,12 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 	case "revokeServiceToken":
 		fixture.status = http.StatusNoContent
 		if allowed {
-			tokens.EXPECT().RevokeByOrganization(gomock.Any(), scopeOrganizationID, scopeResourceID, gomock.Any()).Return(nil)
+			tokens.EXPECT().RevokeByOrganization(gomock.Any(), scopeOrganizationID, scopeResourceID, gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, _, _ string, _ time.Time, actor auth.AuditActor) error {
+					require.NoError(t, actor.Validate())
+					require.Equal(t, scopeOrganizationID, actor.OrganizationID)
+					return nil
+				})
 		}
 	default:
 		t.Fatalf("management operation %q needs an explicit successful request fixture", operation)

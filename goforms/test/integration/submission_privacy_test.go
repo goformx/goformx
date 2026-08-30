@@ -65,7 +65,7 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 	issue := func(owner string, scopes ...auth.Scope) string {
 		token, credential, err := auth.Issue(owner, scopes, time.Hour, time.Now())
 		require.NoError(t, err)
-		require.NoError(t, tokens.Save(t.Context(), token))
+		require.NoError(t, tokens.Save(t.Context(), token, auth.DatabaseAuditActor("integration-fixture", token.OwnerID)))
 		return credential
 	}
 	credential := issue(organization, auth.ScopeFormsRead, auth.ScopeFormsWrite, auth.ScopeFormsPublish, auth.ScopeSubmissionsRead)

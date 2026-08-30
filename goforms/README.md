@@ -45,6 +45,13 @@ organization UUID through the control plane; never invent one for an existing
 customer. This CLI is an operator bootstrap tool, not a client database-access
 workflow. After provisioning, clients use only the management API.
 
+Issuance, revocation and rotation now commit with an actor-attributed,
+append-only [credential mutation audit](../docs/management-audit.md). Audit failure
+rolls back the credential change; the CLI never emits a replacement secret before
+the transaction commits. Use vault-backed process environment for real database
+credentials; the URL below is a local example, not a production secret-handling
+procedure.
+
 ```bash
 export DATABASE_URL='postgres://goformx:password@localhost:5432/goformx?sslmode=disable'
 go run ./cmd/goformx-token issue \

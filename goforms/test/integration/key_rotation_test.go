@@ -88,7 +88,7 @@ func TestFirstPartyKeyRotationDrill(t *testing.T) {
 	tokens := tokenrepository.NewStore(database)
 	token, serviceCredential, err := auth.Issue(organizationID, []auth.Scope{auth.ScopeFormsRead}, time.Hour, time.Now())
 	require.NoError(t, err)
-	require.NoError(t, tokens.Save(t.Context(), token))
+	require.NoError(t, tokens.Save(t.Context(), token, auth.DatabaseAuditActor("integration-fixture", token.OwnerID)))
 	old := newRotationKey(t, "old", auth.VerificationKeyActive)
 	next := newRotationKey(t, "next", auth.VerificationKeyNext)
 	replacement := newRotationKey(t, "replacement", auth.VerificationKeyNext)

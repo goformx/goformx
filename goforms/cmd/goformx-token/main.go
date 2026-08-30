@@ -11,9 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/goformx/goforms/internal/domain/auth"
+	"github.com/goformx/goforms/internal/domain/managementaudit"
+	auditstore "github.com/goformx/goforms/internal/infrastructure/repository/managementaudit"
 )
 
 func main() {
@@ -56,12 +59,12 @@ func rotate(ctx context.Context, arguments []string) error {
 	}
 	connection, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
-		return fmt.Errorf("connect to PostgreSQL: %w", err)
+		return errors.New("connect to PostgreSQL failed")
 	}
 	defer func() { _ = connection.Close(ctx) }()
 	transaction, err := connection.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin token rotation: %w", err)
+		return errors.New("begin token rotation failed")
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
 
@@ -77,15 +80,15 @@ func rotate(ctx context.Context, arguments []string) error {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errors.New("active service token was not found")
 		}
-		return fmt.Errorf("load service token for rotation: %w", err)
+		return errors.New("load service token for rotation failed")
 	}
 	var names []string
 	if err := json.Unmarshal(encodedScopes, &names); err != nil {
-		return fmt.Errorf("decode existing token scopes: %w", err)
+		return errors.New("stored token scopes are invalid")
 	}
 	scopes, err := parseScopes(strings.Join(names, ","))
 	if err != nil {
-		return fmt.Errorf("validate existing token scopes: %w", err)
+		return errors.New("stored token scopes are invalid")
 	}
 	now := time.Now().UTC()
 	replacement, plaintext, err := auth.Issue(ownerID, scopes, *ttl, now)
@@ -103,7 +106,7 @@ func rotate(ctx context.Context, arguments []string) error {
 	`, replacement.ID, replacement.Name, replacement.OwnerID, replacement.Hash[:], string(replacementScopes),
 		replacement.CreatedAt, replacement.ExpiresAt)
 	if err != nil {
-		return fmt.Errorf("persist replacement service token: %w", err)
+		return errors.New("persist replacement service token failed")
 	}
 	result, err := transaction.Exec(ctx, `
 		UPDATE service_tokens
@@ -111,13 +114,19 @@ func rotate(ctx context.Context, arguments []string) error {
 		WHERE token_id = $1 AND revoked_at IS NULL
 	`, *tokenID, now, replacement.ID)
 	if err != nil {
-		return fmt.Errorf("revoke rotated service token: %w", err)
+		return errors.New("revoke rotated service token failed")
 	}
 	if result.RowsAffected() != 1 {
 		return errors.New("active service token was not found")
 	}
+	if err := appendOperatorAudit(ctx, transaction, ownerID, managementaudit.Event{
+		Kind: managementaudit.TokenRotated, TargetID: *tokenID, RelatedID: replacement.ID,
+		Scopes: scopes, ExpiresAt: &replacement.ExpiresAt, OccurredAt: now,
+	}); err != nil {
+		return err
+	}
 	if err := transaction.Commit(ctx); err != nil {
-		return fmt.Errorf("commit token rotation: %w", err)
+		return errors.New("token rotation commit unconfirmed; inspect metadata before retrying")
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
 		"token": plaintext, "tokenId": replacement.ID, "name": replacement.Name, "ownerId": replacement.OwnerID,
@@ -154,19 +163,33 @@ func issue(ctx context.Context, arguments []string) error {
 	}
 	connection, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
-		return fmt.Errorf("connect to PostgreSQL: %w", err)
+		return errors.New("connect to PostgreSQL failed")
 	}
 	defer func() { _ = connection.Close(ctx) }()
 	encodedScopes, err := json.Marshal(scopeNames(scopes))
 	if err != nil {
 		return fmt.Errorf("encode scopes: %w", err)
 	}
-	_, err = connection.Exec(ctx, `
+	transaction, err := connection.Begin(ctx)
+	if err != nil {
+		return errors.New("begin token issuance failed")
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	_, err = transaction.Exec(ctx, `
 		INSERT INTO service_tokens (token_id, name, organization_id, token_hash, scopes, created_at, expires_at)
 		VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)
 	`, token.ID, token.Name, token.OwnerID, token.Hash[:], string(encodedScopes), token.CreatedAt, token.ExpiresAt)
 	if err != nil {
-		return fmt.Errorf("persist service token: %w", err)
+		return errors.New("persist service token failed")
+	}
+	if err := appendOperatorAudit(ctx, transaction, token.OwnerID, managementaudit.Event{
+		Kind: managementaudit.TokenCreated, TargetID: token.ID, Scopes: scopes,
+		ExpiresAt: &token.ExpiresAt, OccurredAt: token.CreatedAt,
+	}); err != nil {
+		return err
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return errors.New("token issuance commit unconfirmed; inspect metadata before retrying")
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
 		"token": plaintext, "tokenId": token.ID, "name": token.Name, "ownerId": token.OwnerID,
@@ -187,21 +210,51 @@ func revoke(ctx context.Context, arguments []string) error {
 	}
 	connection, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
-		return fmt.Errorf("connect to PostgreSQL: %w", err)
+		return errors.New("connect to PostgreSQL failed")
 	}
 	defer func() { _ = connection.Close(ctx) }()
-	result, err := connection.Exec(ctx, `
-		UPDATE service_tokens
-		SET revoked_at = now(), revocation_reason = 'operator_revoked'
-		WHERE token_id = $1 AND revoked_at IS NULL
-	`, *tokenID)
+	transaction, err := connection.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("revoke service token: %w", err)
+		return errors.New("begin token revocation failed")
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	var organizationID string
+	if err := transaction.QueryRow(ctx,
+		"SELECT organization_id FROM service_tokens WHERE token_id = $1 AND revoked_at IS NULL FOR UPDATE", *tokenID,
+	).Scan(&organizationID); err != nil {
+		return errors.New("active service token was not found or could not be loaded")
+	}
+	now := time.Now().UTC()
+	result, err := transaction.Exec(ctx, `
+		UPDATE service_tokens
+		SET revoked_at = $2, revocation_reason = 'operator_revoked'
+		WHERE token_id = $1 AND revoked_at IS NULL
+	`, *tokenID, now)
+	if err != nil {
+		return errors.New("revoke service token failed")
 	}
 	if result.RowsAffected() == 0 {
 		return errors.New("active service token was not found")
 	}
+	if err := appendOperatorAudit(ctx, transaction, organizationID, managementaudit.Event{
+		Kind: managementaudit.TokenRevoked, TargetID: *tokenID, OccurredAt: now,
+	}); err != nil {
+		return err
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return errors.New("token revocation commit unconfirmed; inspect metadata before retrying")
+	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{"tokenId": *tokenID, "revoked": true})
+}
+
+func appendOperatorAudit(ctx context.Context, transaction pgx.Tx, organizationID string, event managementaudit.Event) error {
+	var role string
+	if err := transaction.QueryRow(ctx, "SELECT current_user").Scan(&role); err != nil {
+		return errors.New("cannot identify authenticated database operator")
+	}
+	event.ID = uuid.NewString()
+	event.Actor = auth.DatabaseAuditActor(role, organizationID)
+	return auditstore.AppendPGX(ctx, transaction, event)
 }
 
 func resolveDatabaseURL(flagValue string) string {

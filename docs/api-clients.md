@@ -137,6 +137,10 @@ records afterward: there is no supported form-delete API in this contract.
   `requestId`, optional JSON-Pointer `fields`). 401 means authentication failed,
   403 means insufficient scope, and 404 may deliberately conceal a foreign-owned
   object. Do not infer its existence. Respect `Retry-After` on 429.
+  Token issuance/revocation return `503 management_audit_unavailable` if their
+  atomic audit write fails; no credential change commits in that case. Reconcile
+  uncertain network/commit failures rather than retrying token issuance blindly.
+  See [credential mutation auditing](management-audit.md).
 - **Privacy:** submissions carry `schemaVersion` and `requestId` for provenance.
   Neither token hashes nor webhook signing material belong in read responses.
   Treat request IDs as correlation data, not authority. Keep payloads and tokens
@@ -161,7 +165,7 @@ workflow here recommends privileged UI scraping or direct database access.
 the example, and runs it against the real HTTP handlers and disposable PostgreSQL.
 It verifies persisted ownership, schema-version provenance, exactly one accepted
 submission after invalid input/retry, and no credential on public HTTP requests.
-This complements the exhaustive 18-operation, dual-credential scope matrix.
+This complements the exhaustive declared-operation, dual-credential scope matrix.
 
 Maintainers publish only from a clean commit with green canonical CI:
 

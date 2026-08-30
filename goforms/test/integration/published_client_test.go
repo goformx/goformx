@@ -46,7 +46,7 @@ func TestPublishedClientCompletesManagementFlow(t *testing.T) {
 		auth.ScopeFormsRead, auth.ScopeFormsWrite, auth.ScopeFormsPublish, auth.ScopeSubmissionsRead,
 	}, time.Hour, time.Now())
 	require.NoError(t, err)
-	require.NoError(t, tokens.Save(t.Context(), token))
+	require.NoError(t, tokens.Save(t.Context(), token, auth.DatabaseAuditActor("integration-fixture", token.OwnerID)))
 	t.Cleanup(func() {
 		require.NoError(t, db.Exec("DELETE FROM forms WHERE organization_id = ?", organizationID).Error)
 		require.NoError(t, db.Exec("DELETE FROM service_tokens WHERE organization_id = ?", organizationID).Error)

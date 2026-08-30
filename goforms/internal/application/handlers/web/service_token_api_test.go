@@ -21,6 +21,7 @@ type managementTokenRepository struct {
 	saved       *auth.ServiceToken
 	revokeOrg   string
 	revokeToken string
+	actor       auth.AuditActor
 }
 
 func (r *managementTokenRepository) FindByID(_ context.Context, tokenID string) (*auth.ServiceToken, error) {
@@ -32,8 +33,9 @@ func (r *managementTokenRepository) FindByID(_ context.Context, tokenID string) 
 
 func (*managementTokenRepository) MarkUsed(context.Context, string, time.Time) error { return nil }
 
-func (r *managementTokenRepository) Save(_ context.Context, token *auth.ServiceToken) error {
+func (r *managementTokenRepository) Save(_ context.Context, token *auth.ServiceToken, actor auth.AuditActor) error {
 	r.saved = token
+	r.actor = actor
 	return nil
 }
 
@@ -44,8 +46,9 @@ func (r *managementTokenRepository) ListByOrganization(_ context.Context, organi
 	return []*auth.ServiceToken{r.saved}, nil
 }
 
-func (r *managementTokenRepository) RevokeByOrganization(_ context.Context, organizationID, tokenID string, _ time.Time) error {
+func (r *managementTokenRepository) RevokeByOrganization(_ context.Context, organizationID, tokenID string, _ time.Time, actor auth.AuditActor) error {
 	r.revokeOrg, r.revokeToken = organizationID, tokenID
+	r.actor = actor
 	return nil
 }
 

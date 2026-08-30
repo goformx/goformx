@@ -38,6 +38,8 @@ var (
 	traceIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
 
+const requestTraceContextKey = "goformx.request_trace_id"
+
 // V1APIHandler implements the schema-first control and public data planes.
 type V1APIHandler struct {
 	repository   V1Repository
@@ -82,9 +84,9 @@ type WebhookRepository interface {
 
 // ServiceTokenManagementRepository exposes organization-scoped metadata and lifecycle operations.
 type ServiceTokenManagementRepository interface {
-	Save(context.Context, *auth.ServiceToken) error
+	Save(context.Context, *auth.ServiceToken, auth.AuditActor) error
 	ListByOrganization(context.Context, string, int) ([]*auth.ServiceToken, error)
-	RevokeByOrganization(context.Context, string, string, time.Time) error
+	RevokeByOrganization(context.Context, string, string, time.Time, auth.AuditActor) error
 }
 
 // RequestLogger keeps the HTTP application boundary independent of logging implementations.
@@ -1057,10 +1059,13 @@ func requestID(c echo.Context) string {
 	id := c.Request().Header.Get(constants.HeaderTraceID)
 	if principal, ok := serviceauth.PrincipalFrom(c); ok && principal.RequestID != "" {
 		id = principal.RequestID
+	} else if cached, ok := c.Get(requestTraceContextKey).(string); ok {
+		id = cached
 	}
 	if !traceIDPattern.MatchString(id) {
 		id = "req_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
+	c.Set(requestTraceContextKey, id)
 	c.Response().Header().Set(constants.HeaderTraceID, id)
 	return id
 }

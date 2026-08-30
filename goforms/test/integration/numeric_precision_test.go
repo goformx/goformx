@@ -38,7 +38,7 @@ func TestNumericPrecisionThroughHTTPAndPostgres(t *testing.T) {
 	tokens := tokenrepository.NewStore(database)
 	token, credential, err := auth.Issue(organization, []auth.Scope{auth.ScopeFormsRead, auth.ScopeFormsWrite, auth.ScopeFormsPublish, auth.ScopeSubmissionsRead}, time.Hour, time.Now())
 	require.NoError(t, err)
-	require.NoError(t, tokens.Save(t.Context(), token))
+	require.NoError(t, tokens.Save(t.Context(), token, auth.DatabaseAuditActor("integration-fixture", token.OwnerID)))
 	t.Cleanup(func() {
 		require.NoError(t, db.Exec("DELETE FROM forms WHERE organization_id = ?", organization).Error)
 		require.NoError(t, db.Exec("DELETE FROM service_tokens WHERE organization_id = ?", organization).Error)

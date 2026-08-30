@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/goformx/goforms/internal/application/middleware/serviceauth"
 	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/auth"
+	"github.com/goformx/goforms/internal/domain/managementaudit"
 )
 
 const (
@@ -86,8 +88,8 @@ func (h *V1APIHandler) createServiceToken(c echo.Context) error {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
 	}
 	token.Name = request.Name
-	if err := h.tokens.Save(c.Request().Context(), token); err != nil {
-		return h.writeRepositoryError(c, err)
+	if err := h.tokens.Save(c.Request().Context(), token, managementAuditActor(c)); err != nil {
+		return h.writeManagementMutationError(c, err)
 	}
 	c.Response().Header().Set(echo.HeaderCacheControl, "no-store")
 	c.Response().Header().Set("Pragma", "no-cache")
@@ -119,10 +121,24 @@ func (h *V1APIHandler) revokeServiceToken(c echo.Context) error {
 		return h.writeError(c, http.StatusServiceUnavailable, "service_unavailable", "Token management is unavailable.", nil)
 	}
 	principal, _ := serviceauth.PrincipalFrom(c)
-	if err := h.tokens.RevokeByOrganization(c.Request().Context(), principal.OwnerID, c.Param("tokenId"), time.Now().UTC()); err != nil {
-		return h.writeRepositoryError(c, err)
+	if err := h.tokens.RevokeByOrganization(c.Request().Context(), principal.OwnerID, c.Param("tokenId"), time.Now().UTC(), managementAuditActor(c)); err != nil {
+		return h.writeManagementMutationError(c, err)
 	}
 	return c.NoContent(http.StatusNoContent)
+}
+
+func managementAuditActor(c echo.Context) auth.AuditActor {
+	principal, _ := serviceauth.PrincipalFrom(c)
+	return auth.AuditActor{OrganizationID: principal.OrganizationID, SubjectID: principal.SubjectID,
+		CredentialClass: principal.CredentialClass, CredentialID: principal.CredentialID, RequestID: requestID(c)}
+}
+
+func (h *V1APIHandler) writeManagementMutationError(c echo.Context, err error) error {
+	if errors.Is(err, managementaudit.ErrUnavailable) {
+		return h.writeError(c, http.StatusServiceUnavailable, "management_audit_unavailable",
+			"The change could not be durably audited; no credential change was committed.", nil)
+	}
+	return h.writeRepositoryError(c, err)
 }
 
 func serviceTokenResource(token *auth.ServiceToken, now time.Time) map[string]any {

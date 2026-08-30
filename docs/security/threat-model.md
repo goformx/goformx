@@ -44,6 +44,7 @@ GoFormX must:
 | Operator to token CLI | Holds database credentials and terminal access | One-time plaintext output, cryptographic random token, hash-only storage, atomic rotation | Control-plane credential disclosure |
 | Operator to webhook key CLI | Holds database credentials and all required vault key versions | Environment-only key input, bounded keyring parser, authenticated key-ID/form binding, table write locks, one all-or-nothing transaction, fixed diagnostics/count-only output | Lost delivery configuration or webhook secret disclosure |
 | Organization principal to token management API | Holds `tokens:read` or `tokens:write` plus a bounded delegable scope set | Owner-scoped repository queries, delegation subset check, one-time no-store reveal, hash-free metadata reads, idempotent revocation | Privilege amplification or cross-tenant credential control |
+| Token mutation to durable audit | Authenticated API actor or privileged database operator | Required explicit actor and matching organization, same-transaction append, no plaintext/hash/name fields, immutable retained history | Unattributed credential creation/revocation or lost forensic evidence |
 | Worker to webhook destination | Processes trusted configuration and untrusted network state | AES-GCM secret storage, HTTPS-only destination validation, connect-time public-IP checks, disabled proxy/redirects, HMAC signature and timestamp | SSRF, secret disclosure, forged or replayed delivery |
 | CI to release registry | Can run repository workflows | Pinned Actions, least-privilege jobs, CodeQL, dependency review, tests, vulnerability scan, attestation | Supply-chain compromise |
 
@@ -77,6 +78,19 @@ The security-gate change closes these paths with local-reference and complexity 
 - Low: same-tenant availability abuse, high-entropy existence oracles, or metadata-only exposure with restrictive prerequisites.
 
 The earlier schema-first gate review found and fixed two medium and two low issues; the earlier webhook diff review found and fixed one additional low integrity issue. Those are historical review results, not an assurance that later code has no high or critical findings.
+
+## Credential-mutation audit boundary (#123)
+
+Credential-mutation auditing is documented separately in `docs/management-audit.md`.
+`internal/domain/auth/audit_actor.go` and
+`internal/infrastructure/repository/managementaudit/store.go` (under `goforms/`)
+define the caller/transaction boundary. The CLI attributes the authenticated DB
+role rather than trusting an operator-supplied human name. Audit-write failures
+abort token mutations; tests inject PostgreSQL failures through API and CLI paths.
+Direct SQL by the database owner can bypass these application writes or alter
+append-only triggers; restrict that authority and retain independent backups.
+Webhook mutation auditing and audit browsing remain #123 work, not controls
+provided by this token-only slice.
 
 ## Storage-key rotation boundary (#113)
 

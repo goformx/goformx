@@ -28,6 +28,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o bin/goforms ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
     -o bin/goformx-webhook-keys ./cmd/goformx-webhook-keys
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
+    -o bin/goformx-token ./cmd/goformx-token
 
 # Production stage
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
@@ -44,6 +46,7 @@ WORKDIR /app
 # Copy binary from builder
 COPY --from=go-builder /app/bin/goforms ./bin/goforms
 COPY --from=go-builder /app/bin/goformx-webhook-keys ./bin/goformx-webhook-keys
+COPY --from=go-builder /app/bin/goformx-token ./bin/goformx-token
 
 # Switch to non-root user
 USER goforms
