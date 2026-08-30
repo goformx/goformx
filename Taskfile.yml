@@ -84,6 +84,7 @@ tasks:
       - >-
         go test -race -coverprofile=.coverage.out
         ./internal/domain/form/model
+        ./internal/domain/submission
         ./internal/application/validation
         ./internal/application/middleware/serviceauth
         ./internal/application/handlers/web

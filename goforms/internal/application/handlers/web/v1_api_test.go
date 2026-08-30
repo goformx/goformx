@@ -83,7 +83,7 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 	)
 	repository.EXPECT().GetSchemaVersion(gomock.Any(), "owner-a", gomock.Any(), 2).DoAndReturn(
 		func(context.Context, string, string, int) (*model.SchemaVersion, error) { return versions[2], nil },
-	).Times(2)
+	).Times(4)
 	repository.EXPECT().PublishSchemaVersion(gomock.Any(), "owner-a", gomock.Any(), 2).DoAndReturn(
 		func(_ context.Context, _, _ string, _ int) (*model.SchemaVersion, error) {
 			published, publishErr := versions[2].Publish(now)

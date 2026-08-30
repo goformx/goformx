@@ -54,7 +54,7 @@ func TestSubmissionFiltersPassExactOptionsAndPreserveTimePrecision(t *testing.T)
 	t.Parallel()
 	start := time.Date(2026, 8, 30, 12, 0, 0, 123456000, time.UTC)
 	end := start.Add(time.Hour)
-	last := &model.FormSubmission{ID: "11111111-1111-4111-8111-111111111111", SubmittedAt: start}
+	last := &model.FormSubmission{ID: "11111111-1111-4111-8111-111111111111", SubmittedAt: start, Data: model.JSON{}}
 	parameters := url.Values{"limit": {"2"}, "status": {"accepted"}, "schemaVersion": {"2"},
 		"receivedFrom": {start.Format(time.RFC3339Nano)}, "receivedBefore": {end.Format(time.RFC3339Nano)},
 		"cursor": {encodeSubmissionCursor(last)}}
@@ -63,7 +63,12 @@ func TestSubmissionFiltersPassExactOptionsAndPreserveTimePrecision(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, submission.ListOptions{Limit: 2, Before: start, BeforeID: last.ID,
 		ReceivedFrom: &start, ReceivedBefore: &end, Status: model.SubmissionStatusAccepted, SchemaVersion: 2}, options)
-	require.Equal(t, "2026-08-30T12:00:00.123456Z", submissionResource(last)["submittedAt"])
+	last.FormID, last.SchemaVersion = "form-a", 1
+	version, err := model.RestoreSchemaVersion("form-a", 1, model.JSON{}, model.SchemaVersionPublished, start, &start)
+	require.NoError(t, err)
+	resource, err := submissionResource(last, version)
+	require.NoError(t, err)
+	require.Equal(t, "2026-08-30T12:00:00.123456Z", resource["submittedAt"])
 	// Explicit offsets identify the same instant, independent of the server zone.
 	parameters.Set("receivedFrom", "2026-08-30T08:00:00.123456-04:00")
 	request.URL.RawQuery = parameters.Encode()

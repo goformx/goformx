@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -116,6 +117,8 @@ func cloneValue(value any) any {
 			copy[i] = cloneValue(item)
 		}
 		return copy
+	case []string:
+		return slices.Clone(typed)
 	default:
 		return value
 	}
