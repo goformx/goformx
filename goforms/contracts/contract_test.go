@@ -223,3 +223,55 @@ func TestCanonicalSchemaAndReferencesExist(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(openAPI), "./schema/form-definition.schema.json")
 }
+
+func TestPublishedOpenAPIExamplesMatchTheirSchemas(t *testing.T) {
+	t.Parallel()
+	document, err := os.ReadFile("generated/openapi.json")
+	require.NoError(t, err)
+	var api map[string]any
+	require.NoError(t, json.Unmarshal(document, &api))
+	tested := 0
+	var visit func(any, string)
+	visit = func(value any, path string) {
+		switch node := value.(type) {
+		case map[string]any:
+			if schema, hasSchema := node["schema"].(map[string]any); hasSchema {
+				check := func(name string, example any) {
+					tested++
+					t.Run(path+"/"+name, func(t *testing.T) {
+						compiler := jsonschema.NewCompiler()
+						resource := map[string]any{
+							"$schema":    "https://json-schema.org/draft/2020-12/schema",
+							"components": api["components"], "allOf": []any{schema},
+						}
+						require.NoError(t, compiler.AddResource("example.json", resource))
+						compiled, compileErr := compiler.Compile("example.json")
+						require.NoError(t, compileErr)
+						require.NoError(t, compiled.Validate(example))
+					})
+				}
+				if example, present := node["example"]; present {
+					check("example", example)
+				}
+				if examples, present := node["examples"].(map[string]any); present {
+					for name, candidate := range examples {
+						example, ok := candidate.(map[string]any)
+						require.True(t, ok, "example %s must be inline and machine-testable", name)
+						value, ok := example["value"]
+						require.True(t, ok, "example %s needs a value; external examples are not covered", name)
+						check(name, value)
+					}
+				}
+			}
+			for key, child := range node {
+				visit(child, path+"/"+key)
+			}
+		case []any:
+			for _, child := range node {
+				visit(child, path+"/item")
+			}
+		}
+	}
+	visit(api, "openapi")
+	require.GreaterOrEqual(t, tested, 3, "published request and error examples must not silently disappear")
+}

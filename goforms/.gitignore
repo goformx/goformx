@@ -79,3 +79,5 @@ Thumbs.db
 *.sqlite3
 goforms.db
 .coverage.out
+.contract-client/
+.contract-release/

@@ -45,3 +45,19 @@ This is route/scope conformance coverage, not a replacement for real PostgreSQL
 tenant-isolation, atomic assertion replay, credential lifecycle, or cross-service
 browser-to-control-plane integration tests. It runs in the regular race-enabled
 suite through `task verify`, without a separate opt-in gate.
+
+## Published client contract
+
+`npm run contract:check` regenerates the bundled OpenAPI, companion schemas, and
+TypeScript types, rejects drift from committed artifacts, and compiles the
+published example against those generated types. Inline OpenAPI examples are
+validated against their declared schemas by the Go contract suite.
+
+`TestPublishedClientCompletesManagementFlow` runs the compiled example through
+real HTTP handlers and PostgreSQL, using a disposable organization and a
+least-privilege service token. It covers create/version/publish, conditional
+metadata update, unauthenticated public schema discovery, invalid submission,
+idempotent retry, and submission list/detail provenance. The test verifies the
+stored owner and single accepted row and rejects credentials on public requests.
+Node and the compiled example are required when PostgreSQL integration is enabled;
+the test does not silently skip a missing client build in canonical verification.

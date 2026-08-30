@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://goformx.com/schemas/v1/form-definition.schema.json",
+  "title": "GoFormX form definition",
+  "description": "The canonical, renderer-independent definition of a GoFormX form.",
+  "type": "object",
+  "required": ["$schema", "type", "properties"],
+  "properties": {
+    "$schema": {
+      "const": "https://json-schema.org/draft/2020-12/schema"
+    },
+    "$id": {
+      "type": "string",
+      "format": "uri"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "type": {
+      "const": "object"
+    },
+    "properties": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$dynamicRef": "https://json-schema.org/draft/2020-12/schema"
+      }
+    },
+    "required": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "additionalProperties": {
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": true,
+  "examples": [
+    {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://goformx.com/schemas/examples/contact.json",
+      "title": "Contact Russell",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "format": "email" },
+        "message": { "type": "string", "minLength": 1, "maxLength": 5000 }
+      },
+      "required": ["name", "email", "message"],
+      "additionalProperties": false
+    }
+  ]
+}

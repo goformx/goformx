@@ -1,0 +1,2242 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "GoFormX API",
+    "version": "1.0.0",
+    "license": {
+      "name": "GNU Affero General Public License v3.0 or later",
+      "identifier": "AGPL-3.0-or-later"
+    },
+    "description": "The control plane manages forms and immutable schema versions. The public\ndata plane exposes published schemas and accepts validated submissions.\n"
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "servers": [
+    {
+      "url": "https://api.goformx.com",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Operations",
+      "description": "Unauthenticated liveness and dependency-readiness probes."
+    },
+    {
+      "name": "Control plane",
+      "description": "Authenticated management operations for forms and submissions."
+    },
+    {
+      "name": "Public data plane",
+      "description": "Browser-safe schema discovery and submission operations."
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Report process liveness",
+        "operationId": "getHealth",
+        "tags": [
+          "Operations"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The API process is alive.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Report production dependency readiness",
+        "operationId": "getReadiness",
+        "tags": [
+          "Operations"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "PostgreSQL is reachable and the API can accept traffic.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "A required production dependency is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms": {
+      "get": {
+        "summary": "List forms",
+        "operationId": "listForms",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FormStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/FormQuery"
+          },
+          {
+            "$ref": "#/components/parameters/FormSort"
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Forms visible to the token subject",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Form"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/OffsetPageMeta"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a form and its first schema version",
+        "operationId": "createForm",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateForm"
+              },
+              "examples": {
+                "personalContact": {
+                  "summary": "Personal-site contact form",
+                  "value": {
+                    "name": "personal-contact",
+                    "title": "Contact Russell",
+                    "schema": {
+                      "$schema": "https://json-schema.org/draft/2020-12/schema",
+                      "title": "Contact Russell",
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 100
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email"
+                        },
+                        "message": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 5000
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "email",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Form and initial immutable draft version created",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Strong validator required by later metadata updates."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        }
+      ],
+      "get": {
+        "summary": "Get form metadata",
+        "operationId": "getForm",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Form metadata and version pointers",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Strong validator required by metadata updates."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update mutable form metadata",
+        "operationId": "updateForm",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:write"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IfMatch"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/merge-patch+json": {
+              "schema": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": false,
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 100
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "allowedOrigins": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "uniqueItems": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated mutable form metadata",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "New strong validator after the update."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormEnvelope"
+                }
+              }
+            }
+          },
+          "412": {
+            "$ref": "#/components/responses/PreconditionFailed"
+          },
+          "428": {
+            "$ref": "#/components/responses/PreconditionRequired"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/versions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        }
+      ],
+      "get": {
+        "summary": "List immutable schema versions, newest first",
+        "operationId": "listSchemaVersions",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/PageOffset"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization-owned schema version page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaVersionCollection"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an immutable schema version",
+        "operationId": "createSchemaVersion",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "schema"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "schema": {
+                    "$ref": "#/components/schemas/FormDefinition"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Immutable draft schema version created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaVersionEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/versions/{version}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        },
+        {
+          "$ref": "#/components/parameters/Version"
+        }
+      ],
+      "get": {
+        "summary": "Get one immutable schema version",
+        "operationId": "getSchemaVersion",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization-owned schema version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaVersionEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/versions/{version}/publish": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        },
+        {
+          "$ref": "#/components/parameters/Version"
+        }
+      ],
+      "post": {
+        "summary": "Publish a schema version",
+        "operationId": "publishSchemaVersion",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "forms:publish"
+        ],
+        "responses": {
+          "200": {
+            "description": "Version atomically made public",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaVersionEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/submissions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        }
+      ],
+      "get": {
+        "summary": "List form submissions",
+        "operationId": "listSubmissions",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "submissions:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SubmissionLimit"
+          },
+          {
+            "$ref": "#/components/parameters/SubmissionCursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Submissions for the form; sensitive payloads require explicit scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Submission"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/CursorPageMeta"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/submissions/{submissionId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        },
+        {
+          "$ref": "#/components/parameters/SubmissionId"
+        }
+      ],
+      "get": {
+        "summary": "Get one immutable submission with schema and request provenance",
+        "operationId": "getSubmission",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "submissions:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Organization-owned immutable submission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/webhook": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        }
+      ],
+      "get": {
+        "summary": "Get the form webhook endpoint without secret material",
+        "operationId": "getWebhookEndpoint",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "webhooks:read"
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook endpoint metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Create or replace the form webhook endpoint and write-only secrets",
+        "operationId": "putWebhookEndpoint",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "webhooks:write"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PutWebhookEndpoint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook endpoint configured; headers and signing secret are never returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpointEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Disable future delivery by deleting the endpoint",
+        "operationId": "deleteWebhookEndpoint",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "webhooks:write"
+        ],
+        "responses": {
+          "204": {
+            "description": "Endpoint deleted; already-enqueued deliveries retain their encrypted snapshot"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/deliveries": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        }
+      ],
+      "get": {
+        "summary": "List recent webhook delivery status",
+        "operationId": "listWebhookDeliveries",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "submissions:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SubmissionLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Recent delivery attempts without payloads or secrets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/WebhookDelivery"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "limit"
+                      ],
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/forms/{formId}/deliveries/{deliveryId}/replay": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/FormId"
+        },
+        {
+          "$ref": "#/components/parameters/DeliveryId"
+        }
+      ],
+      "post": {
+        "summary": "Requeue a dead-letter webhook delivery",
+        "operationId": "replayWebhookDelivery",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "webhooks:write"
+        ],
+        "responses": {
+          "202": {
+            "description": "Dead-letter delivery requeued with the same delivery identifier and payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "status"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "pending"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/service-tokens": {
+      "get": {
+        "summary": "List service-token metadata for the authenticated organization",
+        "operationId": "listServiceTokens",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "tokens:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded token metadata; hashes and plaintext credentials are never returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ServiceToken"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "limit"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Issue an organization service token with one-time plaintext reveal",
+        "operationId": "createServiceToken",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "tokens:write"
+        ],
+        "description": "The caller may delegate only scopes already present in its authenticated principal. This operation is intentionally not retryable because GoFormX cannot recover a stored token secret.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateServiceToken"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Token issued; the response is Cache-Control no-store and plaintext is never recoverable",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedServiceTokenEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/service-tokens/{tokenId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TokenId"
+        }
+      ],
+      "delete": {
+        "summary": "Revoke one service token owned by the authenticated organization",
+        "operationId": "revokeServiceToken",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "tokens:write"
+        ],
+        "responses": {
+          "204": {
+            "description": "Token revoked"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/public/forms/{publicKey}/schema": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/PublicKey"
+        },
+        {
+          "$ref": "#/components/parameters/SchemaVersionQuery"
+        }
+      ],
+      "get": {
+        "summary": "Get a published form schema",
+        "operationId": "getPublishedSchema",
+        "tags": [
+          "Public data plane"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Published schema; omitted version resolves to current",
+            "headers": {
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-GoFormX-Schema-Version": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/schema+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormDefinition"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/public/forms/{publicKey}/submissions": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/PublicKey"
+        }
+      ],
+      "post": {
+        "summary": "Submit data to a published form",
+        "operationId": "createSubmission",
+        "tags": [
+          "Public data plane"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/SchemaVersionHeader"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "data"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "Validated against the selected published form schema."
+                  }
+                }
+              },
+              "examples": {
+                "personalContact": {
+                  "value": {
+                    "data": {
+                      "name": "Ada Lovelace",
+                      "email": "ada@example.com",
+                      "message": "I would like to discuss a project."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Submission validated, persisted, and accepted for processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "description": "Per-form burst or rolling submission budget exceeded",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "serviceToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "gfst_ opaque token",
+        "description": "External integration credential stored server-side, returned once, and verified by hash, organization owner, lifecycle, and required operation scope. Browsers must not receive it.",
+        "x-goformx-credential-class": "external-service-token"
+      },
+      "firstPartyAssertion": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT (EdDSA)",
+        "description": "Single-use, at-most-60-second assertion minted by the Waaseyaa server after session authentication and organization membership resolution. Never delivered to a browser and never accepted as an external service token.",
+        "x-goformx-credential-class": "first-party-assertion",
+        "x-goformx-jwt-profile": "gofx-fpa-v1",
+        "x-goformx-jwks-uri": "https://goformx.com/.well-known/goformx-control-plane-jwks.json"
+      }
+    },
+    "parameters": {
+      "FormId": {
+        "name": "formId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "PublicKey": {
+        "name": "publicKey",
+        "in": "path",
+        "required": true,
+        "description": "Rotatable, non-secret identifier safe for browser embeds.",
+        "schema": {
+          "type": "string",
+          "pattern": "^gfpk_[A-Za-z0-9_-]{20,}$"
+        }
+      },
+      "Version": {
+        "name": "version",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "DeliveryId": {
+        "name": "deliveryId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "SubmissionId": {
+        "name": "submissionId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "TokenId": {
+        "name": "tokenId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{16}$"
+        }
+      },
+      "SchemaVersionQuery": {
+        "name": "version",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "SchemaVersionHeader": {
+        "name": "X-GoFormX-Schema-Version",
+        "in": "header",
+        "required": false,
+        "description": "Pins validation to a published version; omitted means current.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "description": "Public submission retries with the same form key and body return the original result.",
+        "schema": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 128
+        }
+      },
+      "SubmissionLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum submissions returned in this page.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25
+        }
+      },
+      "PageLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Maximum resources returned in this bounded collection.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25
+        }
+      },
+      "PageOffset": {
+        "name": "offset",
+        "in": "query",
+        "required": false,
+        "description": "Zero-based form collection offset; bounded to prevent unbounded scans.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0
+        }
+      },
+      "FormStatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "published",
+            "disabled",
+            "archived"
+          ]
+        }
+      },
+      "FormQuery": {
+        "name": "q",
+        "in": "query",
+        "required": false,
+        "description": "Case-insensitive literal substring search over form name and title.",
+        "schema": {
+          "type": "string",
+          "maxLength": 100
+        }
+      },
+      "FormSort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "-createdAt",
+            "createdAt",
+            "-updatedAt",
+            "updatedAt",
+            "-name",
+            "name"
+          ],
+          "default": "-createdAt"
+        }
+      },
+      "IfMatch": {
+        "name": "If-Match",
+        "in": "header",
+        "required": true,
+        "description": "Exact strong ETag returned by the latest form GET or successful mutation.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "SubmissionCursor": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "Opaque cursor returned as meta.nextCursor by the previous page.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "schemas": {
+      "ProbeEnvelope": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "ready",
+                  "unavailable"
+                ]
+              },
+              "time": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "FormDefinition": {
+        "type": "object",
+        "description": "A JSON Schema Draft 2020-12 object conforming to the canonical linked schema.",
+        "required": [
+          "$schema",
+          "type",
+          "properties"
+        ],
+        "properties": {
+          "$schema": {
+            "type": "string",
+            "enum": [
+              "https://json-schema.org/draft/2020-12/schema"
+            ]
+          },
+          "$id": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "object"
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": true
+          },
+          "required": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Form": {
+        "type": "object",
+        "required": [
+          "id",
+          "organizationId",
+          "name",
+          "title",
+          "publicKey",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,62}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "publicKey": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "disabled",
+              "archived"
+            ]
+          },
+          "currentVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateForm": {
+        "type": "object",
+        "required": [
+          "name",
+          "title",
+          "schema"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,62}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 100
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "schema": {
+            "$ref": "#/components/schemas/FormDefinition"
+          },
+          "allowedOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "uniqueItems": true
+          }
+        }
+      },
+      "SchemaVersion": {
+        "type": "object",
+        "required": [
+          "formId",
+          "version",
+          "state",
+          "schema",
+          "createdAt"
+        ],
+        "properties": {
+          "formId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published",
+              "retired"
+            ]
+          },
+          "schema": {
+            "$ref": "#/components/schemas/FormDefinition"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Submission": {
+        "type": "object",
+        "required": [
+          "id",
+          "formId",
+          "schemaVersion",
+          "requestId",
+          "status",
+          "data",
+          "submittedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "formId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Correlation identifier for the accepted public request; it contains no credential or payload data."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "processing",
+              "completed",
+              "failed"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FormEnvelope": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Form"
+          }
+        }
+      },
+      "SchemaVersionEnvelope": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SchemaVersion"
+          }
+        }
+      },
+      "SchemaVersionCollection": {
+        "type": "object",
+        "required": [
+          "data",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SchemaVersion"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/OffsetPageMeta"
+          }
+        }
+      },
+      "SubmissionEnvelope": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Submission"
+          }
+        }
+      },
+      "CreateServiceToken": {
+        "type": "object",
+        "required": [
+          "name",
+          "scopes"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "scopes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "forms:read",
+                "forms:write",
+                "forms:publish",
+                "submissions:read",
+                "tokens:read",
+                "tokens:write",
+                "webhooks:read",
+                "webhooks:write"
+              ]
+            }
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "minimum": 300,
+            "maximum": 31536000,
+            "default": 2592000
+          }
+        }
+      },
+      "ServiceToken": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "organizationId",
+          "scopes",
+          "status",
+          "createdAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "scopes": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "forms:read",
+                "forms:write",
+                "forms:publish",
+                "submissions:read",
+                "tokens:read",
+                "tokens:write",
+                "webhooks:read",
+                "webhooks:write"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expired",
+              "revoked"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreatedServiceTokenEnvelope": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": [
+              "token",
+              "metadata"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "token": {
+                "type": "string",
+                "pattern": "^gfst_[A-Za-z0-9_-]{43}$",
+                "writeOnly": true
+              },
+              "metadata": {
+                "$ref": "#/components/schemas/ServiceToken"
+              }
+            }
+          }
+        }
+      },
+      "PutWebhookEndpoint": {
+        "type": "object",
+        "required": [
+          "url",
+          "signingSecret"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Public HTTPS destination on port 443, without credentials, query, or fragment."
+          },
+          "headers": {
+            "type": "object",
+            "maxProperties": 20,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "writeOnly": true
+          },
+          "signingSecret": {
+            "type": "string",
+            "minLength": 32,
+            "maxLength": 256,
+            "writeOnly": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "WebhookEndpoint": {
+        "type": "object",
+        "required": [
+          "id",
+          "formId",
+          "origin",
+          "enabled",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "formId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "origin": {
+            "type": "string",
+            "format": "uri",
+            "description": "Destination origin only; the encrypted path is never returned."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WebhookEndpointEnvelope": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WebhookEndpoint"
+          }
+        }
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "required": [
+          "id",
+          "submissionId",
+          "status",
+          "attemptCount",
+          "nextAttemptAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processing",
+              "delivered",
+              "dead_letter"
+            ]
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deliveredAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastHttpStatus": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "lastErrorCategory": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CursorPageMeta": {
+        "type": "object",
+        "required": [
+          "limit",
+          "nextCursor"
+        ],
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "OffsetPageMeta": {
+        "type": "object",
+        "required": [
+          "limit",
+          "offset",
+          "total"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "FieldError": {
+        "type": "object",
+        "required": [
+          "pointer",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "pointer": {
+            "type": "string",
+            "description": "JSON Pointer into the request document"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "requestId"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requestId": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FieldError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Stable error envelope; status is determined by the HTTP response code",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "The request or submission failed schema validation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": {
+                "code": "validation_failed",
+                "message": "Submission does not match schema version 3.",
+                "requestId": "req_01K4Q9X2JXQG67A4WZ8X9CEQ4G",
+                "fields": [
+                  {
+                    "pointer": "/data/email",
+                    "code": "format",
+                    "message": "Must be a valid email address."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "PreconditionRequired": {
+        "description": "If-Match is required for this mutation",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PreconditionFailed": {
+        "description": "The supplied form validator is stale",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-goformx-canonical-schema": "./schema/form-definition.schema.json"
+}
