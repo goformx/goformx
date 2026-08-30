@@ -88,8 +88,8 @@ func TestPublishedClientCompletesManagementFlow(t *testing.T) {
 	require.NoError(t, uuid.Validate(result.FormID))
 	require.NoError(t, uuid.Validate(result.SubmissionID))
 	require.Equal(t, 2, result.SchemaVersion)
-	require.EqualValues(t, 4, publicRequests.Load(), "schema, invalid submission, accepted submission, retry")
-	require.EqualValues(t, 7, managementRequests.Load(), "create, version, publish, get, patch, submission detail/list")
+	require.EqualValues(t, 6, publicRequests.Load(), "schema, allowed/denied browser origins, invalid submission, accepted submission, retry")
+	require.EqualValues(t, 11, managementRequests.Load(), "create, forms list, version, publish, three detail reads, two metadata patches, submission detail/list")
 	require.Zero(t, leakedCredentials.Load())
 	var acceptedCount int64
 	require.NoError(t, db.Table("form_submissions").Where("form_id = ? AND schema_version = ?", result.FormID, 2).Count(&acceptedCount).Error)

@@ -95,6 +95,14 @@ records afterward: there is no supported form-delete API in this contract.
 
 ## Semantics clients must preserve
 
+- **Allowed origins (contract 1.1.0):** form create, list, detail, and metadata
+  update responses include the stored `allowedOrigins` array. Empty means no
+  cross-origin browser grant, never wildcard access. Read the current value and
+  ETag before editing; PATCH with `[]` explicitly clears the allowlist. Older
+  servers/contracts may omit this field: do not interpret absence as an empty
+  configuration or keep a second authoritative configuration in the dashboard.
+  The 1.1.0 development contract is not a claim of deployment or publication;
+  the frozen release links above remain 1.0.0 until publication is verified.
 - **Schema and versions:** definitions use Draft 2020-12, not renderer-specific
   fields. Creating a schema version appends a new immutable snapshot. Publishing
   is explicit; published definitions cannot be rewritten, and publication cannot

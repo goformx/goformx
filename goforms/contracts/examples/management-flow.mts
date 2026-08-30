@@ -28,12 +28,16 @@ async function main(): Promise<void> {
     required: ["email"], additionalProperties: false,
   };
   const created = await management.POST("/v1/forms", {
-    body: { name: `example-${randomUUID()}`, title: "Contract example", schema },
+    body: { name: `example-${randomUUID()}`, title: "Contract example", schema, allowedOrigins: ["https://example.test"] },
   });
   assert.equal(created.response.status, 201, "Create form failed; inspect status/request ID, not raw payload logs.");
   assert.ok(created.data);
   const form = created.data.data;
   assert.equal(form.status, "draft");
+  assert.deepEqual(form.allowedOrigins, ["https://example.test"]);
+  const forms = await management.GET("/v1/forms", { params: { query: { q: form.name } } });
+  assert.equal(forms.response.status, 200);
+  assert.deepEqual(forms.data?.data.find(candidate => candidate.id === form.id)?.allowedOrigins, form.allowedOrigins);
 
   const updatedSchema: components["schemas"]["FormDefinition"] = {
     ...schema, properties: { ...schema.properties, message: { type: "string", minLength: 1 } },
@@ -62,14 +66,39 @@ async function main(): Promise<void> {
 
   const current = await management.GET("/v1/forms/{formId}", { params: { path: { formId: form.id } } });
   assert.equal(current.response.status, 200);
+  assert.deepEqual(current.data?.data.allowedOrigins, form.allowedOrigins);
   const etag = current.response.headers.get("ETag");
   assert.ok(etag);
   const metadata = await management.PATCH("/v1/forms/{formId}", {
     params: { path: { formId: form.id }, header: { "If-Match": etag } },
-    body: { title: "Contract example updated" },
+    body: { title: "Contract example updated", allowedOrigins: ["https://updated.example.test"] },
   });
   assert.equal(metadata.response.status, 200);
   assert.equal(metadata.data?.data.title, "Contract example updated");
+  assert.deepEqual(metadata.data?.data.allowedOrigins, ["https://updated.example.test"]);
+  const afterUpdate = await management.GET("/v1/forms/{formId}", { params: { path: { formId: form.id } } });
+  assert.equal(afterUpdate.response.status, 200);
+  assert.deepEqual(afterUpdate.data?.data.allowedOrigins, metadata.data?.data.allowedOrigins);
+  const allowedBrowser = await publicClient.GET("/v1/public/forms/{publicKey}/schema", {
+    params: { path: { publicKey: form.publicKey } }, headers: { Origin: "https://updated.example.test" },
+  });
+  assert.equal(allowedBrowser.response.status, 200);
+  assert.equal(allowedBrowser.response.headers.get("Access-Control-Allow-Origin"), "https://updated.example.test");
+  const updatedETag = afterUpdate.response.headers.get("ETag");
+  assert.ok(updatedETag);
+  const cleared = await management.PATCH("/v1/forms/{formId}", {
+    params: { path: { formId: form.id }, header: { "If-Match": updatedETag } }, body: { allowedOrigins: [] },
+  });
+  assert.equal(cleared.response.status, 200);
+  assert.deepEqual(cleared.data?.data.allowedOrigins, []);
+  const afterClear = await management.GET("/v1/forms/{formId}", { params: { path: { formId: form.id } } });
+  assert.equal(afterClear.response.status, 200);
+  assert.deepEqual(afterClear.data?.data.allowedOrigins, []);
+  const deniedBrowser = await publicClient.GET("/v1/public/forms/{publicKey}/schema", {
+    params: { path: { publicKey: form.publicKey } }, headers: { Origin: "https://updated.example.test" },
+  });
+  assert.equal(deniedBrowser.response.status, 403);
+  assert.equal(deniedBrowser.response.headers.get("Access-Control-Allow-Origin"), null);
 
   const invalid = await publicClient.POST("/v1/public/forms/{publicKey}/submissions", {
     params: { path: { publicKey: form.publicKey }, header: { "Idempotency-Key": randomUUID(), "X-GoFormX-Schema-Version": version } },

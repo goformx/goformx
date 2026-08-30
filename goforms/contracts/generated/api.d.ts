@@ -356,6 +356,8 @@ export interface components {
             title: string;
             description?: string;
             publicKey: string;
+            /** @description Stored browser-origin allowlist. An empty array grants no cross-origin browser access; it is never a wildcard. */
+            allowedOrigins: string[];
             /** @enum {string} */
             status: "draft" | "published" | "disabled" | "archived";
             currentVersion?: number;

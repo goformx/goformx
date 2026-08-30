@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "GoFormX API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "license": {
       "name": "GNU Affero General Public License v3.0 or later",
       "identifier": "AGPL-3.0-or-later"
@@ -1570,6 +1570,7 @@
           "name",
           "title",
           "publicKey",
+          "allowedOrigins",
           "status",
           "createdAt",
           "updatedAt"
@@ -1598,6 +1599,15 @@
           },
           "publicKey": {
             "type": "string"
+          },
+          "allowedOrigins": {
+            "description": "Stored browser-origin allowlist. An empty array grants no cross-origin browser access; it is never a wildcard.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "uniqueItems": true
           },
           "status": {
             "type": "string",
