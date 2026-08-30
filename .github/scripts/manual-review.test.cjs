@@ -7,6 +7,10 @@ const reporter = require('./manual-review.cjs');
 
 const session = '47942c41-599a-411e-aa9b-f1d1a4f77677';
 const success = text => ({ type: 'result', subtype: 'success', is_error: false, result: text, num_turns: 9 });
+// Shape observed in run 33337843928; text/inputs are synthetic, not a transcript.
+const overBudget = { ...success('Preserved evidence. oauth-secret-canary ``` @claude'),
+  num_turns: 22, duration_ms: 185207, session_id: session,
+  permission_denials: Array.from({ length: 4 }, () => ({ tool_name: 'Bash', tool_input: 'SECRET_CANARY' })) };
 const exhausted = { type: 'result', subtype: 'error_max_turns', is_error: true, session_id: session,
   num_turns: 17, duration_ms: 82745, permission_denials: [
     { tool_name: 'Bash', tool_input: { command: 'SECRET_CANARY' } },
@@ -117,6 +121,74 @@ test('exhaustion publishes partial evidence but remains failed/incomplete', asyn
   assert.equal(api.failures.length, 1);
 });
 
+for (const outcome of ['failure', 'success']) {
+  test(`22-turn success preserves incomplete evidence even with action outcome ${outcome}`, async t => {
+    const env = fixture(t, [overBudget]);
+    env.RESEARCH_OUTCOME = outcome;
+    reporter.summarize(env, () => assert.fail('must not spend another provider call'));
+    assert.match(fs.readFileSync(env.GITHUB_OUTPUT, 'utf8'), /summarize=false/);
+    const api = apiMock();
+    await reporter.publish({ ...api, env });
+    assert.match(api.calls[0].body, /INCOMPLETE/);
+    assert.match(api.calls[0].body, /22 turns.*16-turn limit/);
+    assert.match(api.calls[0].body, /Partial evidence only/);
+    assert.match(api.calls[0].body, /Preserved evidence/);
+    assert.doesNotMatch(api.calls[0].body, /Completed static review|oauth-secret-canary|@claude|SECRET_CANARY/);
+    assert.equal(api.failures.length, 1);
+    const rawDiagnostic = fs.readFileSync(path.join(env.RUNNER_TEMP, 'manual-review-diagnostics.json'), 'utf8');
+    const diagnostic = JSON.parse(rawDiagnostic).research;
+    assert.equal(diagnostic.status, 'over_budget');
+    assert.equal(diagnostic.turns, 22);
+    assert.equal(diagnostic.denied_count, 4);
+    assert.doesNotMatch(rawDiagnostic, /Preserved evidence|SECRET_CANARY|oauth-secret-canary|47942c41/);
+  });
+}
+
+test('over-budget evidence is still suppressed for a stale revision', async t => {
+  const env = fixture(t, [overBudget]);
+  env.RESEARCH_OUTCOME = 'failure';
+  const api = apiMock({ stale: true });
+  await reporter.publish({ ...api, env });
+  assert.match(api.calls[0].body, /STALE/);
+  assert.doesNotMatch(api.calls[0].body, /Preserved evidence/);
+  assert.equal(api.failures.length, 1);
+});
+
+test('exact 16-turn success can complete, but an unrelated action failure still withholds evidence', async t => {
+  for (const outcome of ['success', 'failure']) {
+    const env = fixture(t, [{ ...success('Boundary evidence.'), num_turns: 16 }]);
+    env.RESEARCH_OUTCOME = outcome;
+    const api = apiMock();
+    await reporter.publish({ ...api, env });
+    if (outcome === 'success') {
+      assert.match(api.calls[0].body, /Completed static review/);
+      assert.equal(api.failures.length, 0);
+    } else {
+      assert.match(api.calls[0].body, /INCOMPLETE/);
+      assert.doesNotMatch(api.calls[0].body, /Boundary evidence/);
+      assert.equal(api.failures.length, 1);
+    }
+  }
+});
+
+test('empty over-budget text stays incomplete, and errored success never leaks text', async t => {
+  for (const record of [
+    { ...success(''), num_turns: 17 },
+    { ...success('invalid-result-canary'), num_turns: 22, is_error: true },
+  ]) {
+    const env = fixture(t, record);
+    env.RESEARCH_OUTCOME = 'failure';
+    reporter.summarize(env, () => assert.fail('must not invoke provider'));
+    const api = apiMock();
+    await reporter.publish({ ...api, env });
+    assert.match(api.calls[0].body, /INCOMPLETE/);
+    assert.doesNotMatch(api.calls[0].body, /Partial evidence only|invalid-result-canary/);
+    assert.equal(api.failures.length, 1);
+    const diagnostic = JSON.parse(fs.readFileSync(path.join(env.RUNNER_TEMP, 'manual-review-diagnostics.json'), 'utf8'));
+    assert.equal(diagnostic.research.status, record.is_error ? 'failed' : 'over_budget');
+  }
+});
+
 for (const [name, record, outcome] of [
   ['missing output', null, 'failure'],
   ['provider failure', { type: 'result', subtype: 'error', is_error: true }, 'failure'],
@@ -207,6 +279,7 @@ test('missing subscription posts status before failing preflight', async () => {
 });
 
 test('workflow retains manual trust gate and publishes outside the model', () => {
+  assert.equal(Number(workflow.match(/--max-turns (\d+)/)[1]), reporter.RESEARCH_MAX_TURNS);
   assert.match(workflow, /github\.event\.comment\.body == '@claude review'/);
   assert.match(workflow, /github\.actor == 'jonesrussell'/);
   assert.match(workflow, /ref: \$\{\{ github.sha \}\}/);

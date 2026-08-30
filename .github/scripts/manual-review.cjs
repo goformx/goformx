@@ -3,6 +3,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const MAX_FILE = 32 * 1024 * 1024;
+// Keep aligned with the research action's --max-turns (guarded by regression).
+const RESEARCH_MAX_TURNS = 16;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOOLS = new Set(['Read', 'Glob', 'Grep', 'Bash', 'Edit', 'Write', 'NotebookEdit', 'Agent', 'Task', 'WebFetch', 'WebSearch']);
 const integer = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
@@ -52,7 +54,16 @@ function directory(env) { return path.join(env.RUNNER_TEMP, 'manual-review-priva
 function researchPath(env) { return path.join(directory(env), 'research.json'); }
 function summaryPath(env) { return path.join(directory(env), 'summary.json'); }
 
-function saveDiagnostics(env, research = readExecution(researchPath(env))) {
+function classifyResearch(execution) {
+  // The SDK may report success beyond maxTurns; the pinned action rejects it
+  // after retaining the transcript. Preserve its text, never its success verdict.
+  return execution.status === 'success' && execution.turns > RESEARCH_MAX_TURNS
+    ? { ...execution, status: 'over_budget' } : execution;
+}
+
+function readResearch(env) { return classifyResearch(readExecution(researchPath(env))); }
+
+function saveDiagnostics(env, research = readResearch(env)) {
   fs.writeFileSync(path.join(env.RUNNER_TEMP, 'manual-review-diagnostics.json'), JSON.stringify({
     version: 1,
     research: diagnostics(research),
@@ -63,7 +74,7 @@ function saveDiagnostics(env, research = readExecution(researchPath(env))) {
 function prepare(env) {
   fs.mkdirSync(directory(env), { recursive: true, mode: 0o700 });
   const source = path.join(env.RUNNER_TEMP, 'claude-execution-output.json');
-  const research = readExecution(source);
+  const research = classifyResearch(readExecution(source));
   if (!['missing', 'invalid', 'oversized'].includes(research.status)) {
     fs.writeFileSync(researchPath(env), fs.readFileSync(source), { mode: 0o600 });
   }
@@ -72,7 +83,7 @@ function prepare(env) {
 }
 
 function summarize(env, run = spawnSync) {
-  const research = readExecution(researchPath(env));
+  const research = readResearch(env);
   if (research.status !== 'turn_limit' || !UUID.test(research.session)) return;
   // Use the action-installed pinned CLI directly: the action's SDK argument
   // parser does not preserve an empty --tools value. No tools means no further
@@ -110,15 +121,18 @@ function safeText(text, secrets = []) {
 }
 
 function render({ research, summary, outcome, stale, revisionUnverified = false, head, base, runURL, secrets }) {
+  research = classifyResearch(research);
   const researchComplete = outcome === 'success' && research.status === 'success' && Boolean(research.text?.trim());
   const complete = !stale && !revisionUnverified && researchComplete;
   const heading = stale ? 'STALE — a new manual review is required.'
     : revisionUnverified ? 'INCOMPLETE — revision could not be reverified after publication. No tests were run.'
     : complete ? 'Completed static review. No tests were run.'
     : 'INCOMPLETE — no completed review verdict. No tests were run.';
-  const reason = research.status === 'turn_limit' ? 'Research reached its 16-turn limit.'
+  const reason = research.status === 'over_budget'
+    ? `Research reported ${research.turns} turns, exceeding the ${RESEARCH_MAX_TURNS}-turn limit. Retained text is partial evidence, not a completed verdict.`
+    : research.status === 'turn_limit' ? `Research reached its ${RESEARCH_MAX_TURNS}-turn limit.`
     : !complete ? 'Review setup, execution, or result validation did not complete.' : '';
-  const text = stale ? '' : researchComplete ? research.text : summary.status === 'success' ? summary.text : '';
+  const text = stale ? '' : researchComplete || research.status === 'over_budget' ? research.text : summary.status === 'success' ? summary.text : '';
   const body = [
     'Claude review (manual, requested by jonesrussell)', '', heading, reason,
     `Head: \`${head || 'unavailable'}\``, `Base: \`${base || 'unavailable'}\``,
@@ -132,7 +146,7 @@ function render({ research, summary, outcome, stale, revisionUnverified = false,
 }
 
 async function publish({ github, context, core, env = process.env }) {
-  const research = readExecution(researchPath(env));
+  const research = readResearch(env);
   const summary = readExecution(summaryPath(env));
   const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
   const getPR = () => github.rest.pulls.get({ ...context.repo, pull_number: context.issue.number });
@@ -165,7 +179,7 @@ async function publish({ github, context, core, env = process.env }) {
   if (!report.complete) core.setFailed('Manual review incomplete or stale; see the PR status comment.');
 }
 
-module.exports = { parseExecution, readExecution, diagnostics, prepare, summarize, render, publish, safeText };
+module.exports = { RESEARCH_MAX_TURNS, parseExecution, readExecution, diagnostics, prepare, summarize, render, publish, safeText };
 if (require.main === module) {
   try {
     if (process.argv[2] === 'prepare') prepare(process.env);

@@ -42,13 +42,15 @@ limits still apply. Keep Claude extra usage disabled to avoid paid overflow.
 GitHub-hosted execution consumes Actions minutes. Private repositories must stay
 within the included GitHub allowance; keep the applicable Actions spending
 budget set to stop usage at the included allowance to prevent overage charges.
-Each job has a 20-minute timeout. Research is limited to 16 turns and 8 minutes.
+Each job has a 20-minute timeout. Research requests a 16-turn limit and has an
+8-minute step timeout; the action rejects results reported beyond that turn limit.
 Only turn exhaustion with a valid retained session allows one tools-disabled
 summary attempt (2 turns, a 120-second process timeout and a 3-minute step limit).
 Publication has a separate 2-minute allowance. These are bounds, not a guarantee
 of zero cost if paid overflow has been enabled elsewhere.
 
-Whichever research limit is reached first stops the step. The 8-minute limit
+The SDK can report a successful result beyond the requested turn limit; that
+result is rejected, not accepted as a completed review. The 8-minute limit
 reserves time for failure reporting; it does not guarantee transcript recovery.
 The pinned action writes its transcript after receiving a result or catching an
 execution error, not continuously. A hard step timeout can therefore leave no
@@ -75,12 +77,25 @@ If the post-publication revision lookup fails transiently, the same comment keep
 its sanitized evidence but becomes INCOMPLETE with an explicit unverified-revision
 warning, and the job fails. A confirmed changed revision still suppresses evidence.
 
-If research exhausts its budget, the action-installed CLI resumes its local
+If research returns `error_max_turns`, the action-installed CLI resumes its local
 session once with **no tools**, hooks disabled and an empty MCP configuration.
 This is synthesis of evidence already gathered, not another research pass. A
 partial summary stays labeled **INCOMPLETE**, and the workflow stays failed.
 It is never reported as a clean or completed review. Other provider/setup failures
 are reported without automatically retrying subscription requests.
+
+A different observed case is SDK `success` with a reported turn count above 16.
+The pinned action rejects this after saving the transcript. The reporter classifies
+it as `over_budget`, retains any available text as sanitized **partial evidence**,
+and reports **INCOMPLETE** with the observed count and configured limit. This is
+never a completed verdict, even if an action outcome incorrectly says success.
+No additional model call is made; an empty result remains incomplete without text.
+Stale revisions still suppress the evidence. In-budget results from otherwise
+failed actions remain withheld. Tests guard the reporter/action limit against drift.
+
+This preserves evidence without increasing limits or attempting to repair upstream
+turn-count enforcement. The raw transcript from a finished runner is not retained,
+so this change cannot recover text from an earlier run's diagnostics-only artifact.
 
 The workflow retains `manual-review-diagnostics-RUN-ATTEMPT` for seven days when
 capture succeeds. Its JSON contains only an allowlisted execution status, turn
