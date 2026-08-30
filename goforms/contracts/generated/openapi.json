@@ -709,7 +709,7 @@
         "x-goformx-required-scopes": [
           "submissions:read"
         ],
-        "description": "Exports one owned, non-deleted form from a single database statement\nsnapshot, newest received time and ID first. Filters belong in the JSON\nbody, never a query string. Unknown, repeated, null, and empty fields\nare rejected. Body limit is 4096 bytes; there is no cursor or limit override.\nHard bounds are 1000 rows, 8 MiB of source payload/policy/metadata, 8 MiB\nof encoded output, and a 10-second application processing deadline.\nExceeding a bound releases no partial download. The accepted version's\nprivacy policy applies identically to normal reads. No reveal mode exists.\nBefore returning any download bytes, the service persists an append-only\nexport.prepared audit containing actor, organization, form, credential\nclass/non-secret ID, request ID, format, row/byte counts and time, but no\npayloads or filters. Prepared does not prove client receipt.\nJSON preserves exact numeric values. CSV flattens nested objects to\nJSON-Pointer columns; arrays/empty objects remain JSON cell text. CSV is\nlimited to 256 total columns and 32 nested object levels. Every cell,\nincluding headers and numbers, is double-quoted, quote-escaped and\napostrophe-prefixed as spreadsheet text. This is an initial-download\ndefense, not a guarantee after arbitrary spreadsheet edits/re-saves.\nOne export at a time is admitted per API instance, without a wait queue;\nconcurrent authorized requests receive 429 with Retry-After.\nUse JSON for machine round trips, distinguishing missing/empty cells,\nand exact numeric processing. Responses are attachments with no-store.\n",
+        "description": "Exports one owned, non-deleted form from a single database statement\nsnapshot, newest received time and ID first. Filters belong in the JSON\nbody, never a query string. Unknown, repeated, null, and empty fields\nare rejected. Body limit is 4096 bytes; there is no cursor or limit override.\nHard bounds are 1000 rows, 8 MiB of source payload/policy/metadata, 8 MiB\nof encoded output, and a 10-second application processing deadline.\nExceeding a bound releases no partial download. The accepted version's\nprivacy policy applies identically to normal reads. No reveal mode exists.\nBefore returning any download bytes, the service persists an append-only\nexport.prepared audit containing actor, organization, form, credential\nclass/non-secret ID, request ID, format, row/byte counts and time, but no\npayloads or filters. Prepared does not prove client receipt.\nJSON preserves exact numeric values. CSV flattens nested objects to\nJSON-Pointer columns; arrays/empty objects remain JSON cell text. CSV is\nlimited to 256 total columns and 32 nested object levels. Every cell,\nincluding headers and numbers, is double-quoted, quote-escaped and\napostrophe-prefixed as spreadsheet text. This is an initial-download\ndefense, not a guarantee after arbitrary spreadsheet edits/re-saves.\nOne export at a time is admitted per API instance, without a wait queue;\nconcurrent authorized requests receive 429 with Retry-After.\nUse JSON for machine round trips, distinguishing missing/empty cells,\nand exact numeric processing. Responses are attachments with no-store.\nContent-Length declares the complete artifact size; download proxies must\nverify it against received bytes before offering the file to a browser.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -758,6 +758,13 @@
           "200": {
             "description": "Complete bounded export prepared and durably audited",
             "headers": {
+              "Content-Length": {
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8388608
+                }
+              },
               "X-GoFormX-Export-ID": {
                 "schema": {
                   "type": "string",

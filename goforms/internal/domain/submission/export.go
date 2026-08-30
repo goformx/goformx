@@ -31,7 +31,7 @@ var (
 	ErrExportLimit   = errors.New("export exceeds a resource limit; narrow the filters")
 	ErrExportRequest = errors.New("invalid export request")
 	ErrExportAudit   = errors.New("invalid export audit record")
-	auditIdentifier  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+	auditIdentifier  = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._:-]{0,127}$`)
 )
 
 type ExportFormat string

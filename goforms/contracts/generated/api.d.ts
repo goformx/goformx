@@ -190,6 +190,8 @@ export interface paths {
          *     concurrent authorized requests receive 429 with Retry-After.
          *     Use JSON for machine round trips, distinguishing missing/empty cells,
          *     and exact numeric processing. Responses are attachments with no-store.
+         *     Content-Length declares the complete artifact size; download proxies must
+         *     verify it against received bytes before offering the file to a browser.
          */
         post: operations["exportSubmissions"];
         delete?: never;
@@ -1039,6 +1041,7 @@ export interface operations {
             /** @description Complete bounded export prepared and durably audited */
             200: {
                 headers: {
+                    "Content-Length"?: number;
                     "X-GoFormX-Export-ID"?: string;
                     "Content-Disposition"?: string;
                     "Cache-Control"?: "no-store";

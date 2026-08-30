@@ -119,6 +119,11 @@ func TestEmptyExportsAndAuditValidation(t *testing.T) {
 		CredentialClass: "service_token", CredentialID: "credential-1", RequestID: "request-1", Format: submission.ExportJSON,
 		RowCount: 0, ByteCount: 20, PreparedAt: time.Now()}
 	require.NoError(t, audit.Validate())
+	for _, id := range []string{"_base64urlTokenID", "-base64urlTokenID"} {
+		valid := audit
+		valid.SubjectID, valid.CredentialID = id, id
+		require.NoError(t, valid.Validate(), "service-token lookup IDs may start with any base64url character")
+	}
 	for _, mutate := range []func(*submission.ExportAudit){
 		func(a *submission.ExportAudit) { a.ID = "bad" }, func(a *submission.ExportAudit) { a.SubjectID = "private value" },
 		func(a *submission.ExportAudit) { a.CredentialClass = "other" }, func(a *submission.ExportAudit) { a.RowCount = -1 },

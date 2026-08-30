@@ -63,6 +63,11 @@ func TestSubmissionExportSnapshotBudgetsAndDurableAudit(t *testing.T) {
 	audit := submission.ExportAudit{ID: uuid.NewString(), OrganizationID: owner, FormID: form.ID, SubjectID: "actor-1", CredentialClass: "service_token",
 		CredentialID: "token-id", RequestID: "req_fixture", Format: submission.ExportJSON, RowCount: 2, ByteCount: 100, PreparedAt: time.Now()}
 	require.NoError(t, store.SaveSubmissionExportAudit(t.Context(), audit))
+	for _, tokenID := range []string{"_base64urlTokenID", "-base64urlTokenID"} {
+		base64Audit := audit
+		base64Audit.ID, base64Audit.SubjectID, base64Audit.CredentialID = uuid.NewString(), tokenID, tokenID
+		require.NoError(t, store.SaveSubmissionExportAudit(t.Context(), base64Audit), "database constraints must admit the full token-ID alphabet")
+	}
 	var event string
 	require.NoError(t, db.Raw("SELECT event FROM submission_export_audit WHERE export_id = ?", audit.ID).Scan(&event).Error)
 	require.Equal(t, "export.prepared", event)
@@ -112,10 +117,10 @@ func TestSubmissionExportSnapshotBudgetsAndDurableAudit(t *testing.T) {
 	require.Error(t, store.SaveSubmissionExportAudit(t.Context(), audit))
 	var count int64
 	require.NoError(t, db.Table("submission_export_audit").Where("organization_id = ?", owner).Count(&count).Error)
-	require.EqualValues(t, 1, count)
+	require.EqualValues(t, 3, count)
 	require.NoError(t, db.Exec("DELETE FROM forms WHERE uuid = ?", form.ID).Error)
 	require.NoError(t, db.Table("submission_export_audit").Where("organization_id = ?", owner).Count(&count).Error)
-	require.EqualValues(t, 1, count, "Form deletion must not cascade to audit history")
+	require.EqualValues(t, 3, count, "Form deletion must not cascade to audit history")
 	var columns []string
 	require.NoError(t, db.Raw("SELECT column_name FROM information_schema.columns WHERE table_name = 'submission_export_audit' AND table_schema = 'public'").Scan(&columns).Error)
 	for _, forbidden := range []string{"payload", "data", "filters", "token", "schema"} {

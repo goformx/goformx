@@ -350,6 +350,8 @@ paths:
         concurrent authorized requests receive 429 with Retry-After.
         Use JSON for machine round trips, distinguishing missing/empty cells,
         and exact numeric processing. Responses are attachments with no-store.
+        Content-Length declares the complete artifact size; download proxies must
+        verify it against received bytes before offering the file to a browser.
       requestBody:
         required: true
         content:
@@ -368,6 +370,7 @@ paths:
         '200':
           description: Complete bounded export prepared and durably audited
           headers:
+            Content-Length: { schema: { type: integer, minimum: 1, maximum: 8388608 } }
             X-GoFormX-Export-ID: { schema: { type: string, format: uuid } }
             Content-Disposition: { schema: { type: string } }
             Cache-Control: { schema: { type: string, const: no-store } }

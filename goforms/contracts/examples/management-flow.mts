@@ -141,6 +141,7 @@ async function main(): Promise<void> {
     });
     assert.equal(download.response.status, 200);
     assert.ok(download.data?.includes(submission.id));
+    assert.equal(download.response.headers.get("Content-Length"), String(Buffer.byteLength(download.data ?? "")));
     assert.equal(download.response.headers.get("Cache-Control"), "no-store");
     const exportId = download.response.headers.get("X-GoFormX-Export-ID");
     assert.ok(exportId);

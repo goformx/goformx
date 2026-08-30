@@ -11,9 +11,9 @@ CREATE TABLE submission_export_audit (
     row_count INTEGER NOT NULL CHECK (row_count BETWEEN 0 AND 1000),
     byte_count INTEGER NOT NULL CHECK (byte_count BETWEEN 1 AND 8388608),
     prepared_at TIMESTAMPTZ NOT NULL,
-    CHECK (subject_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'),
-    CHECK (credential_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$'),
-    CHECK (request_id ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$')
+    CHECK (subject_id ~ '^[A-Za-z0-9_-][A-Za-z0-9._:-]{0,127}$'),
+    CHECK (credential_id ~ '^[A-Za-z0-9_-][A-Za-z0-9._:-]{0,127}$'),
+    CHECK (request_id ~ '^[A-Za-z0-9_-][A-Za-z0-9._:-]{0,127}$')
 );
 CREATE INDEX submission_export_audit_organization_time
     ON submission_export_audit (organization_id, prepared_at DESC, export_id);

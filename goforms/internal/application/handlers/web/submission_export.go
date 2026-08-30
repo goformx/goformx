@@ -155,6 +155,7 @@ func (h *V1APIHandler) exportSubmissions(c echo.Context) error {
 		return h.writeExportError(c, err)
 	}
 	c.Response().Header().Set("X-GoFormX-Export-ID", meta.ExportID)
+	c.Response().Header().Set(echo.HeaderContentLength, strconv.Itoa(len(encoded)))
 	c.Response().Header().Set("Content-Disposition", `attachment; filename="goformx-submissions-`+meta.ExportID+`.`+string(format)+`"`)
 	contentType := "application/json"
 	if format == submission.ExportCSV {

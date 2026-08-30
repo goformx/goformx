@@ -95,6 +95,7 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 		require.Equal(t, "no-store", response.Header.Get("Cache-Control"))
 		if strings.HasSuffix(path, "/submissions/export") {
 			if expected == http.StatusOK {
+				require.Equal(t, strconv.Itoa(len(encoded)), response.Header.Get("Content-Length"))
 				require.NotEmpty(t, response.Header.Get("X-GoFormX-Export-ID"))
 				require.Regexp(t, `^attachment; filename="goformx-submissions-[0-9a-f-]+\.(json|csv)"$`, response.Header.Get("Content-Disposition"))
 			} else {
