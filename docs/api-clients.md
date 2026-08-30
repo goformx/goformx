@@ -7,11 +7,12 @@ scrape the human dashboard. Downloads do not require an account.
 
 ## Discovery and version pinning
 
-- [Contract v1.0.0 release](https://github.com/goformx/goformx/releases/tag/contract-v1.0.0)
-- [v1.0.0 machine-readable manifest](https://github.com/goformx/goformx/releases/download/contract-v1.0.0/manifest.json)
-- [v1.0.0 OpenAPI download](https://github.com/goformx/goformx/releases/download/contract-v1.0.0/openapi.json)
-- [v1.0.0 client example archive](https://github.com/goformx/goformx/releases/download/contract-v1.0.0/goformx-contract-1.0.0.zip)
-- [Checksums](https://github.com/goformx/goformx/releases/download/contract-v1.0.0/SHA256SUMS)
+- [Contract v1.1.0 release](https://github.com/goformx/goformx/releases/tag/contract-v1.1.0)
+- [v1.1.0 machine-readable manifest](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/manifest.json)
+- [v1.1.0 OpenAPI download](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/openapi.json)
+- [v1.1.0 client example archive](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/goformx-contract-1.1.0.zip)
+- [Checksums](https://github.com/goformx/goformx/releases/download/contract-v1.1.0/SHA256SUMS)
+- [Previous contract v1.0.0](https://github.com/goformx/goformx/releases/tag/contract-v1.0.0)
 - [Current development contract](https://raw.githubusercontent.com/goformx/goformx/main/goforms/contracts/generated/openapi.json)
 
 The manifest records a full Git commit and SHA-256 digests. Its OpenAPI, companion
@@ -101,8 +102,9 @@ records afterward: there is no supported form-delete API in this contract.
   ETag before editing; PATCH with `[]` explicitly clears the allowlist. Older
   servers/contracts may omit this field: do not interpret absence as an empty
   configuration or keep a second authoritative configuration in the dashboard.
-  The 1.1.0 development contract is not a claim of deployment or publication;
-  the frozen release links above remain 1.0.0 until publication is verified.
+  Contract 1.1.0 is published from `e7927b9e2899ab137e31c68d7d37d4ed0c09e249`;
+  anonymous release downloads and all manifest-pinned asset hashes were verified.
+  Publication does not imply that a particular server has been upgraded.
 - **Schema and versions:** definitions use Draft 2020-12, not renderer-specific
   fields. Creating a schema version appends a new immutable snapshot. Publishing
   is explicit; published definitions cannot be rewritten, and publication cannot
