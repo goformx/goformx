@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/goformx/goforms/internal/domain/auth"
+	"github.com/goformx/goforms/internal/domain/managementaudit"
 	"github.com/goformx/goforms/internal/infrastructure/database"
+	auditstore "github.com/goformx/goforms/internal/infrastructure/repository/managementaudit"
 )
 
 type Store struct{ db database.DB }
@@ -32,9 +36,12 @@ type record struct {
 
 func (record) TableName() string { return "service_tokens" }
 
-func (s *Store) Save(ctx context.Context, token *auth.ServiceToken) error {
+func (s *Store) Save(ctx context.Context, token *auth.ServiceToken, actor auth.AuditActor) error {
 	if token == nil {
 		return errors.New("service token is required")
+	}
+	if actor.Validate() != nil || actor.OrganizationID != token.OwnerID {
+		return managementaudit.ErrInvalid
 	}
 	scopes := make([]auth.Scope, 0, len(token.Scopes))
 	for scope := range token.Scopes {
@@ -42,7 +49,15 @@ func (s *Store) Save(ctx context.Context, token *auth.ServiceToken) error {
 	}
 	row := record{TokenID: token.ID, Name: token.Name, OwnerID: token.OwnerID, TokenHash: token.Hash[:], Scopes: scopes,
 		CreatedAt: token.CreatedAt, ExpiresAt: token.ExpiresAt, RevokedAt: token.RevokedAt}
-	if err := s.db.GetDB().WithContext(ctx).Create(&row).Error; err != nil {
+	event := managementaudit.Event{ID: uuid.NewString(), Actor: actor, Kind: managementaudit.TokenCreated,
+		TargetID: token.ID, Scopes: scopes, ExpiresAt: &token.ExpiresAt, OccurredAt: token.CreatedAt}
+	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&row).Error; err != nil {
+			return err
+		}
+		return auditstore.AppendGORM(ctx, tx, event)
+	})
+	if err != nil {
 		return fmt.Errorf("save service token: %w", err)
 	}
 	return nil
@@ -87,18 +102,6 @@ func (s *Store) MarkUsed(ctx context.Context, tokenID string, now time.Time) err
 	return nil
 }
 
-func (s *Store) Revoke(ctx context.Context, tokenID string, now time.Time) error {
-	result := s.db.GetDB().WithContext(ctx).Model(&record{}).Where("token_id = ?", tokenID).
-		Updates(map[string]any{"revoked_at": now.UTC(), "revocation_reason": "operator_revoked"})
-	if result.Error != nil {
-		return fmt.Errorf("revoke service token: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
-}
-
 // ListByOrganization returns bounded service-token metadata without secret hashes.
 func (s *Store) ListByOrganization(ctx context.Context, organizationID string, limit int) ([]*auth.ServiceToken, error) {
 	if organizationID == "" || limit < 1 || limit > 100 {
@@ -133,18 +136,26 @@ func (s *Store) ListByOrganization(ctx context.Context, organizationID string, l
 }
 
 // RevokeByOrganization prevents a token ID from crossing an organization boundary.
-func (s *Store) RevokeByOrganization(ctx context.Context, organizationID, tokenID string, now time.Time) error {
-	result := s.db.GetDB().WithContext(ctx).Model(&record{}).Where(
-		"organization_id = ? AND token_id = ?", organizationID, tokenID,
-	).Updates(map[string]any{
-		"revoked_at":        gorm.Expr("COALESCE(revoked_at, ?)", now.UTC()),
-		"revocation_reason": gorm.Expr("COALESCE(revocation_reason, ?)", "api_revoked"),
+func (s *Store) RevokeByOrganization(ctx context.Context, organizationID, tokenID string, now time.Time, actor auth.AuditActor) error {
+	if actor.Validate() != nil || actor.OrganizationID != organizationID {
+		return managementaudit.ErrInvalid
+	}
+	return s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row record
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("organization_id = ? AND token_id = ?", organizationID, tokenID).First(&row).Error; err != nil {
+			return err
+		}
+		if row.RevokedAt != nil {
+			return nil
+		}
+		if err := tx.Model(&row).Updates(map[string]any{
+			"revoked_at": now.UTC(), "revocation_reason": "api_revoked",
+		}).Error; err != nil {
+			return err
+		}
+		return auditstore.AppendGORM(ctx, tx, managementaudit.Event{
+			ID: uuid.NewString(), Actor: actor, Kind: managementaudit.TokenRevoked, TargetID: tokenID, OccurredAt: now,
+		})
 	})
-	if result.Error != nil {
-		return fmt.Errorf("revoke organization service token: %w", result.Error)
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
 }

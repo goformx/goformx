@@ -50,7 +50,7 @@ func TestSubmissionReadFiltersThroughHTTPAndPostgres(t *testing.T) {
 	issue := func(organization string, scope auth.Scope) string {
 		token, credential, err := auth.Issue(organization, []auth.Scope{scope}, time.Hour, time.Now())
 		require.NoError(t, err)
-		require.NoError(t, tokens.Save(t.Context(), token))
+		require.NoError(t, tokens.Save(t.Context(), token, auth.DatabaseAuditActor("integration-fixture", token.OwnerID)))
 		return credential
 	}
 	credential := issue(owner, auth.ScopeSubmissionsRead)

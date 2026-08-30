@@ -14,11 +14,11 @@ import (
 
 const principalContextKey = "service_token_principal"
 
-type CredentialClass string
+type CredentialClass = auth.CredentialClass
 
 const (
-	CredentialClassServiceToken        CredentialClass = "service_token"
-	CredentialClassFirstPartyAssertion CredentialClass = "first_party_assertion"
+	CredentialClassServiceToken        = auth.CredentialClassServiceToken
+	CredentialClassFirstPartyAssertion = auth.CredentialClassFirstPartyAssertion
 )
 
 type Repository interface {

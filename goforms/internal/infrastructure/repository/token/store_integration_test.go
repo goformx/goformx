@@ -49,7 +49,10 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	token, plaintext, err := auth.Issue(ownerID,
 		[]auth.Scope{auth.ScopeFormsRead, auth.ScopeFormsWrite}, time.Hour, now)
 	require.NoError(t, err)
-	require.NoError(t, store.Save(t.Context(), token))
+	actor := auth.DatabaseAuditActor("integration-fixture", ownerID)
+	require.Error(t, store.Save(t.Context(), token, auth.AuditActor{}), "actor is mandatory, not an optional fallback")
+	require.Error(t, store.Save(t.Context(), token, auth.DatabaseAuditActor("fixture", uuid.NewString())))
+	require.NoError(t, store.Save(t.Context(), token, actor))
 	listed, err := store.ListByOrganization(t.Context(), ownerID, 25)
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
@@ -68,12 +71,13 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loaded.LastUsedAt)
 	require.WithinDuration(t, now, *loaded.LastUsedAt, time.Second)
-	require.Error(t, store.RevokeByOrganization(t.Context(), uuid.NewString(), loaded.ID, now))
+	foreignID := uuid.NewString()
+	require.Error(t, store.RevokeByOrganization(t.Context(), foreignID, loaded.ID, now, auth.DatabaseAuditActor("integration-fixture", foreignID)))
 	stillActive, err := store.FindByID(t.Context(), loaded.ID)
 	require.NoError(t, err)
 	require.NoError(t, stillActive.Authorize(plaintext, ownerID, auth.ScopeFormsRead, now))
-	require.NoError(t, store.RevokeByOrganization(t.Context(), ownerID, loaded.ID, now))
-	require.NoError(t, store.RevokeByOrganization(t.Context(), ownerID, loaded.ID, now.Add(time.Minute)),
+	require.NoError(t, store.RevokeByOrganization(t.Context(), ownerID, loaded.ID, now, actor))
+	require.NoError(t, store.RevokeByOrganization(t.Context(), ownerID, loaded.ID, now.Add(time.Minute), actor),
 		"revocation must be idempotent for an owned token")
 	loaded, err = store.FindByID(t.Context(), loaded.ID)
 	require.NoError(t, err)
@@ -83,4 +87,21 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	require.NoError(t, db.Raw("SELECT count(*) FROM service_tokens WHERE encode(token_hash, 'escape') = ?", plaintext).
 		Scan(&plaintextCount).Error)
 	require.Zero(t, plaintextCount)
+
+	concurrent, _, err := auth.Issue(ownerID, []auth.Scope{auth.ScopeFormsRead}, time.Hour, now)
+	require.NoError(t, err)
+	require.NoError(t, store.Save(t.Context(), concurrent, actor))
+	results := make(chan error, 8)
+	for range cap(results) {
+		go func() {
+			results <- store.RevokeByOrganization(t.Context(), ownerID, concurrent.ID, now,
+				auth.DatabaseAuditActor("concurrent-fixture", ownerID))
+		}()
+	}
+	for range cap(results) {
+		require.NoError(t, <-results)
+	}
+	var revocations int64
+	require.NoError(t, db.Table("management_audit").Where("target_id = ? AND event = ?", concurrent.ID, "service_token.revoked").Count(&revocations).Error)
+	require.EqualValues(t, 1, revocations, "row locking must serialize concurrent idempotent revocation")
 }

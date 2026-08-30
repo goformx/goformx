@@ -292,7 +292,7 @@ export interface paths {
         put?: never;
         /**
          * Issue an organization service token with one-time plaintext reveal
-         * @description The caller may delegate only scopes already present in its authenticated principal. This operation is intentionally not retryable because GoFormX cannot recover a stored token secret.
+         * @description The caller may delegate only scopes already present in its authenticated principal. Issuance commits atomically with an append-only caller-attributed audit record; an audit failure returns 503 without issuing or revealing a token. This operation is intentionally not retryable because GoFormX cannot recover a stored token secret.
          */
         post: operations["createServiceToken"];
         delete?: never;
@@ -313,7 +313,10 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Revoke one service token owned by the authenticated organization */
+        /**
+         * Revoke one service token owned by the authenticated organization
+         * @description Revocation and its caller-attributed audit record commit atomically. Repeated revocation of an owned token succeeds without changing its original revocation time or duplicating the mutation audit. Audit failure returns 503 without revoking the token.
+         */
         delete: operations["revokeServiceToken"];
         options?: never;
         head?: never;

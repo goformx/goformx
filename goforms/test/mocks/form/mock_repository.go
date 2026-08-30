@@ -874,17 +874,17 @@ func (c *MockServiceTokenManagementRepositoryListByOrganizationCall) DoAndReturn
 }
 
 // RevokeByOrganization mocks base method.
-func (m *MockServiceTokenManagementRepository) RevokeByOrganization(arg0 context.Context, arg1, arg2 string, arg3 time.Time) error {
+func (m *MockServiceTokenManagementRepository) RevokeByOrganization(arg0 context.Context, arg1, arg2 string, arg3 time.Time, arg4 auth.AuditActor) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RevokeByOrganization", arg0, arg1, arg2, arg3)
+	ret := m.ctrl.Call(m, "RevokeByOrganization", arg0, arg1, arg2, arg3, arg4)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RevokeByOrganization indicates an expected call of RevokeByOrganization.
-func (mr *MockServiceTokenManagementRepositoryMockRecorder) RevokeByOrganization(arg0, arg1, arg2, arg3 any) *MockServiceTokenManagementRepositoryRevokeByOrganizationCall {
+func (mr *MockServiceTokenManagementRepositoryMockRecorder) RevokeByOrganization(arg0, arg1, arg2, arg3, arg4 any) *MockServiceTokenManagementRepositoryRevokeByOrganizationCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeByOrganization", reflect.TypeOf((*MockServiceTokenManagementRepository)(nil).RevokeByOrganization), arg0, arg1, arg2, arg3)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeByOrganization", reflect.TypeOf((*MockServiceTokenManagementRepository)(nil).RevokeByOrganization), arg0, arg1, arg2, arg3, arg4)
 	return &MockServiceTokenManagementRepositoryRevokeByOrganizationCall{Call: call}
 }
 
@@ -900,29 +900,29 @@ func (c *MockServiceTokenManagementRepositoryRevokeByOrganizationCall) Return(ar
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceTokenManagementRepositoryRevokeByOrganizationCall) Do(f func(context.Context, string, string, time.Time) error) *MockServiceTokenManagementRepositoryRevokeByOrganizationCall {
+func (c *MockServiceTokenManagementRepositoryRevokeByOrganizationCall) Do(f func(context.Context, string, string, time.Time, auth.AuditActor) error) *MockServiceTokenManagementRepositoryRevokeByOrganizationCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceTokenManagementRepositoryRevokeByOrganizationCall) DoAndReturn(f func(context.Context, string, string, time.Time) error) *MockServiceTokenManagementRepositoryRevokeByOrganizationCall {
+func (c *MockServiceTokenManagementRepositoryRevokeByOrganizationCall) DoAndReturn(f func(context.Context, string, string, time.Time, auth.AuditActor) error) *MockServiceTokenManagementRepositoryRevokeByOrganizationCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // Save mocks base method.
-func (m *MockServiceTokenManagementRepository) Save(arg0 context.Context, arg1 *auth.ServiceToken) error {
+func (m *MockServiceTokenManagementRepository) Save(arg0 context.Context, arg1 *auth.ServiceToken, arg2 auth.AuditActor) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Save", arg0, arg1)
+	ret := m.ctrl.Call(m, "Save", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Save indicates an expected call of Save.
-func (mr *MockServiceTokenManagementRepositoryMockRecorder) Save(arg0, arg1 any) *MockServiceTokenManagementRepositorySaveCall {
+func (mr *MockServiceTokenManagementRepositoryMockRecorder) Save(arg0, arg1, arg2 any) *MockServiceTokenManagementRepositorySaveCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockServiceTokenManagementRepository)(nil).Save), arg0, arg1)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Save", reflect.TypeOf((*MockServiceTokenManagementRepository)(nil).Save), arg0, arg1, arg2)
 	return &MockServiceTokenManagementRepositorySaveCall{Call: call}
 }
 
@@ -938,13 +938,13 @@ func (c *MockServiceTokenManagementRepositorySaveCall) Return(arg0 error) *MockS
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceTokenManagementRepositorySaveCall) Do(f func(context.Context, *auth.ServiceToken) error) *MockServiceTokenManagementRepositorySaveCall {
+func (c *MockServiceTokenManagementRepositorySaveCall) Do(f func(context.Context, *auth.ServiceToken, auth.AuditActor) error) *MockServiceTokenManagementRepositorySaveCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceTokenManagementRepositorySaveCall) DoAndReturn(f func(context.Context, *auth.ServiceToken) error) *MockServiceTokenManagementRepositorySaveCall {
+func (c *MockServiceTokenManagementRepositorySaveCall) DoAndReturn(f func(context.Context, *auth.ServiceToken, auth.AuditActor) error) *MockServiceTokenManagementRepositorySaveCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
