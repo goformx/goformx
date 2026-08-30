@@ -20,6 +20,6 @@ The Pi infrastructure currently owns a separate build recipe and source pin. Thi
 
 ## Verification
 
-`task packaging` builds explicit API, explicit maintenance and default targets using this same Dockerfile. It checks image commands/health checks, UID 1001, exact application executable inventory, absence of maintenance tools from API/default images, and execution of both maintenance CLI usage guards. Containers have no network, credentials or writable root filesystem. Temporary image tags are removed on exit; ordinary Docker build cache is retained.
+`task packaging` requires working Docker Buildx and checks plugin availability before building; it does not silently fall back to the legacy builder. It builds explicit API, explicit maintenance and default targets using this same Dockerfile. It checks image commands, working directories, entrypoints, exposed ports and health checks, UID 1001, exact application executable inventory, absence of maintenance tools from API/default images, and execution of both maintenance CLI usage guards. Containers have no network, credentials or writable root filesystem. Temporary image tags are removed on exit; ordinary Docker build cache is retained.
 
 This gate runs at the end of `task verify`, including pull requests, before release publication. Root Taskfile changes trigger the workflow too. It tests locally native artifacts; release CI retains the existing amd64/arm64 build. It does not connect to PostgreSQL or execute a real maintenance operation; those behaviors remain covered by the Go integration suite.
