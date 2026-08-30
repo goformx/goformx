@@ -154,6 +154,25 @@ test('revision movement during publication invalidates the same comment', async 
   assert.equal(api.failures.length, 1);
 });
 
+test('post-publication API failure preserves evidence as unverified, never as a completed verdict', async t => {
+  const env = fixture(t, [success('Evidence that must not be discarded.')]);
+  const api = apiMock();
+  let reads = 0;
+  api.github.rest.pulls.get = async () => {
+    if (reads++ > 0) throw new Error('SECRET_API_ERROR');
+    return { data: { state: 'open', head: { sha: 'head' }, base: { sha: 'base' } } };
+  };
+  const run = new AsyncFunction('require', 'github', 'context', 'core', 'process', inlineScript('Publish final review or failure status'));
+  await run(() => ({ publish: args => reporter.publish({ ...args, env }) }), api.github, api.context, api.core,
+    { env: { ...env, GITHUB_WORKSPACE: '/trusted' } });
+  assert.equal(api.calls.length, 2);
+  assert.equal(api.calls[0].comment_id, api.calls[1].comment_id);
+  assert.match(api.calls[1].body, /INCOMPLETE.*revision could not be reverified/);
+  assert.match(api.calls[1].body, /Evidence that must not be discarded/);
+  assert.doesNotMatch(api.calls[1].body, /Completed static review|SECRET_API_ERROR/);
+  assert.equal(api.failures.length, 1);
+});
+
 test('review body redacts credentials and cannot escape its inert code fence', () => {
   const result = reporter.safeText('literal-secret ghp_abcdef sk-ant-oat01-secret Bearer abc ```\n![x](url) @claude review', ['literal-secret']);
   assert.doesNotMatch(result, /literal-secret|ghp_abcdef|sk-ant-oat01-secret|Bearer abc|```|@claude/);

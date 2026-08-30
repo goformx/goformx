@@ -109,14 +109,16 @@ function safeText(text, secrets = []) {
     .slice(0, 18000);
 }
 
-function render({ research, summary, outcome, stale, head, base, runURL, secrets }) {
-  const complete = !stale && outcome === 'success' && research.status === 'success' && Boolean(research.text?.trim());
+function render({ research, summary, outcome, stale, revisionUnverified = false, head, base, runURL, secrets }) {
+  const researchComplete = outcome === 'success' && research.status === 'success' && Boolean(research.text?.trim());
+  const complete = !stale && !revisionUnverified && researchComplete;
   const heading = stale ? 'STALE — a new manual review is required.'
+    : revisionUnverified ? 'INCOMPLETE — revision could not be reverified after publication. No tests were run.'
     : complete ? 'Completed static review. No tests were run.'
     : 'INCOMPLETE — no completed review verdict. No tests were run.';
   const reason = research.status === 'turn_limit' ? 'Research reached its 16-turn limit.'
     : !complete ? 'Review setup, execution, or result validation did not complete.' : '';
-  const text = stale ? '' : complete ? research.text : summary.status === 'success' ? summary.text : '';
+  const text = stale ? '' : researchComplete ? research.text : summary.status === 'success' ? summary.text : '';
   const body = [
     'Claude review (manual, requested by jonesrussell)', '', heading, reason,
     `Head: \`${head || 'unavailable'}\``, `Base: \`${base || 'unavailable'}\``,
@@ -148,9 +150,17 @@ async function publish({ github, context, core, env = process.env }) {
     posted = await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body: report.body });
   }
   // Check once again after publishing to catch movement during the API call.
-  if (!input.stale && changed((await getPR()).data)) {
-    report = render({ ...input, stale: true });
-    await github.rest.issues.updateComment({ ...context.repo, comment_id: posted.data.id, body: report.body });
+  if (!input.stale) {
+    let after;
+    try { after = (await getPR()).data; } catch {
+      // A failed recheck is not evidence of a changed revision. Keep the
+      // already-published evidence, but invalidate its completed verdict.
+      report = render({ ...input, revisionUnverified: true });
+    }
+    if (after && changed(after)) report = render({ ...input, stale: true });
+    if (!after || changed(after)) {
+      await github.rest.issues.updateComment({ ...context.repo, comment_id: posted.data.id, body: report.body });
+    }
   }
   if (!report.complete) core.setFailed('Manual review incomplete or stale; see the PR status comment.');
 }

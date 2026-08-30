@@ -48,6 +48,13 @@ summary attempt (2 turns, a 120-second process timeout and a 3-minute step limit
 Publication has a separate 2-minute allowance. These are bounds, not a guarantee
 of zero cost if paid overflow has been enabled elsewhere.
 
+Whichever research limit is reached first stops the step. The 8-minute limit
+reserves time for failure reporting; it does not guarantee transcript recovery.
+The pinned action writes its transcript after receiving a result or catching an
+execution error, not continuously. A hard step timeout can therefore leave no
+transcript: reporting then posts INCOMPLETE without evidence or a resume attempt.
+Increasing the clock limit would not make transcript recovery unconditional.
+
 For Codex, connect this repository through the ChatGPT GitHub app. Keep personal
 **Auto review**, repository automatic review options, and **Enable credits use**
 off. Then request `@codex review` manually. Reviews use the ChatGPT Pro review
@@ -64,6 +71,9 @@ base. Workflow code, not a model tool call, updates that same comment on success
 turn exhaustion, missing/invalid output or setup failure. Head/base changes are
 checked immediately before and after publication; stale output is withheld.
 The fallback publisher is inline so it can run even when checkout failed.
+If the post-publication revision lookup fails transiently, the same comment keeps
+its sanitized evidence but becomes INCOMPLETE with an explicit unverified-revision
+warning, and the job fails. A confirmed changed revision still suppresses evidence.
 
 If research exhausts its budget, the action-installed CLI resumes its local
 session once with **no tools**, hooks disabled and an empty MCP configuration.
@@ -110,6 +120,8 @@ The pinned action exposes a local `claude-execution-output.json` transcript even
 on turn exhaustion. Its SDK argument parser drops an empty `--tools` argument,
 so tools-disabled synthesis invokes the **same action-installed CLI version**
 directly rather than routing that argument through a second action invocation.
+The native 2.1.251 CLI's `--help` explicitly documents `--tools ""` as disabling all
+tools. That local parser contract is distinct from live hosted resume verification.
 Recheck these interfaces when updating the action pin.
 
 ## References
