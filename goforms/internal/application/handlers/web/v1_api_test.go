@@ -134,6 +134,7 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 	}, plaintext, "create-contact-0001", nil)
 	require.Equal(t, http.StatusCreated, createResponse.Code, createResponse.Body.String())
 	require.Equal(t, "/v1/forms/11111111-1111-4111-8111-111111111111", createResponse.Header().Get("Location"))
+	require.Contains(t, createResponse.Body.String(), `"allowedOrigins":["https://jonesrussell.github.io"]`)
 
 	versionSchema := contactSchema("name", "email", "message", "company")
 	versionResponse := requestJSON(t, e, http.MethodPost,

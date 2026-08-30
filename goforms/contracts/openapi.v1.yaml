@@ -2,7 +2,7 @@ openapi: 3.1.0
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 info:
   title: GoFormX API
-  version: 1.0.0
+  version: 1.1.0
   license:
     name: GNU Affero General Public License v3.0 or later
     identifier: AGPL-3.0-or-later
@@ -692,7 +692,7 @@ components:
       additionalProperties: true
     Form:
       type: object
-      required: [id, organizationId, name, title, publicKey, status, createdAt, updatedAt]
+      required: [id, organizationId, name, title, publicKey, allowedOrigins, status, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         organizationId: { type: string, format: uuid }
@@ -700,6 +700,11 @@ components:
         title: { type: string, minLength: 3, maxLength: 100 }
         description: { type: string, maxLength: 500 }
         publicKey: { type: string }
+        allowedOrigins:
+          description: Stored browser-origin allowlist. An empty array grants no cross-origin browser access; it is never a wildcard.
+          type: array
+          items: { type: string, format: uri }
+          uniqueItems: true
         status: { type: string, enum: [draft, published, disabled, archived] }
         currentVersion: { type: integer, minimum: 1 }
         createdAt: { type: string, format: date-time }

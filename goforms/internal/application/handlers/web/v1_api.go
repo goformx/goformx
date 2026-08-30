@@ -920,9 +920,13 @@ func validateOrigins(origins []string) []validation.Error {
 }
 
 func formResource(formModel *model.Form) map[string]any {
+	origins, _, _ := formModel.GetCorsConfig()
+	if origins == nil {
+		origins = []string{}
+	}
 	return map[string]any{"id": formModel.ID, "organizationId": formModel.OrganizationID,
 		"name": formModel.Name, "title": formModel.Title,
-		"description": formModel.Description, "publicKey": formModel.PublicKey, "status": formModel.Status,
+		"description": formModel.Description, "publicKey": formModel.PublicKey, "allowedOrigins": origins, "status": formModel.Status,
 		"currentVersion": formModel.CurrentSchemaVersion, "createdAt": formModel.CreatedAt.UTC().Format(time.RFC3339),
 		"updatedAt": formModel.UpdatedAt.UTC().Format(time.RFC3339)}
 }
