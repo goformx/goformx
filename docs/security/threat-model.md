@@ -9,6 +9,7 @@ Waaseyaa control plane -- signed single-use assertion --> Go API -- parameterize
 server integration -- scoped service token --> Go API -- parameterized transaction --> PostgreSQL
 anonymous browser/HTTP caller -- public form key --> Go API -- immutable schema validation --> PostgreSQL
 operator -- database credential --> token CLI -- hash + lifecycle metadata --> PostgreSQL
+operator -- vault keyring and database credential --> webhook key CLI -- atomic ciphertext rotation --> PostgreSQL
 organization principal -- tokens scopes --> token management API -- hash + metadata only --> PostgreSQL
 GitHub Actions -- pinned build/test/release steps --> attested multi-architecture image
 ```
@@ -41,6 +42,7 @@ GoFormX must:
 | Owner schema to validator | Controls an authenticated schema definition | Exact dialect, local-only references, depth/node/pattern budgets, bounded compiled-schema cache | SSRF-like network access or validation resource exhaustion |
 | API to PostgreSQL | Controls application queries and transaction order | Parameters, foreign keys, uniqueness, row/advisory locks, immutable-schema trigger | Corruption, duplicate delivery, quota race, mutable history |
 | Operator to token CLI | Holds database credentials and terminal access | One-time plaintext output, cryptographic random token, hash-only storage, atomic rotation | Control-plane credential disclosure |
+| Operator to webhook key CLI | Holds database credentials and all required vault key versions | Environment-only key input, bounded keyring parser, authenticated key-ID/form binding, table write locks, one all-or-nothing transaction, fixed diagnostics/count-only output | Lost delivery configuration or webhook secret disclosure |
 | Organization principal to token management API | Holds `tokens:read` or `tokens:write` plus a bounded delegable scope set | Owner-scoped repository queries, delegation subset check, one-time no-store reveal, hash-free metadata reads, idempotent revocation | Privilege amplification or cross-tenant credential control |
 | Worker to webhook destination | Processes trusted configuration and untrusted network state | AES-GCM secret storage, HTTPS-only destination validation, connect-time public-IP checks, disabled proxy/redirects, HMAC signature and timestamp | SSRF, secret disclosure, forged or replayed delivery |
 | CI to release registry | Can run repository workflows | Pinned Actions, least-privilege jobs, CodeQL, dependency review, tests, vulnerability scan, attestation | Supply-chain compromise |
@@ -63,7 +65,7 @@ The security-gate change closes these paths with local-reference and complexity 
 | In-memory burst limits are process-local | Accepted for the documented single-instance Pi deployment; the PostgreSQL rolling quota remains authoritative | GoFormX maintainer; replace with shared admission before adding a second API replica in `goformx/goformx#110` |
 | Public submission cannot prove a human authored the payload | Accepted for v1; budgets bound resource use without making CAPTCHA a protocol dependency | Product owner; define the evidence-based trigger in `goformx/goformx#111` |
 | Backup confidentiality and restore access are infrastructure controls | Must be proven before production cutover | `jonesrussell/waaseyaa-infra#62` and `goformx/goformx#80` |
-| Webhook encryption-key rotation is not automated | The stable vault-backed key is part of backup/restore; queued delivery snapshots depend on it | GoFormX maintainer; add re-encryption in `goformx/goformx#113` before routine rotation is required |
+| Webhook storage-key rotation requires maintenance and retained backup keys | The operator CLI rotates endpoints and all retained snapshots atomically; it does not stop old processes, manage the vault, or make an old database backup decryptable with a new key | GoFormX operator; follow `docs/webhooks.md`, stop all writers, verify with active-only keys, and prove production-sized full backup/vault restore before cutover (#125) |
 | Plaintext service token is printed once by the privileged CLI | Accepted operator boundary; terminal capture remains sensitive | Operator; rotate immediately after suspected capture |
 | Waaseyaa assertion signing key is an online control-plane secret | Public keys rotate with a 65-second overlap; compromise requires immediate revocation and service-token fallback containment | Control-plane operator; follow ADR 0002 emergency rotation and audit all affected request IDs |
 
@@ -74,4 +76,14 @@ The security-gate change closes these paths with local-reference and complexity 
 - Medium: shared-service resource exhaustion, tenant-planted validation amplification, or constrained internal-network access requiring a tenant token.
 - Low: same-tenant availability abuse, high-entropy existence oracles, or metadata-only exposure with restrictive prerequisites.
 
-The schema-first gate review found and fixed two medium and two low issues. The webhook diff review found and fixed one additional low integrity issue. No high or critical findings remain.
+The earlier schema-first gate review found and fixed two medium and two low issues; the earlier webhook diff review found and fixed one additional low integrity issue. Those are historical review results, not an assurance that later code has no high or critical findings.
+
+## Storage-key rotation boundary (#113)
+
+The existing single-instance/operator-owned deployment assumptions remain unchanged. The new entry point is a privileged maintenance CLI, not a tenant API. Source anchors are `cmd/goformx-webhook-keys/main.go` (environment input and secret-free error boundary), `internal/domain/webhook/keyring.go` and `cipher.go` (explicit keys, authenticated envelope/form binding), and `internal/infrastructure/webhookrotation/rotation.go` (fixed table set, locks, bounded reads, transaction). Paths are relative to `goforms/`.
+
+- An attacker who can alter stored ciphertext but lacks encryption keys cannot relabel its key ID, move it to a different form, or forge the GCM tag. A bad row aborts the complete rotation; it is never silently skipped. Residual risk: that attacker can still destroy data or deny rotation, so matching backups remain necessary.
+- Operator error or process interruption can otherwise leave mixed keys and strand replayable dead letters. One transaction covers both tables and all statuses; no batch commits occur. Unknown keys and wrong-key authentication fail closed. Unit tests and real PostgreSQL tests cover header/form tampering, a failure after earlier batches, cancellation/reconnection, idempotent reruns and reverse rotation.
+- A stale API/worker can resume with an old key after locks release, or retain a decrypted in-flight delivery. SQL locks do not prevent either behavior outside the transaction. All processes must stop before rotation and resume with the selected keyring. This is an operator-controlled availability/integrity risk, not an anonymous rotation endpoint.
+- Discarding old vault keys can render retained backups unusable even after live storage verifies successfully. PostgreSQL logical backup/restore tests prove that a pre-rotation snapshot still requires its matching key; they do not prove the production backup provider or vault restore. That operational evidence remains a #125 release gate.
+- Keys and decrypted configuration exist briefly in privileged process memory. No plaintext is logged or returned; driver errors are replaced with fixed messages to avoid DSN/diagnostic disclosure. Host compromise, environment capture, core dumps and database statement logging remain outside the cryptographic boundary and must be restricted by deployment policy.

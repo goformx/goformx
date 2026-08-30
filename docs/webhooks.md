@@ -4,13 +4,13 @@ GoFormX webhooks are an optional part of the supported schema-first runtime. Whe
 
 ## Enable the worker
 
-Set WEBHOOK_ENABLED=true and provide a stable WEBHOOK_ENCRYPTION_KEY containing exactly 32 random bytes encoded as base64. Generate it once with openssl rand -base64 32, store it in the deployment vault, include it in backup/restore procedures, and do not rotate it until an explicit re-encryption tool exists. Losing the key makes queued encrypted configuration unrecoverable.
+Set `WEBHOOK_ENABLED=true` and configure encryption through the deployment vault. Existing installations may retain `WEBHOOK_ENCRYPTION_KEY` (exactly 32 random bytes, base64 encoded). New installations should use `WEBHOOK_ACTIVE_ENCRYPTION_KEY_ID` and `WEBHOOK_ENCRYPTION_KEYRING`, a JSON object mapping non-secret key IDs to base64-encoded 32-byte keys. Generate each key once with `openssl rand -base64 32`; do not paste real keys into commands, tickets, logs, or this document. Losing a required key makes encrypted configuration unrecoverable. Follow the maintenance procedure below to rotate existing data.
 
 The API process owns a durable dispatcher loop. Pending records survive process or network failure. A stale processing lease is reclaimed after WEBHOOK_LOCK_TIMEOUT; delivery attempts stop at WEBHOOK_MAX_ATTEMPTS and enter dead_letter.
 
 ## Configure and observe
 
-PUT /v1/forms/{formId}/webhook requires forms:write and accepts:
+PUT /v1/forms/{formId}/webhook requires webhooks:write and accepts:
 
     {
       "url": "https://example.com/goformx",
@@ -23,7 +23,7 @@ The URL must use HTTPS port 443 and cannot contain credentials, a query, or a fr
 
 The complete destination URL, headers, and signing secret are encrypted together with AES-256-GCM and bound to the form ID as authenticated data. Only the destination origin is returned or stored as plaintext; a potentially secret URL path never appears in API responses or delivery logs. Updating an endpoint requires supplying the complete desired secret configuration again.
 
-Use GET /v1/forms/{formId}/deliveries?limit=25 with submissions:read to inspect recent status, attempt count, next attempt, HTTP status, and non-sensitive error category. Use POST /v1/forms/{formId}/deliveries/{deliveryId}/replay with forms:write to requeue a dead-letter delivery. Replay keeps the same delivery ID and event payload so receivers can remain idempotent.
+Use GET /v1/forms/{formId}/deliveries?limit=25 with submissions:read to inspect recent status, attempt count, next attempt, HTTP status, and non-sensitive error category. Use POST /v1/forms/{formId}/deliveries/{deliveryId}/replay with webhooks:write to requeue a dead-letter delivery. Replay keeps the same delivery ID and event payload so receivers can remain idempotent.
 
 ## Verify a request
 
@@ -40,3 +40,27 @@ The signed bytes are:
 The receiver must read the raw body before JSON parsing, reject timestamps outside a five-minute window, calculate the HMAC using the delivery ID and timestamp headers exactly as shown above, compare signatures in constant time, and confirm the delivery ID matches the event ID in the body. Record the delivery ID before applying side effects. A repeated delivery ID should return a successful 2xx response without repeating the side effect.
 
 Any 2xx response completes delivery. Network errors, 408, 429, and 5xx responses retry with capped exponential backoff. Other 4xx responses and configuration/authentication failures enter the dead letter immediately. Response bodies are discarded and never logged.
+
+## Rotate storage encryption keys (maintenance only)
+
+This rotates **encryption at rest**, not the receiver's signing secret. It leaves destination, headers, signing secret, delivery IDs, attempt counters, leases, schedules, and statuses unchanged. PostgreSQL update triggers may advance `updated_at`. Neither public submission nor management API contracts change.
+
+The versioned ciphertext is `goformx.webhook.v1:<key-id>:` followed by a 12-byte random nonce and AES-256-GCM ciphertext/tag. The entire header, a zero separator, and the form ID are authenticated data. IDs allow 1–64 ASCII letters, digits, `_` or `-`; the keyring supports at most eight keys. A tagged ciphertext selects exactly its declared key. Unknown IDs, wrong keys, modified headers, or wrong forms fail closed; no trial of other keys follows. Original untagged ciphertext is read only with the explicitly supplied `WEBHOOK_ENCRYPTION_KEY`. Legacy-only configuration continues writing the original format for staged binary rollout.
+
+The privileged `goformx-webhook-keys` binary is included under `/app/bin/` in the production image; source builds use the ordinary `go build ./...` contract. It accepts only `rotate` or `verify`. Supply `DATABASE_URL` and the three webhook encryption variables through a vault-backed process environment, **not command-line arguments**. The maintenance command reads environment only; it does not load the API's YAML configuration. Do not use shell tracing, dump the environment, or enable database statement/parameter logging. Outputs contain only row counts or fixed, secret-free error messages.
+
+1. Inventory every API/worker replica and record the current binary digest and vault key versions. Take a consistent PostgreSQL backup and retain every key needed by that backup in the vault. Prove restoration in an isolated environment before changing production.
+2. Deploy the keyring-capable binary while retaining the original encryption configuration. Do not start writing tagged data until all processes can read it. Schedule a maintenance window: stop **all API and worker processes**, and wait for in-flight requests/deliveries to finish. Disabling only `WEBHOOK_ENABLED` does not stop submission enqueueing and is not maintenance mode.
+3. Prepare the new vault keyring with distinct IDs for old and new key material and select the new active ID. During the first migration, retain the original key in `WEBHOOK_ENCRYPTION_KEY` for untagged reads. Configure the same ring for the maintenance command and every process that will resume. Never reuse an existing ID for different key material.
+4. Run `/app/bin/goformx-webhook-keys rotate` using the pinned image in a one-off maintenance container with the vault environment. It takes write-blocking locks on both webhook tables (five-second lock-acquisition timeout), authenticates every row, and rewrites endpoints and **all retained delivery snapshots**, including disabled endpoints, processing, delivered and replayable dead-letter rows. Reads use batches of 100, but **one transaction covers the entire operation**. There is no partial batch commit or secret-bearing checkpoint. Allow disk/WAL headroom and measure maintenance duration on a production-sized restored database before production use.
+5. Run `/app/bin/goformx-webhook-keys verify` with **only the new key** and no legacy key. Success proves every retained ciphertext authenticates under the selected active ID. Verification also locks out writes; it does not rewrite rows. A success response is bounded JSON with endpoint/delivery counts and `reencrypted: 0`.
+6. Resume every API/worker using the verified new keyring, check readiness and perform a synthetic signed delivery/retry. An old process can write old ciphertext after locks are released, so verification is not permission to leave an old writer running. Remove old keys from the online environment only after all writers are confirmed updated. Keep old key versions in the vault for as long as any retained backup requires them.
+
+### Failure, interruption and rollback
+
+- Authentication failure, failed update, signal cancellation or disconnect before commit leaves the transaction uncommitted; PostgreSQL rolls it back. Fix configuration or recover damaged ciphertext from the matching backup, then rerun. Never skip an unreadable row. If a connection disappears, wait for its PostgreSQL session/locks to clear before retrying.
+- A commit acknowledgement or output failure is ambiguous from the operator's perspective. Do not assume rollback. Run `verify` with the intended active keyring while still in maintenance. Rerunning `rotate` is safe: it authenticates already-current rows and leaves their ciphertext unchanged.
+- To reverse a completed rotation, keep the keyring-capable binary, configure both keys with the **old ID active**, run `rotate`, and verify using only the old tagged key. This restores old-key encryption, not the legacy binary format. Do not downgrade to a pre-keyring binary against tagged ciphertext.
+- To restore a pre-keyring backup, restore its matching legacy vault key and compatible binary/configuration, then rerun migration if desired. A database backup alone is insufficient. Tests exercise PostgreSQL logical ciphertext backup/restore, reverse rotation, interruption and wrong-key rollback; infrastructure-level full backup/vault restoration remains a production release gate.
+
+The operation intentionally has no online/HTTP rotation endpoint. Maintenance credentials grant database-wide access and belong only to the operator, never a tenant or the control-plane browser.

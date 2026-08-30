@@ -236,7 +236,8 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.Equal(t, 1, rejected)
 
 	webhookKey := sha256.Sum256([]byte("repository webhook encryption key"))
-	webhookCipher, err := domainwebhook.NewCipher(base64.RawStdEncoding.EncodeToString(webhookKey[:]))
+	webhookCipher, err := domainwebhook.NewKeyring("repository-key",
+		map[string]string{"repository-key": base64.RawStdEncoding.EncodeToString(webhookKey[:])}, "")
 	require.NoError(t, err)
 	webhookStore := formrepository.NewStoreWithOptions(&integrationDB{db: db}, mocklogging.NewMockLogger(ctrl),
 		formrepository.StoreOptions{DailySubmissionLimit: 100, WebhookCipher: webhookCipher})

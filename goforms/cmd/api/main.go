@@ -71,7 +71,7 @@ func run(ctx context.Context) error {
 
 	var webhookCipher *domainwebhook.Cipher
 	if cfg.Webhook.Enabled {
-		webhookCipher, err = domainwebhook.NewCipher(cfg.Webhook.EncryptionKey)
+		webhookCipher, err = cfg.Webhook.Cipher()
 		if err != nil {
 			return fmt.Errorf("configure webhook encryption: %w", err)
 		}

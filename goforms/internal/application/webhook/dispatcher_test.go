@@ -69,6 +69,20 @@ func TestDispatcherSignsStableDeliveryAndPreservesCustomHeaders(t *testing.T) {
 		Headers:        map[string]string{"Authorization": "Bearer encrypted-value"}, SigningSecret: secret,
 	}, "form-a")
 	require.NoError(t, err)
+	oldKey := sha256.Sum256([]byte("dispatcher test encryption key"))
+	newKey := sha256.Sum256([]byte("rotated dispatcher encryption key"))
+	rotator, err := domainwebhook.NewKeyring("new",
+		map[string]string{"new": base64.RawStdEncoding.EncodeToString(newKey[:])},
+		base64.RawStdEncoding.EncodeToString(oldKey[:]))
+	require.NoError(t, err)
+	encrypted, changed, err := rotator.Reencrypt(encrypted, "form-a")
+	require.NoError(t, err)
+	require.True(t, changed)
+	// The worker holds only the new key, but receivers must see the same signing
+	// secret, custom headers, destination and stable delivery ID after rotation.
+	cipher, err = domainwebhook.NewKeyring("new",
+		map[string]string{"new": base64.RawStdEncoding.EncodeToString(newKey[:])}, "")
+	require.NoError(t, err)
 	now := time.Unix(1_800_000_000, 0).UTC()
 	store := &dispatchStore{
 		delivery: &domainwebhook.Delivery{ID: "delivery-a", FormID: "form-a",

@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -14,7 +15,10 @@ import (
 const EncryptionKeyBytes = 32
 
 type Cipher struct {
-	aead cipher.AEAD
+	aead     cipher.AEAD
+	activeID string
+	keys     map[string]cipher.AEAD
+	legacy   cipher.AEAD
 }
 
 func NewCipher(encodedKey string) (*Cipher, error) {
@@ -47,28 +51,64 @@ func (c *Cipher) Encrypt(config SecretConfig, formID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encode webhook secrets: %w", err)
 	}
+	return c.encryptBytes(plaintext, formID)
+}
+
+func (c *Cipher) encryptBytes(plaintext []byte, formID string) ([]byte, error) {
+	var header []byte
+	aad := []byte(formID)
+	if c.activeID != "" {
+		header = []byte(envelopePrefix + c.activeID + ":")
+		aad = envelopeAAD(header, formID)
+	}
 	nonce := make([]byte, c.aead.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, fmt.Errorf("generate webhook nonce: %w", err)
 	}
-	return c.aead.Seal(nonce, nonce, plaintext, []byte(formID)), nil
+	return c.aead.Seal(append(header, nonce...), nonce, plaintext, aad), nil
 }
 
 func (c *Cipher) Decrypt(ciphertext []byte, formID string) (SecretConfig, error) {
-	if c == nil {
-		return SecretConfig{}, ErrDisabled
-	}
-	if len(ciphertext) < c.aead.NonceSize() {
-		return SecretConfig{}, errors.New("encrypted webhook configuration is truncated")
-	}
-	nonce, sealed := ciphertext[:c.aead.NonceSize()], ciphertext[c.aead.NonceSize():]
-	plaintext, err := c.aead.Open(nil, nonce, sealed, []byte(formID))
+	plaintext, _, err := c.decryptBytes(ciphertext, formID)
 	if err != nil {
-		return SecretConfig{}, errors.New("encrypted webhook configuration failed authentication")
+		return SecretConfig{}, err
 	}
 	var config SecretConfig
 	if err := json.Unmarshal(plaintext, &config); err != nil {
 		return SecretConfig{}, errors.New("encrypted webhook configuration is invalid")
 	}
 	return config, nil
+}
+
+func (c *Cipher) decryptBytes(ciphertext []byte, formID string) ([]byte, string, error) {
+	if c == nil {
+		return nil, "", ErrDisabled
+	}
+	aead, aad, keyID := c.aead, []byte(formID), ""
+	if bytes.HasPrefix(ciphertext, []byte(envelopePrefix)) {
+		prefixLength := len(envelopePrefix)
+		if len(ciphertext) <= prefixLength {
+			return nil, "", errCipherAuthentication
+		}
+		idLength := bytes.IndexByte(ciphertext[prefixLength:], ':')
+		if idLength < 1 || idLength > MaxEncryptionKeyIDBytes {
+			return nil, "", errCipherAuthentication
+		}
+		headerLength := prefixLength + idLength + 1
+		keyID = string(ciphertext[prefixLength : headerLength-1])
+		aead = c.keys[keyID]
+		aad = envelopeAAD(ciphertext[:headerLength], formID)
+		ciphertext = ciphertext[headerLength:]
+	} else if c.activeID != "" {
+		aead = c.legacy
+	}
+	if aead == nil || len(ciphertext) < aead.NonceSize()+aead.Overhead() {
+		return nil, "", errCipherAuthentication
+	}
+	nonce, sealed := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
+	plaintext, err := aead.Open(nil, nonce, sealed, aad)
+	if err != nil {
+		return nil, "", errCipherAuthentication
+	}
+	return plaintext, keyID, nil
 }
