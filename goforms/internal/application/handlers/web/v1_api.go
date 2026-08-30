@@ -292,7 +292,7 @@ func (h *V1APIHandler) createForm(c echo.Context) error {
 	formModel.Name = request.Name
 	formModel.SetCorsConfig(request.AllowedOrigins, []string{http.MethodGet, http.MethodPost, http.MethodOptions},
 		[]string{echo.HeaderContentType, constants.HeaderIdempotencyKey, constants.HeaderSchemaVersion})
-	if err := formModel.Validate(); err != nil {
+	if err := formModel.Validate(h.validator); err != nil {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
 	}
 	if err := h.repository.CreateForm(c.Request().Context(), formModel); err != nil {

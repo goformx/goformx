@@ -10,6 +10,8 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
+
+	"github.com/goformx/goforms/contracts"
 )
 
 type operation struct {
@@ -212,6 +214,7 @@ func TestCanonicalSchemaAndReferencesExist(t *testing.T) {
 	schemaPath := filepath.Join("schema", "form-definition.schema.json")
 	document, err := os.ReadFile(schemaPath)
 	require.NoError(t, err)
+	require.Equal(t, string(document), contracts.FormDefinition(), "runtime validation must embed the published source contract")
 
 	var schema map[string]any
 	require.NoError(t, json.Unmarshal(document, &schema))
