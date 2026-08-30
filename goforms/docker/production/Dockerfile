@@ -31,8 +31,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
     -o bin/goformx-token ./cmd/goformx-token
 
-# Production stage
-FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+# Shared non-root runtime; no application or maintenance executables.
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS runtime
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata wget
@@ -43,10 +43,16 @@ RUN addgroup -g 1001 -S goforms && \
 
 WORKDIR /app
 
-# Copy binary from builder
-COPY --from=go-builder /app/bin/goforms ./bin/goforms
+# Maintenance is opt-in and never inherits the API command or health check.
+FROM runtime AS maintenance
 COPY --from=go-builder /app/bin/goformx-webhook-keys ./bin/goformx-webhook-keys
 COPY --from=go-builder /app/bin/goformx-token ./bin/goformx-token
+USER goforms
+CMD ["./bin/goformx-token"]
+
+# Keep API last so builds without --target also produce the serving image.
+FROM runtime AS api
+COPY --from=go-builder /app/bin/goforms ./bin/goforms
 
 # Switch to non-root user
 USER goforms

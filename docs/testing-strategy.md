@@ -10,6 +10,7 @@ The command then runs these gates in order:
 4. The complete race-enabled Go suite, including real PostgreSQL repository and migration behavior.
 5. A no-regression statement-coverage gate for the supported form model, submission policies, schema validation, service-token middleware, HTTP API, and runtime database/logging packages.
 6. Reachable-vulnerability analysis with pinned govulncheck.
+7. Built-image packaging checks for API, default and maintenance targets (`task packaging`), including on pull requests. See [container packaging](container-packaging.md).
 
 ## Behavioral coverage floors
 
