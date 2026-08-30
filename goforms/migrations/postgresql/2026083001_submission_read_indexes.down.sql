@@ -1,0 +1,2 @@
+DROP INDEX form_submissions_form_version_time_id_idx;
+DROP INDEX form_submissions_form_time_id_idx;

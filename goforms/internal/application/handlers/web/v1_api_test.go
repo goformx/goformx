@@ -19,6 +19,7 @@ import (
 	"github.com/goformx/goforms/internal/domain/auth"
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
 	mockform "github.com/goformx/goforms/test/mocks/form"
 )
 
@@ -112,8 +113,8 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			return candidate, false, nil
 		},
 	).Times(3)
-	repository.EXPECT().ListSubmissionsPage(gomock.Any(), "owner-a", gomock.Any(), gomock.Any(), gomock.Any(), 25).DoAndReturn(
-		func(context.Context, string, string, time.Time, string, int) ([]*model.FormSubmission, bool, error) {
+	repository.EXPECT().ListSubmissionsPage(gomock.Any(), "owner-a", gomock.Any(), domainsubmission.ListOptions{Limit: 25}).DoAndReturn(
+		func(context.Context, string, string, domainsubmission.ListOptions) ([]*model.FormSubmission, bool, error) {
 			return []*model.FormSubmission{submissions["contact-submit-0001"]}, false, nil
 		},
 	)
@@ -240,8 +241,8 @@ func TestControlPlaneRejectsCrossOwnerFormAccess(t *testing.T) {
 
 func TestSubmissionPaginationInputsAreBoundedAndOpaque(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, defaultSubmissionPageSize, mustSubmissionLimit(t, ""))
-	require.Equal(t, maxSubmissionPageSize, mustSubmissionLimit(t, "100"))
+	require.Equal(t, domainsubmission.DefaultPageLimit, mustSubmissionLimit(t, ""))
+	require.Equal(t, domainsubmission.MaxPageLimit, mustSubmissionLimit(t, "100"))
 	_, err := submissionPageLimit("101")
 	require.Error(t, err)
 
