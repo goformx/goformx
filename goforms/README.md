@@ -20,7 +20,7 @@ in [`docs/webhooks.md`](../docs/webhooks.md).
 
 ## Development
 
-Prerequisites are Go 1.26.7, Node.js 22, Docker Compose, and Task. PostgreSQL is disposable and provisioned by verification.
+Prerequisites are Go 1.26.7, Node.js 22, Docker with working Compose and Buildx plugins, and Task. PostgreSQL is disposable and provisioned by verification.
 
 ```bash
 task bootstrap
@@ -29,7 +29,7 @@ task verify
 task dev
 ```
 
-`task verify` is the same complete gate used by CI. It starts a disposable PostgreSQL 17.11 instance, verifies migrations, lints the OpenAPI contract, checks generated/module drift, vets and lints Go, runs race and behavioral-coverage gates, scans reachable dependencies, and removes the database even after failure. It does not deploy, alter DNS, or touch development/production data.
+`task verify` is the same complete gate used by CI. It starts a disposable PostgreSQL 17.11 instance, verifies migrations, lints the OpenAPI contract, checks generated/module drift, vets and lints Go, runs race and behavioral-coverage gates, scans reachable dependencies, builds and checks the [API/default and maintenance images](../docs/container-packaging.md), and removes the database even after failure. It does not deploy, alter DNS, or touch development/production data.
 
 ## Delivery and production ownership
 

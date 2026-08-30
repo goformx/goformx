@@ -75,7 +75,7 @@ establish retention, capacity and restore evidence under #125 before public laun
 No production migration or deployment is implied by merged code.
 
 The operator CLI retains its established invocation interface and is now included
-as `/app/bin/goformx-token` in the production image and in the normal backend
+as `/app/bin/goformx-token` in the explicit [maintenance image](container-packaging.md), not the API image, and in the normal backend
 binary artifacts. Supply real
 `DATABASE_URL` credentials through vault-backed process environment rather than
 command-line arguments, shell history or tracing. Database errors are replaced

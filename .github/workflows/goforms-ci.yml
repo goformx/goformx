@@ -7,11 +7,13 @@ on:
     tags: ['v*']
     paths:
       - 'goforms/**'
+      - 'Taskfile.yml'
       - '.github/workflows/goforms-ci.yml'
   pull_request:
     branches: [main]
     paths:
       - 'goforms/**'
+      - 'Taskfile.yml'
       - '.github/workflows/goforms-ci.yml'
   workflow_dispatch:  # Allow manual trigger to force image build/deploy
 
@@ -220,6 +222,7 @@ jobs:
         with:
           context: ./goforms
           file: ./goforms/docker/production/Dockerfile
+          target: api
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

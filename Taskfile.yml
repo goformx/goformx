@@ -52,6 +52,11 @@ tasks:
     dir: ./goforms
     cmd: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
+  packaging:
+    desc: Build and check API/default and maintenance images without credentials or network access at runtime
+    dir: ./goforms
+    cmd: sh docker/production/verify.sh
+
   verify:
     desc: Run the complete read-only local/CI verification contract with disposable PostgreSQL
     dir: ./goforms
@@ -92,6 +97,7 @@ tasks:
         ./internal/infrastructure/logging
       - go run ./internal/tools/coveragegate -profile .coverage.out -minimum 37
       - go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+      - task: packaging
 
   dev:
     desc: Run the supported Go API with Air
