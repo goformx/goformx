@@ -79,7 +79,6 @@ func (s *Store) CreateForm(ctx context.Context, formModel *model.Form) error {
 	if err != nil {
 		s.logger.Error("failed to create form",
 			"form_id", formModel.ID,
-			"error", err,
 		)
 
 		return fmt.Errorf("create form: %w", common.NewDatabaseError("create", "form", formModel.ID, err))
@@ -118,7 +117,6 @@ func (s *Store) GetFormByID(ctx context.Context, organizationID, id string) (*mo
 
 		s.logger.Error("database error while getting form",
 			"id_length", len(normalizedID),
-			"error", err,
 			"error_type", "database_error")
 
 		dbErr := common.NewDatabaseError("get", "form", normalizedID, err)
@@ -173,7 +171,6 @@ func (s *Store) ListForms(
 		Find(&forms).Error; err != nil {
 		s.logger.Error("failed to list forms",
 			"organization_id", organizationID,
-			"error", err,
 		)
 
 		return nil, 0, fmt.Errorf("list forms: %w", common.NewDatabaseError("list", "form", "", err))

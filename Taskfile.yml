@@ -88,6 +88,8 @@ tasks:
         ./internal/application/validation
         ./internal/application/middleware/serviceauth
         ./internal/application/handlers/web
+        ./internal/infrastructure/database
+        ./internal/infrastructure/logging
       - go run ./internal/tools/coveragegate -profile .coverage.out -minimum 37
       - go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 

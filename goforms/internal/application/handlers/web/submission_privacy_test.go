@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -14,6 +15,23 @@ import (
 	"github.com/goformx/goforms/internal/domain/submission"
 	mockform "github.com/goformx/goforms/test/mocks/form"
 )
+
+func TestSubmissionRepositoryErrorIsNotLoggedVerbatim(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repository := mockform.NewMockRepository(ctrl)
+	logger := mockform.NewMockRequestLogger(ctrl)
+	token, credential, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeSubmissionsRead}, time.Hour, time.Now())
+	require.NoError(t, err)
+	repository.EXPECT().GetSubmissionByOrganization(gomock.Any(), "owner-a", "form-a", "submission-a").Return(nil, errors.New("driver rejected private-canary"))
+	logger.EXPECT().Error("v1 API repository failure", "request_id", gomock.Any())
+	logger.EXPECT().Info("v1 API request", "operation", "get_submission", "request_id", gomock.Any(),
+		"status", http.StatusInternalServerError, "duration_ms", gomock.Any(), "requests_total", uint64(1), "errors_total", uint64(1))
+	router := echo.New()
+	NewV1APIHandler(repository, fixedTokenRepository{token: token}, logger).RegisterRoutes(router)
+	response := requestJSON(t, router, http.MethodGet, "/v1/forms/form-a/submissions/submission-a", "", credential, "", nil)
+	require.Equal(t, http.StatusInternalServerError, response.Code)
+	require.NotContains(t, response.Body.String(), "private-canary")
+}
 
 func TestSubmissionReadsFailClosedAtPrivacyBoundary(t *testing.T) {
 	t.Parallel()

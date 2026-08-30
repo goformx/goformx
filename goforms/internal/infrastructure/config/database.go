@@ -32,7 +32,8 @@ type DatabaseConfig struct {
 type DatabaseLoggingConfig struct {
 	// SlowThreshold is the threshold for logging slow queries
 	SlowThreshold time.Duration `json:"slow_threshold"`
-	// Parameterized enables logging of query parameters
+	// Parameterized is retained for configuration compatibility. Runtime ORM
+	// telemetry never includes SQL or parameters, regardless of this value.
 	Parameterized bool `json:"parameterized"`
 	// IgnoreNotFound determines whether to ignore record not found errors
 	IgnoreNotFound bool `json:"ignore_not_found"`

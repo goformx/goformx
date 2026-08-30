@@ -3,14 +3,12 @@ package database
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 
 	"github.com/goformx/goforms/internal/infrastructure/config"
 	"github.com/goformx/goforms/internal/infrastructure/logging"
@@ -19,12 +17,6 @@ import (
 const (
 	// DefaultPingTimeout is the default timeout for database ping operations
 	DefaultPingTimeout = 5 * time.Second
-	// MinArgsLength represents the minimum number of arguments needed for a query
-	MinArgsLength = 2
-	// GORM query argument positions
-	queryArgPos        = 0
-	durationArgPos     = 1
-	rowsAffectedArgPos = 2
 	// ConnectionPoolWarningThreshold is the percentage of max connections that triggers a warning
 	ConnectionPoolWarningThreshold = 0.8
 	// ConnectionPoolPercentageMultiplier is used to convert ratio to percentage
@@ -80,37 +72,6 @@ func New(cfg *config.Config, appLogger logging.Logger) (*GormDB, error) {
 		DB:     db,
 		logger: appLogger,
 	}, nil
-}
-
-// configureGormLogger configures the GORM logger with the specified settings
-func configureGormLogger(cfg *config.Config, appLogger logging.Logger) logger.Interface {
-	// Map our log levels to GORM log levels
-	var gormLogLevel logger.LogLevel
-
-	switch cfg.Database.Logging.LogLevel {
-	case "silent":
-		gormLogLevel = logger.Silent
-	case "error":
-		gormLogLevel = logger.Error
-	case "warn":
-		gormLogLevel = logger.Warn
-	case "info":
-		gormLogLevel = logger.Info
-	default:
-		gormLogLevel = logger.Warn // Default to warn level
-	}
-
-	// Configure GORM logger with enhanced settings
-	return logger.New(
-		&GormLogWriter{logger: appLogger},
-		logger.Config{
-			SlowThreshold:             cfg.Database.Logging.SlowThreshold,
-			LogLevel:                  gormLogLevel,
-			IgnoreRecordNotFoundError: cfg.Database.Logging.IgnoreNotFound,
-			ParameterizedQueries:      cfg.Database.Logging.Parameterized,
-			Colorful:                  cfg.App.IsDevelopment(),
-		},
-	)
 }
 
 // createDatabaseConnection creates a database connection based on the configuration
@@ -191,105 +152,6 @@ func (db *GormDB) Close() error {
 	}
 
 	return nil
-}
-
-// GormLogWriter implements io.Writer for GORM logger
-type GormLogWriter struct {
-	logger logging.Logger
-}
-
-// Write implements io.Writer interface
-func (w *GormLogWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
-// Printf implements logger.Writer interface
-func (w *GormLogWriter) Printf(format string, args ...any) {
-	// Use format properly as required by GORM logger interface
-	message := fmt.Sprintf(format, args...)
-	w.logger.Debug("GORM", "sql", message)
-
-	if len(args) < durationArgPos+1 {
-		return
-	}
-
-	query, ok := args[queryArgPos].(string)
-	if !ok {
-		query = "unknown query"
-	}
-
-	duration, ok := args[durationArgPos].(time.Duration)
-	if !ok {
-		duration = 0
-	}
-
-	rowsAffected := int64(0)
-
-	if len(args) > rowsAffectedArgPos {
-		if ra, raOk := args[rowsAffectedArgPos].(int64); raOk {
-			rowsAffected = ra
-		}
-	}
-
-	// Log all queries in debug mode
-	w.logger.Debug("database query",
-		"query", query,
-		"duration", duration,
-		"rows_affected", rowsAffected)
-
-	// Warn on slow queries
-	if duration > time.Millisecond*100 {
-		w.logger.Warn("slow query detected",
-			"query", query,
-			"duration", duration,
-			"rows_affected", rowsAffected,
-			"threshold", "100ms")
-	}
-}
-
-// Error implements logger.Writer interface
-func (w *GormLogWriter) Error(msg string, err error) {
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		w.logger.Debug("record not found",
-			"message", msg,
-			"error", err)
-
-		return
-	}
-
-	errorType := w.getErrorType(err)
-
-	w.logger.Error("database error",
-		"message", msg,
-		"type", errorType,
-		"error", err)
-}
-
-// getErrorType determines the error type based on the GORM error
-func (w *GormLogWriter) getErrorType(err error) string {
-	for gormErr, errorType := range gormErrorTypes {
-		if errors.Is(err, gormErr) {
-			return errorType
-		}
-	}
-
-	return "database_error"
-}
-
-// gormErrorTypes maps GORM errors to their corresponding error types
-var gormErrorTypes = map[error]string{
-	gorm.ErrInvalidDB:             "invalid_db",
-	gorm.ErrInvalidTransaction:    "invalid_transaction",
-	gorm.ErrNotImplemented:        "not_implemented",
-	gorm.ErrMissingWhereClause:    "missing_where_clause",
-	gorm.ErrUnsupportedDriver:     "unsupported_driver",
-	gorm.ErrRegistered:            "already_registered",
-	gorm.ErrInvalidField:          "invalid_field",
-	gorm.ErrEmptySlice:            "empty_slice",
-	gorm.ErrDryRunModeUnsupported: "dry_run_unsupported",
-	gorm.ErrInvalidData:           "invalid_data",
-	gorm.ErrUnsupportedRelation:   "unsupported_relation",
-	gorm.ErrPrimaryKeyRequired:    "primary_key_required",
 }
 
 // MonitorConnectionPool monitors the database connection pool and logs metrics

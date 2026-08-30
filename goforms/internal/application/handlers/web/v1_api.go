@@ -1010,7 +1010,9 @@ func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "The resource identifier is invalid.", nil)
 	}
 	if h.logger != nil {
-		h.logger.Error("v1 API repository failure", "request_id", requestID(c), "error", err)
+		// Driver errors can quote rejected values. Keep this HTTP failure
+		// traceable by request ID without exposing the underlying data.
+		h.logger.Error("v1 API repository failure", "request_id", requestID(c))
 	}
 	return h.writeError(c, http.StatusInternalServerError, "internal_error", "The request could not be completed.", nil)
 }

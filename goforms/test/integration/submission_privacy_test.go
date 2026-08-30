@@ -2,54 +2,58 @@ package integration_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-	"gorm.io/driver/postgres"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 	"gorm.io/gorm"
 
 	"github.com/goformx/goforms/internal/application/handlers/web"
 	"github.com/goformx/goforms/internal/domain/auth"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	"github.com/goformx/goforms/internal/infrastructure/config"
+	databasepackage "github.com/goformx/goforms/internal/infrastructure/database"
+	"github.com/goformx/goforms/internal/infrastructure/logging"
 	formrepository "github.com/goformx/goforms/internal/infrastructure/repository/form"
 	tokenrepository "github.com/goformx/goforms/internal/infrastructure/repository/token"
-	mocklogging "github.com/goformx/goforms/test/mocks/logging"
 )
-
-type privacyRequestLog struct {
-	mu      sync.Mutex
-	entries []string
-}
-
-func (l *privacyRequestLog) Info(message string, fields ...any) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.entries = append(l.entries, message+fmt.Sprint(fields...))
-}
-func (l *privacyRequestLog) Error(message string, fields ...any) { l.Info(message, fields...) }
 
 func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T) {
 	databaseURL := os.Getenv("GOFORMX_TEST_DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("PostgreSQL integration is run by task verify")
 	}
-	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
+	parsed, err := url.Parse(databaseURL)
 	require.NoError(t, err)
-	sqlDB, err := db.DB()
+	require.NotNil(t, parsed.User)
+	port, err := strconv.Atoi(parsed.Port())
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
-	database := &boundaryDB{db: db}
+	password, _ := parsed.User.Password()
+	cfg := &config.Config{Database: config.DatabaseConfig{Driver: "postgres", Host: parsed.Hostname(), Port: port,
+		Name: strings.TrimPrefix(parsed.Path, "/"), Username: parsed.User.Username(), Password: password,
+		SSLMode: parsed.Query().Get("sslmode"), MaxOpenConns: 4, MaxIdleConns: 2,
+		Logging: config.DatabaseLoggingConfig{LogLevel: "info"}}}
+	core, observed := observer.New(zapcore.DebugLevel)
+	factory, err := logging.NewFactory(&logging.FactoryConfig{AppName: "privacy-test", Environment: "production", LogLevel: "debug"}, nil)
+	require.NoError(t, err)
+	logger, err := factory.WithTestCore(core).CreateLogger()
+	require.NoError(t, err)
+	// Use the real runtime connection/logger composition, not a quiet test DB.
+	database, err := databasepackage.New(cfg, logger)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, database.Close()) })
+	db := database.GetDB()
 	organization, foreign := uuid.NewString(), uuid.NewString()
 	t.Cleanup(func() {
 		require.NoError(t, db.Exec("DELETE FROM forms WHERE organization_id = ?", organization).Error)
@@ -66,8 +70,7 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 	foreignCredential := issue(foreign, auth.ScopeSubmissionsRead)
 	formOnlyCredential := issue(organization, auth.ScopeFormsRead)
 	router := echo.New()
-	logger := &privacyRequestLog{}
-	web.NewV1APIHandler(formrepository.NewStore(database, mocklogging.NewMockLogger(gomock.NewController(t))), tokens, logger).RegisterRoutes(router)
+	web.NewV1APIHandler(formrepository.NewStore(database, logger), tokens, logger).RegisterRoutes(router)
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -163,9 +166,22 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 	var count int64
 	require.NoError(t, db.Table("form_submissions").Where("form_id = ?", form.Data.ID).Count(&count).Error)
 	require.EqualValues(t, 2, count)
-	logger.mu.Lock()
-	defer logger.mu.Unlock()
-	logs := strings.Join(logger.entries, "\n")
+	// Inject a real PostgreSQL failure in this connection's submission insert
+	// callback. No schema triggers or shared database state are changed.
+	require.NoError(t, db.Callback().Create().Before("gorm:create").Register("privacy_test:driver_failure", func(tx *gorm.DB) {
+		if tx.Statement.Table == "form_submissions" {
+			failure := tx.Session(&gorm.Session{NewDB: true}).Exec("DO $$ BEGIN RAISE EXCEPTION 'private-canary-database-failure'; END $$").Error
+			_ = tx.AddError(failure)
+		}
+	}))
+	request("POST", publicPath, `{"data":{"nested":{},"note":"private-canary-payload"}}`, "", uuid.NewString(), 500)
+	require.NoError(t, db.Table("form_submissions").Where("form_id = ?", form.Data.ID).Count(&count).Error)
+	require.EqualValues(t, 2, count)
+	require.NotEmpty(t, observed.FilterMessage("database operation failed").All())
+	require.NotEmpty(t, observed.FilterMessage("v1 API repository failure").All())
+	encodedLogs, err := json.Marshal(observed.All())
+	require.NoError(t, err)
+	logs := string(encodedLogs)
 	require.NotContains(t, logs, "private-canary")
 	require.NotContains(t, logs, credential)
 	require.NotContains(t, logs, "visible-name")

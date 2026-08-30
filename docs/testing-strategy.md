@@ -8,7 +8,7 @@ The command then runs these gates in order:
 2. Generated-code and Go module drift checks.
 3. Go vet and pinned golangci-lint analysis.
 4. The complete race-enabled Go suite, including real PostgreSQL repository and migration behavior.
-5. A no-regression statement-coverage gate for the supported form model, submission policies, schema validation, service-token middleware, and HTTP API packages.
+5. A no-regression statement-coverage gate for the supported form model, submission policies, schema validation, service-token middleware, HTTP API, and runtime database/logging packages.
 6. Reachable-vulnerability analysis with pinned govulncheck.
 
 ## Behavioral coverage floors
@@ -22,6 +22,8 @@ The initial combined floor is 37%, matching the measured schema-first baseline w
 | `application/validation` | 34.4% | canonical dialect, schema compilation, field pointers, invalid payloads |
 | `application/middleware/serviceauth` | 95.8% | missing, invalid, expired, revoked, under-scoped, and cross-owner tokens |
 | `application/handlers/web` | 34.6% | v1 control/data-plane contract, CORS, validation, replay, and error envelopes |
+| `infrastructure/database` | Added with #149 | typed private ORM telemetry, real driver-error canaries, log levels and slow-query behavior |
+| `infrastructure/logging` | Added with #150 | stateless field sanitization, concurrent derived runtime loggers, stable secret-field masking |
 
 The combined gate must not be lowered to land a change. Raise it as legacy handlers leave the supported package or new schema-first behavior increases exercised statements. PostgreSQL repository behavior is separately mandatory through the disposable-database tests; it is not diluted into the unit-package percentage.
 
