@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "rootDir": ".",
+    "outDir": "../.contract-client",
+    "types": ["node"],
+    "skipLibCheck": false
+  },
+  "include": ["examples/*.mts", "generated/api.d.ts"]
+}

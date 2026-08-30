@@ -12,7 +12,11 @@ The supported runtime is this Go service. Retired dashboard, renderer fork, brow
 4. The browser submits `{ "data": ... }` with an idempotency key and optional exact schema-version header.
 5. GoFormX validates and persists the submission. If a webhook is enabled, the same transaction creates its encrypted delivery intent. A safe retry returns the same submission and does not duplicate delivery.
 
-The machine-readable contract is [`contracts/openapi.v1.yaml`](contracts/openapi.v1.yaml). Webhook configuration, receiver verification, retries, status, and replay are documented in [`docs/webhooks.md`](../docs/webhooks.md).
+The machine-readable contract is [`contracts/openapi.v1.yaml`](contracts/openapi.v1.yaml).
+Start with the [published contract and tested client guide](../docs/api-clients.md)
+for versioned downloads, SDK generation, and safe agent integration. Webhook
+configuration, receiver verification, retries, status, and replay are documented
+in [`docs/webhooks.md`](../docs/webhooks.md).
 
 ## Development
 
@@ -33,7 +37,13 @@ This repository builds and attests multi-architecture GHCR images; it does not d
 
 ## Provision a service token
 
-Token plaintext is returned once; only its SHA-256 hash is stored. The owner must already exist in the `users` table.
+Token plaintext is returned once; only its SHA-256 hash is stored. The `--owner`
+flag takes the authorized application's organization UUID (its historical flag
+name is retained for compatibility). The Go service does not require or create
+a human identity in its legacy `users` table. Operators must obtain the correct
+organization UUID through the control plane; never invent one for an existing
+customer. This CLI is an operator bootstrap tool, not a client database-access
+workflow. After provisioning, clients use only the management API.
 
 ```bash
 export DATABASE_URL='postgres://goformx:password@localhost:5432/goformx?sslmode=disable'
@@ -63,9 +73,9 @@ go run ./cmd/goformx-token rotate --token-id TOKEN_ID --ttl 24h
 | `POST /v1/forms/{id}/versions` | `forms:write` | Append an immutable draft version |
 | `POST /v1/forms/{id}/versions/{version}/publish` | `forms:publish` | Publish an exact version |
 | `GET /v1/forms/{id}/submissions` | `submissions:read` | Retrieve accepted submissions |
-| `PUT /v1/forms/{id}/webhook` | `forms:write` | Store an encrypted destination and signing configuration |
+| `PUT /v1/forms/{id}/webhook` | `webhooks:write` | Store an encrypted destination and signing configuration |
 | `GET /v1/forms/{id}/deliveries` | `submissions:read` | Inspect recent delivery state without secret material |
-| `POST /v1/forms/{id}/deliveries/{deliveryId}/replay` | `forms:write` | Requeue a dead-letter delivery |
+| `POST /v1/forms/{id}/deliveries/{deliveryId}/replay` | `webhooks:write` | Requeue a dead-letter delivery |
 | `GET /v1/public/forms/{publicKey}/schema` | Public key | Fetch a published schema |
 | `POST /v1/public/forms/{publicKey}/submissions` | Public key | Validate and accept an idempotent submission |
 

@@ -13,6 +13,8 @@ tasks:
     cmds:
       - go mod download
       - go generate ./...
+      - npm ci
+      - npm run contract:generate
 
   generate:
     desc: Regenerate committed mocks and other generated Go artifacts
@@ -35,6 +37,7 @@ tasks:
     cmds:
       - npm ci
       - npm run contract:lint
+      - npm run contract:check
       - go test -race ./contracts/...
 
   lint:
@@ -70,6 +73,7 @@ tasks:
         -path migrations/postgresql -database "{{.VERIFY_DATABASE_URL}}" up 1
       - npm ci
       - npm run contract:lint
+      - npm run contract:check
       - go generate ./...
       - git diff --exit-code -- test/mocks
       - go mod tidy

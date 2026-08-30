@@ -4,8 +4,8 @@ info:
   title: GoFormX API
   version: 1.0.0
   license:
-    name: MIT
-    identifier: MIT
+    name: GNU Affero General Public License v3.0 or later
+    identifier: AGPL-3.0-or-later
   description: |
     The control plane manages forms and immutable schema versions. The public
     data plane exposes published schemas and accepts validated submissions.
@@ -516,6 +516,7 @@ paths:
               properties:
                 data:
                   type: object
+                  additionalProperties: true
                   description: Validated against the selected published form schema.
             examples:
               personalContact:
@@ -739,7 +740,7 @@ components:
           maxLength: 128
           description: Correlation identifier for the accepted public request; it contains no credential or payload data.
         status: { type: string, enum: [accepted, processing, completed, failed] }
-        data: { type: object }
+        data: { type: object, additionalProperties: true }
         submittedAt: { type: string, format: date-time }
     FormEnvelope:
       type: object
