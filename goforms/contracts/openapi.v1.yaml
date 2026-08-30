@@ -321,10 +321,10 @@ paths:
       x-goformx-required-scopes: [submissions:read]
       responses:
         '200':
-          description: Organization-owned immutable submission
+          description: Organization-owned submission with redacted data and the exact accepted schema, not the current form schema. Unresolvable or invalid privacy policy fails closed.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/SubmissionEnvelope' }
+              schema: { $ref: '#/components/schemas/SubmissionDetailEnvelope' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms/{formId}/webhook:
@@ -539,7 +539,7 @@ paths:
                 data:
                   type: object
                   additionalProperties: true
-                  description: Validated against the selected published form schema.
+                  description: Validated against the selected published form schema. Must be an object, not null or absent. For nonempty x-goformx-sensitive policies, validation failures return one generic /data diagnostic because messages and instance locations can contain sensitive values.
             examples:
               personalContact:
                 value:
@@ -549,7 +549,7 @@ paths:
                     message: I would like to discuss a project.
       responses:
         '202':
-          description: Submission validated, persisted, and accepted for processing
+          description: Submission validated, persisted, and accepted for processing. Returned data is redacted using the accepted schema policy; stored data and configured webhook delivery are unchanged. Responses use Cache-Control no-store.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SubmissionEnvelope' }
@@ -776,7 +776,7 @@ components:
         publishedAt: { type: string, format: date-time }
     Submission:
       type: object
-      required: [id, formId, schemaVersion, requestId, status, data, submittedAt]
+      required: [id, formId, schemaVersion, requestId, status, data, submittedAt, redactedPaths]
       properties:
         id: { type: string, format: uuid }
         formId: { type: string, format: uuid }
@@ -790,8 +790,26 @@ components:
           type: string
           enum: [accepted]
           description: Immutable acceptance state. Delivery attempts have their own lifecycle.
-        data: { type: object, additionalProperties: true }
+        data:
+          type: object
+          additionalProperties: true
+          description: Redacted projection of the immutable payload. Marked object members are omitted, marked array elements are null, and a root pointer yields an empty object. Never use this projection for validation or resubmission.
+        redactedPaths:
+          type: array
+          items: { type: string }
+          description: Sorted JSON Pointers declared sensitive by the accepted schema, including absent optional targets. Empty when no fields are marked. Values are never returned via a reveal flag.
         submittedAt: { type: string, format: date-time }
+    SubmissionDetailEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          allOf:
+            - $ref: '#/components/schemas/Submission'
+            - type: object
+              required: [schema]
+              properties:
+                schema: { $ref: '#/components/schemas/FormDefinition' }
     FormEnvelope:
       type: object
       required: [data]

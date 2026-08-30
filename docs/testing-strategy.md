@@ -8,7 +8,7 @@ The command then runs these gates in order:
 2. Generated-code and Go module drift checks.
 3. Go vet and pinned golangci-lint analysis.
 4. The complete race-enabled Go suite, including real PostgreSQL repository and migration behavior.
-5. A no-regression statement-coverage gate for the supported form model, schema validation, service-token middleware, and HTTP API packages.
+5. A no-regression statement-coverage gate for the supported form model, submission policies, schema validation, service-token middleware, and HTTP API packages.
 6. Reachable-vulnerability analysis with pinned govulncheck.
 
 ## Behavioral coverage floors
@@ -18,6 +18,7 @@ The initial combined floor is 37%, matching the measured schema-first baseline w
 | Package boundary | Baseline | Behaviors that must remain covered |
 | --- | ---: | --- |
 | `domain/form/model` | 41.8% | lifecycle transitions, immutable versions, exact-version validation, idempotent submission state |
+| `domain/submission` | Added with #122 | bounded selectors, explicit fail-closed redaction, detached projections, exact numeric values |
 | `application/validation` | 34.4% | canonical dialect, schema compilation, field pointers, invalid payloads |
 | `application/middleware/serviceauth` | 95.8% | missing, invalid, expired, revoked, under-scoped, and cross-owner tokens |
 | `application/handlers/web` | 34.6% | v1 control/data-plane contract, CORS, validation, replay, and error envelopes |

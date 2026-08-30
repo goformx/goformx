@@ -29,21 +29,60 @@ The new indexes use ordinary PostgreSQL index creation, which can block writes;
 assess table size and build time during the #125 migration/rollback preflight.
 Do not infer production rollout from merged source or a contract version bump.
 
-## Remaining delivery contract — not implemented by filtered reads
+## Exact-version privacy projection (development contract 1.2.0)
+
+Submission detail now includes the exact accepted `schema`. Public acceptance
+and idempotent replay responses, management lists, and detail responses apply
+that version's root `x-goformx-sensitive` policy. New schema versions cannot
+reinterpret older submissions. These responses are display projections, not
+payloads that can be validated or resubmitted unchanged.
+
+For example, `"x-goformx-sensitive": ["/email", "/credentials", "/items/0"]`
+removes `email` and the entire `credentials` object and replaces the first array
+element with `null`, preserving array indexes. The empty pointer `""` redacts
+the whole payload to `{}`. Pointers address payload data, not schema properties;
+`~1` escapes `/` and `~0` escapes `~`. Mark the whole array to hide all entries.
+There are no wildcards, URI fragments, implicit field-name heuristics, or reveal
+flags. `writeOnly` alone does not enforce redaction.
+
+Policies allow up to 128 unique pointers of at most 256 Unicode characters each.
+Array selectors use canonical non-negative decimal indexes, without leading
+zeros, up to 2147483647. Missing fields, out-of-range indexes, and null intermediate
+values are ignored. Other incompatible traversal fails closed; the public API
+rejects it before persistence. Malformed historical policies or missing payloads
+fail reads rather than returning unredacted data. No policy means no redaction.
+Only the root annotation has meaning; nested annotations do not define policy.
+
+Every projection includes sorted `redactedPaths`: the declared policy, including
+optional absent fields, rather than a value-dependent list revealing which
+secrets exist. Object members are removed rather than replaced with strings that
+could be mistaken for user values. Numbers remain lossless, including numbers
+beyond JavaScript's safe integer range. Schema snapshots and accepted payloads
+are never mutated by projection.
+
+Public submission bodies must contain an object-valued `data`; missing/null data
+is rejected. Parse failures use a generic message, since decoder errors can echo
+payload keys. For a nonempty sensitive policy, validation failures return one
+generic `/data` diagnostic: both error messages and instance paths can contain
+sensitive object keys. Management responses and public submission responses use
+`Cache-Control: no-store`; this does not control downstream client telemetry.
+
+This is read-time minimization, **not encryption or removal from storage**.
+Existing configured webhooks still receive the accepted raw payload. Anyone
+configuring a webhook must treat its destination as a recipient of sensitive
+data. Schema definitions, defaults, examples, annotation paths, and metadata are
+not redacted and must never contain actual secrets. Historical submissions with
+no policy are not retroactively protected; do not rewrite immutable history to
+pretend otherwise. Review that exposure before rollout.
+
+## Remaining delivery contract — required before closing #122
 
 The following remain required before closing #122:
 
-- Detail rendering uses the exact accepted schema, retaining numeric precision.
+- UI detail rendering uses the exact accepted schema, retaining numeric precision.
   Delivery state and trace metadata remain distinct from acceptance state.
-- A root schema annotation will explicitly identify sensitive payload locations
-  with bounded JSON Pointers. The accepted immutable version owns that policy;
-  current-version edits cannot reinterpret an older payload. Malformed policy
-  must fail closed. No automatic field-name classifier is promised, and a JSON
-  Schema annotation such as `writeOnly` alone is not an access-control policy.
-- Go applies the same redaction to management reads and exports, without changing
-  stored data. UI masking alone is insufficient. Secrets must not be embedded in
-  schema defaults or examples. Webhook delivery policy must be documented
-  separately rather than silently changing integration payloads.
+- Exports must use the same Go redaction policy as reads; exports are not yet
+  implemented. UI masking alone is insufficient.
 - JSON/CSV exports require explicit authorization, a hard row and byte budget,
   lossless JSON values, CSV formula-injection defenses, and an audit record that
   excludes payload values and secret-bearing selectors. Incomplete exports must
@@ -53,6 +92,8 @@ The following remain required before closing #122:
 - Empty/loading/error/populated UI, exact-version display, bounded exports,
   telemetry/history privacy, and adversarial cross-tenant/form/membership tests
   must pass before claiming the complete submissions workflow.
+- Privacy verification must include the actual ORM/application/proxy logging
+  configuration and database failure paths, not only captured HTTP request logs.
 
 These remaining decisions and acceptance tests are not satisfied by a filter API
 or by the earlier numeric correction in #144. No deployment is implied.

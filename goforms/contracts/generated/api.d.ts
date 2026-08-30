@@ -398,11 +398,19 @@ export interface components {
              * @enum {string}
              */
             status: "accepted";
+            /** @description Redacted projection of the immutable payload. Marked object members are omitted, marked array elements are null, and a root pointer yields an empty object. Never use this projection for validation or resubmission. */
             data: {
                 [key: string]: unknown;
             };
+            /** @description Sorted JSON Pointers declared sensitive by the accepted schema, including absent optional targets. Empty when no fields are marked. Values are never returned via a reveal flag. */
+            redactedPaths: string[];
             /** Format: date-time */
             submittedAt: string;
+        };
+        SubmissionDetailEnvelope: {
+            data: components["schemas"]["Submission"] & {
+                schema: components["schemas"]["FormDefinition"];
+            };
         };
         FormEnvelope: {
             data: components["schemas"]["Form"];
@@ -966,13 +974,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Organization-owned immutable submission */
+            /** @description Organization-owned submission with redacted data and the exact accepted schema, not the current form schema. Unresolvable or invalid privacy policy fails closed. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SubmissionEnvelope"];
+                    "application/json": components["schemas"]["SubmissionDetailEnvelope"];
                 };
             };
             default: components["responses"]["Error"];
@@ -1243,7 +1251,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    /** @description Validated against the selected published form schema. */
+                    /** @description Validated against the selected published form schema. Must be an object, not null or absent. For nonempty x-goformx-sensitive policies, validation failures return one generic /data diagnostic because messages and instance locations can contain sensitive values. */
                     data: {
                         [key: string]: unknown;
                     };
@@ -1251,7 +1259,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Submission validated, persisted, and accepted for processing */
+            /** @description Submission validated, persisted, and accepted for processing. Returned data is redacted using the accepted schema policy; stored data and configured webhook delivery are unchanged. Responses use Cache-Control no-store. */
             202: {
                 headers: {
                     [name: string]: unknown;

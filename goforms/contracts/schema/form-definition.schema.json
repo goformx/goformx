@@ -39,6 +39,17 @@
     },
     "additionalProperties": {
       "type": "boolean"
+    },
+    "x-goformx-sensitive": {
+      "description": "Root-only redaction policy for submission reads and exports. JSON Pointers address the submission data object, not this schema. Missing/null intermediate targets are ignored; incompatible traversal fails closed. Mark an entire array/object to redact all its contents. Wildcards and URI fragments are not supported. Stored payloads and configured webhook delivery remain unchanged.",
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256,
+        "pattern": "^(?:/(?:[^~/]|~0|~1)*)*$"
+      }
     }
   },
   "additionalProperties": true,

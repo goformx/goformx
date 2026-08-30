@@ -238,6 +238,8 @@ func (h *V1APIHandler) require(scope auth.Scope) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		secured := inner(next)
 		return func(c echo.Context) error {
+			c.Response().Header().Set(echo.HeaderCacheControl, "no-store")
+			c.Response().Header().Set(echo.HeaderXContentTypeOptions, "nosniff")
 			if err := secured(c); err != nil {
 				status := http.StatusUnauthorized
 				code := "unauthorized"
@@ -513,8 +515,21 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 		return h.writeRepositoryError(c, err)
 	}
 	data := make([]map[string]any, 0, len(submissions))
+	versions := make(map[int]*model.SchemaVersion)
 	for _, submission := range submissions {
-		data = append(data, submissionResource(submission))
+		version := versions[submission.SchemaVersion]
+		if version == nil {
+			version, err = h.repository.GetSchemaVersion(c.Request().Context(), formModel.OrganizationID, formModel.ID, submission.SchemaVersion)
+			if err != nil {
+				return h.writeRepositoryError(c, err)
+			}
+			versions[submission.SchemaVersion] = version
+		}
+		resource, err := submissionResource(submission, version)
+		if err != nil {
+			return h.writeRepositoryError(c, err)
+		}
+		data = append(data, resource)
 	}
 	var nextCursor any
 	if hasMore && len(submissions) > 0 {
@@ -533,7 +548,16 @@ func (h *V1APIHandler) getSubmission(c echo.Context) error {
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
-	return c.JSON(http.StatusOK, map[string]any{"data": submissionResource(submission)})
+	version, err := h.repository.GetSchemaVersion(c.Request().Context(), principal.OwnerID, submission.FormID, submission.SchemaVersion)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	resource, err := submissionResource(submission, version)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	resource["schema"] = version.Schema()
+	return c.JSON(http.StatusOK, map[string]any{"data": resource})
 }
 
 type putWebhookRequest struct {
@@ -793,6 +817,7 @@ type submissionRequest struct {
 }
 
 func (h *V1APIHandler) createSubmission(c echo.Context) error {
+	c.Response().Header().Set(echo.HeaderCacheControl, "no-store")
 	idempotencyKey, ok := h.requireIdempotencyKey(c)
 	if !ok {
 		return nil
@@ -815,12 +840,34 @@ func (h *V1APIHandler) createSubmission(c echo.Context) error {
 	}
 	var request submissionRequest
 	if err := decodeJSON(c, &request); err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+		// Decoder errors may quote payload keys or values. They are not safe
+		// response diagnostics, even before the privacy policy is resolved.
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", "Submission body must be a JSON object with an object-valued data field.", nil)
+	}
+	if request.Data == nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", "Submission body must be a JSON object with an object-valued data field.", nil)
+	}
+	if schemaVersion == nil {
+		return h.writeRepositoryError(c, domainsubmission.ErrRedactionPolicy)
+	}
+	sensitivePaths, err := domainsubmission.SensitivePaths(schemaVersion.Schema())
+	if err != nil {
+		return h.writeRepositoryError(c, err)
 	}
 	result := h.validator.ValidateVersion(schemaVersion, request.Data)
 	if !result.IsValid {
+		if len(sensitivePaths) > 0 {
+			// Both diagnostics and instance locations can contain sensitive data
+			// (for example object keys inside a sensitive subtree). Do not return
+			// those values or their count through a validation side channel.
+			result.Errors = []validation.Error{{Pointer: "/", Code: "validation_failed",
+				Message: "Value does not match the accepted schema."}}
+		}
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed",
 			fmt.Sprintf("Submission does not match schema version %d.", schemaVersion.Version()), prefixErrors(result.Errors, "/data"))
+	}
+	if _, _, err := domainsubmission.Redact(schemaVersion.Schema(), request.Data); err != nil {
+		return h.writeError(c, http.StatusUnprocessableEntity, "redaction_policy_mismatch", "Submission cannot be processed under the form's privacy policy.", nil)
 	}
 	now := time.Now().UTC()
 	submission := &model.FormSubmission{FormID: formModel.ID, SchemaVersion: schemaVersion.Version(),
@@ -842,7 +889,11 @@ func (h *V1APIHandler) createSubmission(c echo.Context) error {
 	if replayed {
 		c.Response().Header().Set(constants.HeaderReplay, "true")
 	}
-	return c.JSON(http.StatusAccepted, map[string]any{"data": submissionResource(stored)})
+	resource, err := submissionResource(stored, schemaVersion)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	return c.JSON(http.StatusAccepted, map[string]any{"data": resource})
 }
 
 func (h *V1APIHandler) requireIdempotencyKey(c echo.Context) (string, bool) {
@@ -931,10 +982,17 @@ func schemaVersionResource(version *model.SchemaVersion) map[string]any {
 	return resource
 }
 
-func submissionResource(submission *model.FormSubmission) map[string]any {
+func submissionResource(submission *model.FormSubmission, version *model.SchemaVersion) (map[string]any, error) {
+	if submission == nil || version == nil || version.FormID() != submission.FormID || version.Version() != submission.SchemaVersion {
+		return nil, domainsubmission.ErrRedactionPolicy
+	}
+	data, redacted, err := domainsubmission.Redact(version.Schema(), submission.Data)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{"id": submission.ID, "formId": submission.FormID, "schemaVersion": submission.SchemaVersion,
-		"requestId": submission.RequestID, "status": submission.Status, "data": submission.Data,
-		"submittedAt": submission.SubmittedAt.UTC().Format(time.RFC3339Nano)}
+		"requestId": submission.RequestID, "status": submission.Status, "data": data, "redactedPaths": redacted,
+		"submittedAt": submission.SubmittedAt.UTC().Format(time.RFC3339Nano)}, nil
 }
 
 func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {

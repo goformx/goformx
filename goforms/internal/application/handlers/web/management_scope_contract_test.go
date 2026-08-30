@@ -201,7 +201,7 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 	form.UpdatedAt = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	version, err := model.NewSchemaVersion(scopeFormID, 1, schema, validation.NewComprehensiveValidator())
 	require.NoError(t, err)
-	submission := &model.FormSubmission{ID: scopeResourceID, FormID: scopeFormID, SchemaVersion: 1}
+	submission := &model.FormSubmission{ID: scopeResourceID, FormID: scopeFormID, SchemaVersion: 1, Data: model.JSON{}}
 	endpoint := &domainwebhook.Endpoint{ID: scopeResourceID, FormID: scopeFormID, Enabled: true}
 	ownedForm := func() {
 		if allowed {
@@ -256,10 +256,12 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 	case "listSubmissions":
 		ownedForm()
 		if allowed {
+			repositories.MockRepository.EXPECT().GetSchemaVersion(gomock.Any(), scopeOrganizationID, scopeFormID, 1).Return(version, nil)
 			repositories.MockRepository.EXPECT().ListSubmissionsPage(gomock.Any(), scopeOrganizationID, scopeFormID, domainsubmission.ListOptions{Limit: 25}).Return([]*model.FormSubmission{submission}, false, nil)
 		}
 	case "getSubmission":
 		if allowed {
+			repositories.MockRepository.EXPECT().GetSchemaVersion(gomock.Any(), scopeOrganizationID, scopeFormID, 1).Return(version, nil)
 			repositories.MockRepository.EXPECT().GetSubmissionByOrganization(gomock.Any(), scopeOrganizationID, scopeFormID, scopeResourceID).Return(submission, nil)
 		}
 	case "getWebhookEndpoint":

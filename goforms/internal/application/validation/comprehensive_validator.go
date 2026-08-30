@@ -13,6 +13,7 @@ import (
 
 	"github.com/goformx/goforms/contracts"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	"github.com/goformx/goforms/internal/domain/submission"
 )
 
 const (
@@ -94,6 +95,9 @@ func (v *ComprehensiveValidator) compile(schema model.JSON) (*jsonschema.Schema,
 	}
 	if schemaType, ok := schema["type"].(string); !ok || schemaType != "object" {
 		return nil, invalidResult("/type", "invalid_type", "form schema type must be object")
+	}
+	if _, err := submission.SensitivePaths(schema); err != nil {
+		return nil, invalidResult("/"+submission.SensitiveAnnotation, "invalid_redaction_policy", "sensitive paths must be unique bounded JSON Pointers")
 	}
 	if policyError := inspectSchemaPolicy(map[string]any(schema), "", 0, new(int)); policyError != nil {
 		return nil, Result{IsValid: false, Errors: []Error{*policyError}}
