@@ -6,4 +6,6 @@ Start with the [service README](goforms/README.md), the [architecture boundary](
 
 For agents and custom dashboards, use the [published API contract and tested client guide](docs/api-clients.md). No dashboard login is needed to download the machine interface.
 
+Database runtime, migration, operator and backup authority is specified in the [tested PostgreSQL permission contract](docs/database-permissions.md); production provisioning remains infrastructure-owned.
+
 The former human-first web runtime and renderer fork were retired under [issue #83](https://github.com/goformx/goformx/issues/83). Recovery links and removal decisions are recorded in [the archive index](docs/archive/legacy-runtime.md).
