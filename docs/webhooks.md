@@ -53,6 +53,9 @@ Return a permanent 4xx for a request that fails verification. Return a retryable
 available, the replay store is down, or the side-effect transaction cannot commit.
 The reference verifier reports an empty key set as `secret_unavailable` so the
 handler can return 503 rather than permanently dead-lettering a valid delivery.
+An out-of-window timestamp is normally a permanent rejection. If independent
+health checks show that the receiver clock is unsynchronized, treat that as a
+receiver outage and return 503 until time synchronization is restored.
 
 Replay protection is a receiver-side business transaction, not another signature
 check. Store `X-GoFormX-Delivery-ID` under a unique constraint in the same database

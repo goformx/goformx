@@ -53,8 +53,10 @@ test("rejects missing, malformed, stale, future, tampered, and mismatched inputs
   rejects("stale_timestamp", () => verify(fixture, { nowSeconds: nowSeconds + 301n }));
   rejects("stale_timestamp", () => verify(fixture, { nowSeconds: nowSeconds - 301n }));
   rejects("invalid_signature", () => verify(fixture, { rawBody: Buffer.from(`${fixture.body}\n`) }));
-  rejects("invalid_signature", () => verify(fixture, { signingSecrets: ["wrong-signing-secret"] }));
+  rejects("invalid_signature", () => verify(fixture, { signingSecrets: ["wrong-signing-secret-000000000000"] }));
   rejects("secret_unavailable", () => verify(fixture, { signingSecrets: [] }));
+  rejects("secret_unavailable", () => verify(fixture, { signingSecrets: [""] }));
+  rejects("secret_unavailable", () => verify(fixture, { signingSecrets: ["x".repeat(31)] }));
   const invalidJson = Buffer.from("not-json");
   rejects("invalid_payload", () => verify(fixture, { rawBody: invalidJson, signature: sign(fixture, fixture.timestamp, invalidJson) }));
   const other = fixtures[1]!;
@@ -65,9 +67,9 @@ test("rejects missing, malformed, stale, future, tampered, and mismatched inputs
 
 test("accepts old immutable deliveries during a bounded signing-secret overlap", () => {
   const oldDelivery = fixtures[0]!;
-  assert.equal(verify(oldDelivery, { signingSecrets: ["new-signing-secret-not-yet-used", oldDelivery.secret] }).id,
+  assert.equal(verify(oldDelivery, { signingSecrets: ["new-signing-secret-not-yet-used-0", oldDelivery.secret] }).id,
     oldDelivery.deliveryId);
-  rejects("invalid_signature", () => verify(oldDelivery, { signingSecrets: ["new-signing-secret-not-yet-used"] }));
+  rejects("invalid_signature", () => verify(oldDelivery, { signingSecrets: ["new-signing-secret-not-yet-used-0"] }));
 });
 
 test("a legitimate retry keeps one delivery identity as its timestamp and signature change", () => {

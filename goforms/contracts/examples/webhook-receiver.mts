@@ -40,7 +40,10 @@ export function verifyWebhook(input: VerifyWebhookInput): WebhookEvent {
   if (!deliveryId || !timestamp || !signature) throw new WebhookVerificationError("missing_header");
   if (!/^(0|[1-9][0-9]{0,15})$/.test(timestamp)) throw new WebhookVerificationError("invalid_timestamp");
   if (!/^v1=[0-9a-f]{64}$/.test(signature)) throw new WebhookVerificationError("invalid_signature");
-  if (input.signingSecrets.length === 0) throw new WebhookVerificationError("secret_unavailable");
+  if (input.signingSecrets.length === 0 || input.signingSecrets.some(secret => {
+    const length = Array.from(secret).length;
+    return length < 32 || length > 256;
+  })) throw new WebhookVerificationError("secret_unavailable");
 
   const now = input.nowSeconds ?? BigInt(Math.floor(Date.now() / 1000));
   const tolerance = input.toleranceSeconds ?? defaultToleranceSeconds;

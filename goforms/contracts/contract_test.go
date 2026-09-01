@@ -17,6 +17,7 @@ import (
 	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/domain/submission"
+	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 )
 
 type webhookSignatureFixture struct {
@@ -39,6 +40,12 @@ func TestPublishedWebhookSignatureFixturesMatchProduction(t *testing.T) {
 		fixture := fixture
 		t.Run(fixture.Name, func(t *testing.T) {
 			t.Parallel()
+			var event domainwebhook.Event
+			require.NoError(t, json.Unmarshal([]byte(fixture.Body), &event))
+			reencoded, err := json.Marshal(event)
+			require.NoError(t, err)
+			require.Equal(t, fixture.Body, string(reencoded), "fixture must match production event JSON exactly")
+			require.Equal(t, fixture.DeliveryID, event.ID)
 			require.Equal(t, fixture.Signature, deliveryapp.Sign(
 				fixture.Secret, fixture.DeliveryID, fixture.Timestamp, []byte(fixture.Body),
 			))
