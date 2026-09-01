@@ -7,7 +7,8 @@
     "contract:lint": "redocly lint contracts/openapi.v1.yaml",
     "contract:generate": "redocly bundle contracts/openapi.v1.yaml --output contracts/generated/openapi.json && openapi-typescript contracts/generated/openapi.json --output contracts/generated/api.d.ts && node contracts/copy-assets.mjs",
     "contract:build": "tsc --project contracts/tsconfig.json",
-    "contract:check": "npm run contract:generate && node contracts/check-generated.mjs && npm run contract:build",
+    "contract:check": "npm run contract:generate && node contracts/check-generated.mjs && npm run contract:test",
+    "contract:test": "npm run contract:build && node --test .contract-client/examples/*.test.mjs",
     "contract:package": "node contracts/package-release.mjs",
     "contract:example": "node .contract-client/examples/management-flow.mjs"
   },

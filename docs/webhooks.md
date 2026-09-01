@@ -37,7 +37,33 @@ The signed bytes are:
 
     delivery_id + "." + timestamp + "." + exact_request_body
 
-The receiver must read the raw body before JSON parsing, reject timestamps outside a five-minute window, calculate the HMAC using the delivery ID and timestamp headers exactly as shown above, compare signatures in constant time, and confirm the delivery ID matches the event ID in the body. Record the delivery ID before applying side effects. A repeated delivery ID should return a successful 2xx response without repeating the side effect.
+The receiver must read the raw body before JSON parsing, reject timestamps outside a five-minute window, calculate the HMAC using the delivery ID and timestamp headers exactly as shown above, compare signatures in constant time, and confirm the delivery ID matches the event ID in the body. Record the delivery ID in the same transaction that applies the side effect. A repeated delivery ID should return a successful 2xx response without repeating the side effect.
+
+Use the compiled and behavior-tested TypeScript reference in
+[`webhook-receiver.mts`](../goforms/contracts/examples/webhook-receiver.mts). It
+rejects missing headers, unsupported signature versions, non-canonical timestamps,
+stale or future attempts, wrong keys, changed raw bytes, invalid JSON, and a body
+whose event ID differs from the delivery header. The same committed fixtures are
+checked by the production Go signer and the TypeScript receiver during
+`task verify`; copying only the prose or reconstructing JSON is unsupported.
+Apply a request-body limit before buffering the raw bytes, and return one generic
+failure response rather than exposing the verifier's diagnostic code to callers.
+Return a permanent 4xx for a request that fails verification. Return a retryable
+5xx when receiver-owned infrastructure fails instead: no signing secret is
+available, the replay store is down, or the side-effect transaction cannot commit.
+The reference verifier reports an empty key set as `secret_unavailable` so the
+handler can return 503 rather than permanently dead-lettering a valid delivery.
+An out-of-window timestamp is normally a permanent rejection. If independent
+health checks show that the receiver clock is unsynchronized, treat that as a
+receiver outage and return 503 until time synchronization is restored.
+
+Replay protection is a receiver-side business transaction, not another signature
+check. Store `X-GoFormX-Delivery-ID` under a unique constraint in the same database
+transaction that applies the event's side effect. If the insert conflicts, commit
+nothing new and return 2xx. Do not insert a permanent "processed" marker in one
+transaction and perform the effect later: a crash between them would acknowledge a
+delivery whose effect never happened. A changed timestamp on a retry is expected;
+the stable delivery ID, not the signature or timestamp, is the idempotency key.
 
 Any 2xx response completes delivery. Network errors, 408, 429, and 5xx responses retry with capped exponential backoff. Other 4xx responses and configuration/authentication failures enter the dead letter immediately. Response bodies are discarded and never logged.
 
@@ -88,6 +114,13 @@ until outstanding deliveries and intentionally retained dead letters no longer
 need replay. Do not retire it merely because new submissions use the new key.
 This is distinct from storage encryption-key rotation (#113), which does not
 change the receiver's signing secret. No secret-readback endpoint exists.
+
+Pass current then previous signing secrets to the reference verifier during that
+bounded overlap. Historical accepted deliveries keep their original encrypted
+signing-secret snapshot, so a manual replay after rotation still verifies only
+with the old receiver key. Removing the previous key is therefore also a decision
+to abandon any retained delivery that still depends on it; verify delivery and
+dead-letter retention before removal.
 
 Every successful configuration change and replay has an atomic, secret-free
 [management audit](management-audit.md). Audit failure means no change was

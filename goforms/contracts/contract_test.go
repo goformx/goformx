@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -13,9 +14,49 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/goformx/goforms/contracts"
+	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/domain/submission"
+	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 )
+
+type webhookSignatureFixture struct {
+	Name       string `json:"name"`
+	Secret     string `json:"secret"`
+	DeliveryID string `json:"deliveryId"`
+	Timestamp  string `json:"timestamp"`
+	Body       string `json:"body"`
+	Signature  string `json:"signature"`
+}
+
+func TestPublishedWebhookSignatureFixturesMatchProduction(t *testing.T) {
+	t.Parallel()
+	document, err := os.ReadFile(filepath.Join("examples", "webhook-signature.fixtures.json"))
+	require.NoError(t, err)
+	var fixtures []webhookSignatureFixture
+	require.NoError(t, json.Unmarshal(document, &fixtures))
+	require.NotEmpty(t, fixtures)
+	for _, fixture := range fixtures {
+		fixture := fixture
+		t.Run(fixture.Name, func(t *testing.T) {
+			t.Parallel()
+			var event domainwebhook.Event
+			require.NoError(t, json.Unmarshal([]byte(fixture.Body), &event))
+			reencoded, err := json.Marshal(event)
+			require.NoError(t, err)
+			require.Equal(t, fixture.Body, string(reencoded), "fixture must match production event JSON exactly")
+			require.Equal(t, fixture.DeliveryID, event.ID)
+			require.Equal(t, fixture.Signature, deliveryapp.Sign(
+				fixture.Secret, fixture.DeliveryID, fixture.Timestamp, []byte(fixture.Body),
+			))
+			unix, err := strconv.ParseInt(fixture.Timestamp, 10, 64)
+			require.NoError(t, err)
+			signedAt := time.Unix(unix, 0).UTC()
+			require.NoError(t, deliveryapp.Verify(fixture.Secret, fixture.DeliveryID, fixture.Timestamp,
+				fixture.Signature, []byte(fixture.Body), signedAt, 5*time.Minute))
+		})
+	}
+}
 
 type operation struct {
 	OperationID    string                `yaml:"operationId"`

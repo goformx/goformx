@@ -54,7 +54,10 @@ suite through `task verify`, without a separate opt-in gate.
 
 `npm run contract:check` regenerates the bundled OpenAPI, companion schemas, and
 TypeScript types, rejects drift from committed artifacts, and compiles the
-published example against those generated types. Inline OpenAPI examples are
+published examples against those generated types. It also runs the webhook
+receiver example against signature fixtures that the production Go signer verifies,
+including tampering, timestamp, retry, delivery-ID, wrong-key and rotation cases.
+Inline OpenAPI examples are
 validated against their declared schemas by the Go contract suite.
 
 `TestPublishedClientCompletesManagementFlow` runs the compiled example through

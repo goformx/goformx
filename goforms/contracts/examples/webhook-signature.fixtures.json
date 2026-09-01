@@ -1,0 +1,18 @@
+[
+  {
+    "name": "submission-accepted",
+    "secret": "receiver-fixture-secret-0000000001",
+    "deliveryId": "11111111-1111-4111-8111-111111111111",
+    "timestamp": "1800000000",
+    "body": "{\"id\":\"11111111-1111-4111-8111-111111111111\",\"type\":\"submission.accepted\",\"createdAt\":\"2027-01-15T08:00:00Z\",\"submissionId\":\"22222222-2222-4222-8222-222222222222\",\"formId\":\"33333333-3333-4333-8333-333333333333\",\"schemaVersion\":2,\"data\":{\"message\":\"exact bytes: ☃\"}}",
+    "signature": "v1=42c7ef880d402d70f9c4b472720b5708ff8aa47e7864196bcc963c75b3b91dc6"
+  },
+  {
+    "name": "empty-data",
+    "secret": "receiver-fixture-secret-0000000002",
+    "deliveryId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "timestamp": "1800000000",
+    "body": "{\"id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\",\"type\":\"submission.accepted\",\"createdAt\":\"2027-01-15T08:00:00Z\",\"submissionId\":\"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb\",\"formId\":\"cccccccc-cccc-4ccc-8ccc-cccccccccccc\",\"schemaVersion\":1,\"data\":{}}",
+    "signature": "v1=dba723c8b2f2771cda0ac94d31acea5796db49b758669c8232ef9a6d3b45e671"
+  }
+]
