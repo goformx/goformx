@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -41,8 +42,9 @@ func TestPublishedWebhookSignatureFixturesMatchProduction(t *testing.T) {
 			require.Equal(t, fixture.Signature, deliveryapp.Sign(
 				fixture.Secret, fixture.DeliveryID, fixture.Timestamp, []byte(fixture.Body),
 			))
-			signedAt, err := time.Parse(time.RFC3339, "2027-01-15T08:00:00Z")
+			unix, err := strconv.ParseInt(fixture.Timestamp, 10, 64)
 			require.NoError(t, err)
+			signedAt := time.Unix(unix, 0).UTC()
 			require.NoError(t, deliveryapp.Verify(fixture.Secret, fixture.DeliveryID, fixture.Timestamp,
 				fixture.Signature, []byte(fixture.Body), signedAt, 5*time.Minute))
 		})

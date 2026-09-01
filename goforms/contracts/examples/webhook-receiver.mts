@@ -17,7 +17,7 @@ export type WebhookEvent = {
 
 export class WebhookVerificationError extends Error {
   constructor(readonly code: "missing_header" | "invalid_timestamp" | "stale_timestamp" |
-    "invalid_signature" | "invalid_payload" | "delivery_id_mismatch") {
+    "invalid_signature" | "invalid_payload" | "delivery_id_mismatch" | "secret_unavailable") {
     super("Webhook verification failed.");
     this.name = "WebhookVerificationError";
   }
@@ -40,7 +40,7 @@ export function verifyWebhook(input: VerifyWebhookInput): WebhookEvent {
   if (!deliveryId || !timestamp || !signature) throw new WebhookVerificationError("missing_header");
   if (!/^(0|[1-9][0-9]{0,15})$/.test(timestamp)) throw new WebhookVerificationError("invalid_timestamp");
   if (!/^v1=[0-9a-f]{64}$/.test(signature)) throw new WebhookVerificationError("invalid_signature");
-  if (input.signingSecrets.length === 0) throw new WebhookVerificationError("invalid_signature");
+  if (input.signingSecrets.length === 0) throw new WebhookVerificationError("secret_unavailable");
 
   const now = input.nowSeconds ?? BigInt(Math.floor(Date.now() / 1000));
   const tolerance = input.toleranceSeconds ?? defaultToleranceSeconds;
@@ -66,7 +66,14 @@ export function verifyWebhook(input: VerifyWebhookInput): WebhookEvent {
     throw new WebhookVerificationError("invalid_payload");
   }
   if (!event || typeof event !== "object" || Array.isArray(event) ||
-      !("id" in event) || typeof event.id !== "string") {
+      !("id" in event) || typeof event.id !== "string" ||
+      !("type" in event) || typeof event.type !== "string" ||
+      !("createdAt" in event) || typeof event.createdAt !== "string" ||
+      !("submissionId" in event) || typeof event.submissionId !== "string" ||
+      !("formId" in event) || typeof event.formId !== "string" ||
+      !("schemaVersion" in event) || typeof event.schemaVersion !== "number" ||
+        !Number.isInteger(event.schemaVersion) || event.schemaVersion < 1 ||
+      !("data" in event) || !event.data || typeof event.data !== "object" || Array.isArray(event.data)) {
     throw new WebhookVerificationError("invalid_payload");
   }
   if (event.id !== deliveryId) throw new WebhookVerificationError("delivery_id_mismatch");

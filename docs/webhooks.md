@@ -37,7 +37,7 @@ The signed bytes are:
 
     delivery_id + "." + timestamp + "." + exact_request_body
 
-The receiver must read the raw body before JSON parsing, reject timestamps outside a five-minute window, calculate the HMAC using the delivery ID and timestamp headers exactly as shown above, compare signatures in constant time, and confirm the delivery ID matches the event ID in the body. Record the delivery ID before applying side effects. A repeated delivery ID should return a successful 2xx response without repeating the side effect.
+The receiver must read the raw body before JSON parsing, reject timestamps outside a five-minute window, calculate the HMAC using the delivery ID and timestamp headers exactly as shown above, compare signatures in constant time, and confirm the delivery ID matches the event ID in the body. Record the delivery ID in the same transaction that applies the side effect. A repeated delivery ID should return a successful 2xx response without repeating the side effect.
 
 Use the compiled and behavior-tested TypeScript reference in
 [`webhook-receiver.mts`](../goforms/contracts/examples/webhook-receiver.mts). It
@@ -48,6 +48,11 @@ checked by the production Go signer and the TypeScript receiver during
 `task verify`; copying only the prose or reconstructing JSON is unsupported.
 Apply a request-body limit before buffering the raw bytes, and return one generic
 failure response rather than exposing the verifier's diagnostic code to callers.
+Return a permanent 4xx for a request that fails verification. Return a retryable
+5xx when receiver-owned infrastructure fails instead: no signing secret is
+available, the replay store is down, or the side-effect transaction cannot commit.
+The reference verifier reports an empty key set as `secret_unavailable` so the
+handler can return 503 rather than permanently dead-lettering a valid delivery.
 
 Replay protection is a receiver-side business transaction, not another signature
 check. Store `X-GoFormX-Delivery-ID` under a unique constraint in the same database
