@@ -13,9 +13,41 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/goformx/goforms/contracts"
+	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	"github.com/goformx/goforms/internal/domain/submission"
 )
+
+type webhookSignatureFixture struct {
+	Name       string `json:"name"`
+	Secret     string `json:"secret"`
+	DeliveryID string `json:"deliveryId"`
+	Timestamp  string `json:"timestamp"`
+	Body       string `json:"body"`
+	Signature  string `json:"signature"`
+}
+
+func TestPublishedWebhookSignatureFixturesMatchProduction(t *testing.T) {
+	t.Parallel()
+	document, err := os.ReadFile(filepath.Join("examples", "webhook-signature.fixtures.json"))
+	require.NoError(t, err)
+	var fixtures []webhookSignatureFixture
+	require.NoError(t, json.Unmarshal(document, &fixtures))
+	require.NotEmpty(t, fixtures)
+	for _, fixture := range fixtures {
+		fixture := fixture
+		t.Run(fixture.Name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, fixture.Signature, deliveryapp.Sign(
+				fixture.Secret, fixture.DeliveryID, fixture.Timestamp, []byte(fixture.Body),
+			))
+			signedAt, err := time.Parse(time.RFC3339, "2027-01-15T08:00:00Z")
+			require.NoError(t, err)
+			require.NoError(t, deliveryapp.Verify(fixture.Secret, fixture.DeliveryID, fixture.Timestamp,
+				fixture.Signature, []byte(fixture.Body), signedAt, 5*time.Minute))
+		})
+	}
+}
 
 type operation struct {
 	OperationID    string                `yaml:"operationId"`
