@@ -71,6 +71,7 @@ async function main(): Promise<void> {
   assert.ok(etag);
   const metadata = await management.PATCH("/v1/forms/{formId}", {
     params: { path: { formId: form.id }, header: { "If-Match": etag } },
+    headers: { "Content-Type": "application/merge-patch+json" },
     body: { title: "Contract example updated", allowedOrigins: ["https://updated.example.test"] },
   });
   assert.equal(metadata.response.status, 200);
@@ -87,7 +88,8 @@ async function main(): Promise<void> {
   const updatedETag = afterUpdate.response.headers.get("ETag");
   assert.ok(updatedETag);
   const cleared = await management.PATCH("/v1/forms/{formId}", {
-    params: { path: { formId: form.id }, header: { "If-Match": updatedETag } }, body: { allowedOrigins: [] },
+    params: { path: { formId: form.id }, header: { "If-Match": updatedETag } },
+    headers: { "Content-Type": "application/merge-patch+json" }, body: { allowedOrigins: [] },
   });
   assert.equal(cleared.response.status, 200);
   assert.deepEqual(cleared.data?.data.allowedOrigins, []);

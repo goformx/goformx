@@ -90,6 +90,8 @@ func TestNumericPrecisionThroughHTTPAndPostgres(t *testing.T) {
 	request("POST", publicPath+"/submissions", strings.Replace(payload, "9007199254740993", "9007199254740992", 1), uuid.NewString(), 422)
 	request("POST", publicPath+"/submissions", strings.Replace(payload, "0.1234567890123456789", "0.1234567890123456788", 1), uuid.NewString(), 422)
 	request("POST", publicPath+"/submissions", strings.Replace(payload, "1e1023", "1e1000000000", 1), uuid.NewString(), 400)
+	request("POST", publicPath+"/submissions", `{"data":{"integer":9007199254740993,"decimal":0.1234567890123456789},"data":{}}`, uuid.NewString(), 400)
+	request("POST", publicPath+"/submissions", `{"data":{"integer":9007199254740993,"decimal":0.1234567890123456789,"nested":{"value":1,"value":2}}}`, uuid.NewString(), 400)
 	key := uuid.NewString()
 	accepted := request("POST", publicPath+"/submissions", payload, key, 202)
 	var submission struct {

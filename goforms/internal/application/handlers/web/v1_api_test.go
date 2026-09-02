@@ -317,7 +317,7 @@ func TestFormMetadataUpdateRequiresRepositoryEnforcedETag(t *testing.T) {
 
 	currentETag := formETag(base)
 	success := requestJSON(t, router, http.MethodPatch, path, map[string]any{"title": "Updated contact"}, plaintext, "", map[string]string{
-		constants.HeaderIfMatch: currentETag,
+		constants.HeaderIfMatch: currentETag, echo.HeaderContentType: mediaTypeMergePatch,
 	})
 	require.Equal(t, http.StatusOK, success.Code, success.Body.String())
 	require.NotEqual(t, currentETag, success.Header().Get(constants.HeaderETag))

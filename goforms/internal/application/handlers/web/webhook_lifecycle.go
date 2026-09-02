@@ -21,8 +21,8 @@ func (h *V1APIHandler) patchWebhook(c echo.Context) error {
 		return h.writeWebhookMutationError(c, domainwebhook.ErrDisabled)
 	}
 	var fields map[string]json.RawMessage
-	if err := decodeJSON(c, &fields); err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	if err := decodeJSON(c, &fields, mediaTypeJSON); err != nil {
+		return h.writeRequestDecodeError(c, err, "")
 	}
 	if len(fields) != 1 {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", domainwebhook.ErrInvalidChange.Error(), nil)

@@ -64,6 +64,12 @@ type operation struct {
 	RequiredScopes []string              `yaml:"x-goformx-required-scopes"`
 	Parameters     []parameter           `yaml:"parameters"`
 	Responses      map[string]any        `yaml:"responses"`
+	RequestBody    *requestBody          `yaml:"requestBody"`
+}
+
+type requestBody struct {
+	Required bool           `yaml:"required"`
+	Content  map[string]any `yaml:"content"`
 }
 
 func TestNumericResourceLimitsMatchTheRuntime(t *testing.T) {
@@ -171,6 +177,7 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 	require.NotEmpty(t, api.Paths)
 
 	seenIDs := make(map[string]struct{})
+	bodyOperations := make(map[string]string)
 	allowedScopes := map[string]struct{}{
 		"forms:read": {}, "forms:write": {}, "forms:publish": {}, "submissions:read": {},
 		"tokens:read": {}, "tokens:write": {}, "webhooks:read": {}, "webhooks:write": {},
@@ -188,6 +195,14 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 			seenIDs[op.OperationID] = struct{}{}
 			require.NotEmpty(t, op.Responses, "%s %s needs responses", method, path)
 			require.Contains(t, op.Responses, "default", "%s %s needs stable error semantics", method, path)
+			if op.RequestBody != nil {
+				require.True(t, op.RequestBody.Required, "%s %s request body must be required", method, path)
+				require.Len(t, op.RequestBody.Content, 1, "%s %s must select one request media type", method, path)
+				for mediaType := range op.RequestBody.Content {
+					bodyOperations[op.OperationID] = mediaType
+				}
+				require.Contains(t, op.Responses, "415", "%s %s must document unsupported media types", method, path)
+			}
 			switch op.OperationID {
 			case "listForms":
 				require.Equal(t, []string{
@@ -229,6 +244,12 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 			}
 		}
 	}
+	require.Equal(t, map[string]string{
+		"createForm": "application/json", "updateForm": "application/merge-patch+json",
+		"createSchemaVersion": "application/json", "exportSubmissions": "application/json",
+		"putWebhookEndpoint": "application/json", "patchWebhookEndpoint": "application/json",
+		"createServiceToken": "application/json", "createSubmission": "application/json",
+	}, bodyOperations, "OpenAPI request-body inventory must stay explicit and bounded")
 
 	serviceToken := api.Components.SecuritySchemes["serviceToken"]
 	require.Equal(t, "http", serviceToken.Type)

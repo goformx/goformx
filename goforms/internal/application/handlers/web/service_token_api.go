@@ -135,8 +135,8 @@ func (h *V1APIHandler) createServiceToken(c echo.Context) error {
 		return h.writeError(c, http.StatusServiceUnavailable, "service_unavailable", "Token management is unavailable.", nil)
 	}
 	var request createServiceTokenRequest
-	if err := decodeJSON(c, &request); err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	if err := decodeJSON(c, &request, mediaTypeJSON); err != nil {
+		return h.writeRequestDecodeError(c, err, "")
 	}
 	request.Name = strings.TrimSpace(request.Name)
 	fieldErrors := validateServiceTokenRequest(request)
