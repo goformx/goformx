@@ -137,6 +137,7 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 					lastActor.CorrelationID = "caller-" + uuid.NewString()
 					req.Header.Set(constants.HeaderTraceID, lastActor.CorrelationID)
 				}
+				callerTrace := req.Header.Get(constants.HeaderTraceID)
 				req.Header.Set("X-Organization-ID", uuid.NewString()) // never audit authority
 				response, err := client.Do(req)
 				require.NoError(t, err)
@@ -149,8 +150,13 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				// to the request context. Once a principal is attached, its signed
 				// identity must override the untrusted caller trace.
 				prePrincipalRejection := status == http.StatusUnsupportedMediaType || status == http.StatusBadRequest || status == http.StatusForbidden
-				if auth.IsFirstPartyAssertion(bearer) && !prePrincipalRejection {
-					require.Equal(t, lastActor.RequestID, response.Header.Get(constants.HeaderTraceID))
+				if auth.IsFirstPartyAssertion(bearer) {
+					if prePrincipalRejection {
+						require.Contains(t, []string{callerTrace, lastActor.RequestID},
+							response.Header.Get(constants.HeaderTraceID), "a rejecting boundary may run before or after principal attachment")
+					} else {
+						require.Equal(t, lastActor.RequestID, response.Header.Get(constants.HeaderTraceID))
+					}
 				} else {
 					require.Equal(t, lastActor.CorrelationID, response.Header.Get(constants.HeaderTraceID))
 				}
