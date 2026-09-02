@@ -20,7 +20,7 @@ in [`docs/webhooks.md`](../docs/webhooks.md).
 
 ## Development
 
-Prerequisites are Go 1.26.7, Node.js 22, Docker with working Compose and Buildx plugins, and Task. PostgreSQL is disposable and provisioned by verification.
+Prerequisites are Go 1.27.0, Node.js 22, Docker with working Compose and Buildx plugins, and Task. PostgreSQL is disposable and provisioned by verification.
 
 ```bash
 task bootstrap

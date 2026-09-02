@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -285,6 +286,8 @@ func TestSubmissionPaginationInputsAreBoundedAndOpaque(t *testing.T) {
 	require.Equal(t, submission.ID, beforeID)
 	_, _, err = decodeSubmissionCursor("not-a-cursor")
 	require.Error(t, err)
+	_, _, err = decodeSubmissionCursor(strings.Repeat("a", domainsubmission.MaxCursorLength+1))
+	require.EqualError(t, err, "cursor is invalid")
 }
 
 func TestFormListOptionsValidateFiltersSortingAndBounds(t *testing.T) {

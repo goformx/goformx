@@ -4,7 +4,7 @@ The Go API owns submission reads, filters, redaction, and exports. PHP is an
 authorized presentation client, not another data store or policy implementation.
 The same business contract serves external scoped clients and the human UI.
 
-## Filtered reads (development contract 1.2.0)
+## Filtered reads (development contract 1.3.0)
 
 `GET /v1/forms/{formId}/submissions` requires `submissions:read` and an owned,
 non-deleted form. `limit` (1–100, default 25) and the opaque `cursor` paginate by
@@ -29,7 +29,7 @@ The new indexes use ordinary PostgreSQL index creation, which can block writes;
 assess table size and build time during the #125 migration/rollback preflight.
 Do not infer production rollout from merged source or a contract version bump.
 
-## Exact-version privacy projection (development contract 1.2.0)
+## Exact-version privacy projection (development contract 1.3.0)
 
 Submission detail now includes the exact accepted `schema`. Public acceptance
 and idempotent replay responses, management lists, and detail responses apply
@@ -101,7 +101,7 @@ These tests do not prove that proxy/access logs, database-server logging, crash
 dumps, or external collectors are correctly configured. Audit those during #125;
 this code change does not erase historical logs or establish a production leak.
 
-## Bounded audited exports (development contract 1.2.0)
+## Bounded audited exports (development contract 1.3.0)
 
 `POST /v1/forms/{formId}/submissions/export` requires `submissions:read`, with
 the same two distinct credential classes as reads. The JSON body requires

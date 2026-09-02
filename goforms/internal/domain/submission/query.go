@@ -13,6 +13,7 @@ import (
 const (
 	DefaultPageLimit = 25
 	MaxPageLimit     = 100
+	MaxCursorLength  = 1024
 	MaxSchemaVersion = 2147483647
 )
 
