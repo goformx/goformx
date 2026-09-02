@@ -118,8 +118,9 @@ records afterward: there is no supported form-delete API in this contract.
   previously ambiguous last-member-wins payloads invalid; it does not change
   number precision, body budgets, authentication, or scope rules.
 - **Exact numbers (contract 1.1.1):** schemas and submission values retain numeric
-  precision; JSONB may normalize spelling, not value. Use a lossless codec for
-  values outside native precision. Numeric token/exponent/decimal-place budgets
+  precision. Schema JSONB may normalize spelling, not value; immutable submission
+  JSON preserves the accepted numeric spelling. Use a lossless codec for values
+  outside native precision. Numeric token/exponent/decimal-place budgets
   are published in `x-goformx-numeric-limits`; excessive representations return
   `400`. Numerically equivalent retries remain idempotent. Historical values
   already rounded by earlier runtimes cannot be reconstructed from storage alone.

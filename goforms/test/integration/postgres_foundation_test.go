@@ -52,6 +52,33 @@ func TestSchemaFirstPostgresFoundation(t *testing.T) {
 	require.Equal(t, publicKey, storedKey)
 	require.Equal(t, 1, currentVersion)
 
+	rows, err := pool.Query(t.Context(), `
+		SELECT table_name, column_name, data_type
+		FROM information_schema.columns
+		WHERE table_schema = 'public'
+		  AND (table_name, column_name) IN (
+			('form_schemas', 'schema'),
+			('form_submissions', 'data'),
+			('form_submissions', 'metadata')
+		  )
+		ORDER BY table_name, column_name
+	`)
+	require.NoError(t, err)
+	type storageColumn struct{ table, column, dataType string }
+	var storage []storageColumn
+	for rows.Next() {
+		var column storageColumn
+		require.NoError(t, rows.Scan(&column.table, &column.column, &column.dataType))
+		storage = append(storage, column)
+	}
+	require.NoError(t, rows.Err())
+	rows.Close()
+	require.Equal(t, []storageColumn{
+		{"form_schemas", "schema", "jsonb"},
+		{"form_submissions", "data", "json"},
+		{"form_submissions", "metadata", "jsonb"},
+	}, storage, "migrated storage types are an explicit persistence contract")
+
 	_, err = pool.Exec(t.Context(), `UPDATE form_schemas SET state = 'published', published_at = now() WHERE uuid = $1`, schemaID)
 	require.NoError(t, err)
 	_, err = pool.Exec(t.Context(), `UPDATE form_schemas SET schema = '{}'::jsonb WHERE uuid = $1`, schemaID)
@@ -68,12 +95,12 @@ func TestSchemaFirstPostgresFoundation(t *testing.T) {
 	idempotencyKey := "integration-" + uuid.NewString()
 	_, err = pool.Exec(t.Context(), `
 		INSERT INTO form_submissions (uuid, form_id, schema_version, request_id, data, submitted_at, status, idempotency_key)
-		VALUES ($1, $2, 1, $3, '{"email":"ada@example.com"}'::jsonb, now(), 'accepted', $4)
+		VALUES ($1, $2, 1, $3, '{"email":"ada@example.com"}'::json, now(), 'accepted', $4)
 	`, uuid.NewString(), formID, "req_"+uuid.NewString(), idempotencyKey)
 	require.NoError(t, err)
 	_, err = pool.Exec(t.Context(), `
 		INSERT INTO form_submissions (uuid, form_id, schema_version, request_id, data, submitted_at, status, idempotency_key)
-		VALUES ($1, $2, 1, $3, '{"email":"ada@example.com"}'::jsonb, now(), 'accepted', $4)
+		VALUES ($1, $2, 1, $3, '{"email":"ada@example.com"}'::json, now(), 'accepted', $4)
 	`, uuid.NewString(), formID, "req_"+uuid.NewString(), idempotencyKey)
 	require.Error(t, err)
 }

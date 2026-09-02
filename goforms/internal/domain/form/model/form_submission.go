@@ -20,7 +20,7 @@ type FormSubmission struct {
 	SchemaVersion  int              `gorm:"not null"                                                   json:"schema_version"`
 	RequestID      string           `gorm:"column:request_id;not null"                                 json:"request_id"`
 	IdempotencyKey string           `gorm:"column:idempotency_key"                                     json:"-"`
-	Data           JSON             `gorm:"type:jsonb;not null"                                        json:"data"`
+	Data           JSON             `gorm:"type:json;not null"                                         json:"data"`
 	SubmittedAt    time.Time        `gorm:"not null"                                                   json:"submitted_at"`
 	Status         SubmissionStatus `gorm:"not null;size:20"                                           json:"status"`
 	Metadata       JSON             `gorm:"type:jsonb"                                                 json:"metadata"`
