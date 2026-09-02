@@ -86,7 +86,7 @@ type WebhookRepository interface {
 // ServiceTokenManagementRepository exposes organization-scoped metadata and lifecycle operations.
 type ServiceTokenManagementRepository interface {
 	Save(context.Context, *auth.ServiceToken, auth.AuditActor) error
-	ListByOrganization(context.Context, string, int) ([]*auth.ServiceToken, error)
+	ListByOrganization(context.Context, string, auth.TokenListOptions) ([]*auth.ServiceToken, bool, error)
 	RevokeByOrganization(context.Context, string, string, time.Time, auth.AuditActor) error
 }
 

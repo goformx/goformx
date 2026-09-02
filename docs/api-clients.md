@@ -47,6 +47,15 @@ clients never need database access. Token creation cannot delegate a scope the
 caller does not possess. The operator-only bootstrap CLI is described in the
 [service README](../goforms/README.md).
 
+Service-token metadata uses bounded opaque-cursor pagination. Follow
+`meta.nextCursor` until it is `null`; do not treat the first 100 records as a
+complete inventory. Pages are ordered by creation time and token ID, newest
+first. Normally, a newer concurrent issuance does not enter an older in-progress
+walk; pagination is not a transaction snapshot, and writers with skewed clocks
+can appear behind a cursor. Revocation does not reorder records. Reads never return plaintext or hashes. If
+an issuance response is lost, reload every page, identify the unclaimed metadata
+record, and revoke it; never retry issuance blindly or expect secret recovery.
+
 Every management operation declares `x-goformx-required-scopes`. The eight scopes
 are `forms:read`, `forms:write`, `forms:publish`, `submissions:read`, `tokens:read`,
 `tokens:write`, `webhooks:read`, and `webhooks:write`. Publishing does not follow

@@ -1249,6 +1249,7 @@
     "/v1/service-tokens": {
       "get": {
         "summary": "List service-token metadata for the authenticated organization",
+        "description": "Returns metadata newest first by creation time and token ID. Pass meta.nextCursor back unchanged to reach older credentials. Pagination is organization-scoped and is not a snapshot of newer concurrent inserts; revocation does not change ordering. Unknown or repeated query parameters are rejected and the encoded query is limited to 4096 bytes.",
         "operationId": "listServiceTokens",
         "tags": [
           "Control plane"
@@ -1267,6 +1268,9 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/ServiceTokenCursor"
           }
         ],
         "responses": {
@@ -1289,18 +1293,7 @@
                       }
                     },
                     "meta": {
-                      "type": "object",
-                      "required": [
-                        "limit"
-                      ],
-                      "additionalProperties": false,
-                      "properties": {
-                        "limit": {
-                          "type": "integer",
-                          "minimum": 1,
-                          "maximum": 100
-                        }
-                      }
+                      "$ref": "#/components/schemas/CursorPageMeta"
                     }
                   }
                 }
@@ -1791,6 +1784,17 @@
         "schema": {
           "type": "string",
           "minLength": 1
+        }
+      },
+      "ServiceTokenCursor": {
+        "name": "cursor",
+        "in": "query",
+        "required": false,
+        "description": "Opaque cursor returned as meta.nextCursor by the previous service-token page.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
         }
       }
     },
@@ -2463,6 +2467,7 @@
           "limit",
           "nextCursor"
         ],
+        "additionalProperties": false,
         "properties": {
           "limit": {
             "type": "integer",
