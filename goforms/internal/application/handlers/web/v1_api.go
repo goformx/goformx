@@ -780,6 +780,9 @@ func decodeSubmissionCursor(value string) (time.Time, string, error) {
 	if value == "" {
 		return time.Time{}, "", nil
 	}
+	if len(value) > domainsubmission.MaxCursorLength {
+		return time.Time{}, "", errors.New("cursor is invalid")
+	}
 	encoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
 		return time.Time{}, "", errors.New("cursor is invalid")

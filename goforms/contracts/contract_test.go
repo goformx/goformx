@@ -119,10 +119,11 @@ func TestSubmissionFilterBoundsMatchTheDomain(t *testing.T) {
 		Components struct {
 			Parameters map[string]struct {
 				Schema struct {
-					Minimum int      `yaml:"minimum"`
-					Maximum int      `yaml:"maximum"`
-					Default any      `yaml:"default"`
-					Enum    []string `yaml:"enum"`
+					Minimum   int      `yaml:"minimum"`
+					Maximum   int      `yaml:"maximum"`
+					MaxLength int      `yaml:"maxLength"`
+					Default   any      `yaml:"default"`
+					Enum      []string `yaml:"enum"`
 				} `yaml:"schema"`
 			} `yaml:"parameters"`
 		} `yaml:"components"`
@@ -132,6 +133,7 @@ func TestSubmissionFilterBoundsMatchTheDomain(t *testing.T) {
 	require.Equal(t, 1, limit.Minimum)
 	require.Equal(t, submission.MaxPageLimit, limit.Maximum)
 	require.Equal(t, submission.DefaultPageLimit, limit.Default)
+	require.Equal(t, submission.MaxCursorLength, api.Components.Parameters["SubmissionCursor"].Schema.MaxLength)
 	version := api.Components.Parameters["SubmissionSchemaVersionFilter"].Schema
 	require.Equal(t, 1, version.Minimum)
 	require.Equal(t, submission.MaxSchemaVersion, version.Maximum)
