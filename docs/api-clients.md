@@ -152,7 +152,10 @@ records afterward: there is no supported form-delete API in this contract.
   See [credential mutation auditing](management-audit.md).
 - **Privacy:** submissions carry `schemaVersion` and `requestId` for provenance.
   Neither token hashes nor webhook signing material belong in read responses.
-  Treat request IDs as correlation data, not authority. Keep payloads and tokens
+  Treat response traces and audit correlation as joins, not authority or
+  idempotency. Service-token caller traces are retained as untrusted audit
+  `correlation_id`; the audit `request_id` is server-issued. First-party signed
+  `rid` remains the authenticated audit request identity. Keep payloads and tokens
   out of logs and diagnostics.
 
 ## Agent safety

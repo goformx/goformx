@@ -11,7 +11,7 @@ import (
 func TestAuditActorRequiresExplicitBoundedIdentity(t *testing.T) {
 	t.Parallel()
 	valid := AuditActor{OrganizationID: uuid.NewString(), SubjectID: "-token-id", CredentialID: "-token-id",
-		CredentialClass: CredentialClassServiceToken, RequestID: "_trace-id"}
+		CredentialClass: CredentialClassServiceToken, RequestID: "_request-id", CorrelationID: "_trace-id"}
 	require.NoError(t, valid.Validate())
 	for _, change := range []func(*AuditActor){
 		func(a *AuditActor) { a.OrganizationID = "not-an-org" },
@@ -20,6 +20,8 @@ func TestAuditActorRequiresExplicitBoundedIdentity(t *testing.T) {
 		func(a *AuditActor) { a.CredentialClass = "implicit" },
 		func(a *AuditActor) { a.RequestID = "canary\nsecret" },
 		func(a *AuditActor) { a.RequestID = strings.Repeat("a", 129) },
+		func(a *AuditActor) { a.CorrelationID = "canary\nsecret" },
+		func(a *AuditActor) { a.CorrelationID = strings.Repeat("a", 129) },
 	} {
 		actor := valid
 		change(&actor)
@@ -28,6 +30,9 @@ func TestAuditActorRequiresExplicitBoundedIdentity(t *testing.T) {
 		require.NotContains(t, err.Error(), "canary")
 	}
 	require.Error(t, (AuditActor{}).Validate())
+	assertion := valid
+	assertion.CredentialClass = CredentialClassFirstPartyAssertion
+	require.Error(t, assertion.Validate(), "authenticated first-party rid needs no untrusted caller correlation")
 	require.Error(t, DatabaseAuditActor("", valid.OrganizationID).Validate())
 	operator := DatabaseAuditActor("quoted role-名", valid.OrganizationID)
 	require.NoError(t, operator.Validate())

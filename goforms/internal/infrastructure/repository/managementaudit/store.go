@@ -13,9 +13,9 @@ import (
 )
 
 const insertEvent = `INSERT INTO management_audit
-	(audit_id, organization_id, subject_id, credential_class, credential_id, request_id,
+	(audit_id, organization_id, subject_id, credential_class, credential_id, request_id, correlation_id,
 	 event, target_id, related_id, scopes, expires_at, occurred_at, form_id, enabled)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULLIF($9, ''), $10::jsonb, $11, $12, NULLIF($13, '')::uuid, $14)`
+	VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8, $9, NULLIF($10, ''), $11::jsonb, $12, $13, NULLIF($14, '')::uuid, $15)`
 
 // AppendGORM uses the caller's current transaction, never a separate connection.
 func AppendGORM(ctx context.Context, tx *gorm.DB, event managementaudit.Event) error {
@@ -43,7 +43,7 @@ func appendEvent(ctx context.Context, event managementaudit.Event, execute func(
 		return managementaudit.ErrInvalid
 	}
 	err = execute(ctx, insertEvent, event.ID, event.Actor.OrganizationID, event.Actor.SubjectID,
-		string(event.Actor.CredentialClass), event.Actor.CredentialID, event.Actor.RequestID,
+		string(event.Actor.CredentialClass), event.Actor.CredentialID, event.Actor.RequestID, event.Actor.CorrelationID,
 		string(event.Kind), event.TargetID, event.RelatedID, string(encoded), event.ExpiresAt, event.OccurredAt.UTC(), event.FormID, event.Enabled)
 	if err != nil {
 		// Driver diagnostics can contain values. Do not return them to callers.

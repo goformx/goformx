@@ -71,7 +71,8 @@ credential_id:    jti | service-token id
 subject_id:       Waaseyaa user UUID | integration token id
 organization_id: org | stored owner_id
 scopes:           verified canonical scope set
-request_id:       rid | server request id
+request_id:       signed rid | server-issued audit request id
+correlation_id:   absent | optional untrusted caller trace
 ```
 
 Handlers authorize the required scope and constrain every repository query by `organization_id`. A valid signature or token never bypasses resource ownership. Object routes preserve uniform owner-scoped absence so a principal cannot distinguish a foreign UUID from a missing one. There is no agent, Waaseyaa, or first-party superuser scope.
