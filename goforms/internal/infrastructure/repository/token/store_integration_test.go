@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/goformx/goforms/internal/domain/auth"
+	"github.com/goformx/goforms/internal/infrastructure/repository/common"
 	tokenstore "github.com/goformx/goforms/internal/infrastructure/repository/token"
 )
 
@@ -119,7 +120,8 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	require.NotNil(t, loaded.LastUsedAt)
 	require.WithinDuration(t, now, *loaded.LastUsedAt, time.Second)
 	foreignID := uuid.NewString()
-	require.Error(t, store.RevokeByOrganization(t.Context(), foreignID, loaded.ID, now, auth.DatabaseAuditActor("integration-fixture", foreignID)))
+	require.ErrorIs(t, store.RevokeByOrganization(t.Context(), foreignID, loaded.ID, now,
+		auth.DatabaseAuditActor("integration-fixture", foreignID)), common.ErrNotFound)
 	stillActive, err := store.FindByID(t.Context(), loaded.ID)
 	require.NoError(t, err)
 	require.NoError(t, stillActive.Authorize(plaintext, ownerID, auth.ScopeFormsRead, now))
