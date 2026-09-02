@@ -59,23 +59,28 @@ tasks:
 
   verify:
     desc: Run the complete read-only local/CI verification contract with disposable PostgreSQL
-    dir: ./goforms
-    vars:
-      VERIFY_DATABASE_URL: postgres://goformx:testpass@127.0.0.1:55432/goformx?sslmode=disable
-    env:
-      GOFORMX_TEST_DATABASE_URL: '{{.VERIFY_DATABASE_URL}}'
     cmds:
-      - docker compose -f docker-compose.verify.yml up -d --wait
-      - defer: docker compose -f docker-compose.verify.yml down --volumes --remove-orphans
+      # The wrapper (not a Task defer, whose exit status Task ignores) owns the
+      # uniquely named Compose project, exports GOFORMX_TEST_DATABASE_URL, and
+      # always tears the project down; see docs/testing-strategy.md.
+      - sh goforms/docker/verify/with-postgres.sh -- task verify:gates
+
+  verify:gates:
+    desc: Run every verification gate against the disposable PostgreSQL that task verify provisions
+    dir: ./goforms
+    preconditions:
+      - sh: test -n "${GOFORMX_TEST_DATABASE_URL:-}"
+        msg: GOFORMX_TEST_DATABASE_URL is unset; run `task verify`, which provisions the disposable PostgreSQL and exports its URL
+    cmds:
       - >-
         go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
-        -path migrations/postgresql -database "{{.VERIFY_DATABASE_URL}}" up
+        -path migrations/postgresql -database "$GOFORMX_TEST_DATABASE_URL" up
       - >-
         go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
-        -path migrations/postgresql -database "{{.VERIFY_DATABASE_URL}}" down 1
+        -path migrations/postgresql -database "$GOFORMX_TEST_DATABASE_URL" down 1
       - >-
         go run -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
-        -path migrations/postgresql -database "{{.VERIFY_DATABASE_URL}}" up 1
+        -path migrations/postgresql -database "$GOFORMX_TEST_DATABASE_URL" up 1
       - npm ci
       - npm run contract:lint
       - npm run contract:check

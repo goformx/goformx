@@ -1,3 +1,7 @@
+# Disposable verification database. `task verify` runs this file through
+# docker/verify/with-postgres.sh, which overrides the project name below with a
+# per-run `goformx-verify-<id>` name and reads the ephemeral loopback port it
+# publishes, so concurrent or leaked runs never share containers or ports.
 name: goformx-verify
 
 services:
@@ -8,7 +12,7 @@ services:
       POSTGRES_USER: goformx
       POSTGRES_PASSWORD: testpass
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1::5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U goformx -d goformx"]
       interval: 2s
