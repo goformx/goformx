@@ -29,7 +29,7 @@ task verify
 task dev
 ```
 
-`task verify` is the same complete gate used by CI. It starts a disposable PostgreSQL 17.11 instance, verifies migrations, lints the OpenAPI contract, checks generated/module drift, vets and lints Go, runs race and behavioral-coverage gates, scans reachable dependencies, builds and checks the [API/default and maintenance images](../docs/container-packaging.md), and removes the database even after failure. It does not deploy, alter DNS, or touch development/production data.
+`task verify` is the same complete gate used by CI. It checks that the Docker Compose v2 plugin works, starts a disposable PostgreSQL 17.11 instance in a uniquely named `goformx-verify-<id>` Compose project on an ephemeral loopback port, verifies migrations, lints the OpenAPI contract, checks generated/module drift, vets and lints Go, runs race and behavioral-coverage gates, scans reachable dependencies, builds and checks the [API/default and maintenance images](../docs/container-packaging.md), and removes exactly that project even after failure or interruption. A cleanup failure fails the run and prints a targeted recovery command; see the [disposable database lifecycle](../docs/testing-strategy.md#disposable-database-lifecycle). It does not deploy, alter DNS, or touch development/production data.
 
 ## Delivery and production ownership
 
