@@ -78,9 +78,16 @@ produce a record. Audit failure returns `503 management_audit_unavailable` and
 rolls back the entire webhook change. Network/commit uncertainty still requires
 inspecting metadata rather than assuming success or failure.
 
-Apply migrations through `2026090102` before this binary (`2026083003` introduced
+Apply migrations through `2026090103` before this binary (`2026083003` introduced
 token audits; `2026083004` adds webhook events and typed fields; `2026090102`
-separates optional caller correlation). Audit records have no
+separates optional caller correlation; `2026090103` gives the remaining
+multi-column relationship constraint a stable catalog name without rewriting or
+revalidating retained rows). The payload constraint's versioned maximum equals
+the canonical management-scope inventory. Adding a scope therefore requires an
+intentional compatible schema migration as well as Go, OpenAPI and control-plane
+projection updates. Rolling `2026090103` down only restores the prior generated
+constraint name; it does not remove columns or audit history, and reapplying it
+is safe with populated data. Audit records have no
 cascading foreign keys, so credential/account cleanup cannot erase history.
 Database triggers reject update, delete and truncate. A routine down migration
 refuses to drop a populated audit table; the webhook migration refuses to remove

@@ -42,6 +42,13 @@ func AllScopes() []Scope {
 	return append([]Scope(nil), canonicalScopes[:]...)
 }
 
+// ScopeCount is the runtime size of the versioned management scope registry.
+// Persisted schema bounds must change through an explicit migration when this
+// value changes.
+func ScopeCount() int {
+	return len(canonicalScopes)
+}
+
 // Valid reports whether the scope belongs to the versioned management contract.
 func (s Scope) Valid() bool {
 	for _, candidate := range canonicalScopes {
