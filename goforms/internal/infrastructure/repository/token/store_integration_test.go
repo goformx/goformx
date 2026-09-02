@@ -68,9 +68,10 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 		if index >= 56 && index <= 66 {
 			createdAt = base.Add(66 * time.Second)
 		}
-		if index == 65 {
+		switch index {
+		case 65:
 			id = "aaaaaaaaaaaaaa-_"
-		} else if index == 64 {
+		case 64:
 			id = "______________--"
 		}
 		require.NoError(t, db.Exec(`INSERT INTO service_tokens
