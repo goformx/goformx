@@ -243,8 +243,9 @@ func (j *JSON) UnmarshalJSON(data []byte) error {
 }
 
 // A JSON number is not necessarily representable by float64. Keep the original
-// numeric token through validation, immutable snapshots and JSONB round trips.
-// Database JSONB may normalize notation, but must preserve the numeric value.
+// numeric token through validation and database round trips. PostgreSQL JSONB
+// schema/metadata values may normalize notation; immutable submission JSON keeps
+// the accepted token spelling. Both storage types must preserve the numeric value.
 func decodeExactJSON(data []byte, destination any) error {
 	if err := validateJSONNumbers(data); err != nil {
 		return err
@@ -301,8 +302,9 @@ func validateJSONNumbers(data []byte) error {
 		whole, fraction, _ := strings.Cut(mantissa, ".")
 		digits := whole + fraction
 		point := int64(len(whole)) + exponent
-		// JSONB preserves fractional scale, including trailing zeros and zero
-		// itself. Count those places so a stored value remains within budget.
+		// PostgreSQL's JSON types preserve the numeric value and JSONB preserves
+		// fractional scale. Count those places so every stored value remains in
+		// budget regardless of the column's intentional JSON/JSONB choice.
 		if int64(len(digits))-point > MaxJSONFractionDigits {
 			return fmt.Errorf("JSON numeric values must fit %d fractional decimal places", MaxJSONFractionDigits)
 		}

@@ -111,18 +111,22 @@ func TestNumericPrecisionThroughHTTPAndPostgres(t *testing.T) {
 	}
 	var persisted model.JSON
 	require.NoError(t, db.Raw("SELECT data FROM form_submissions WHERE uuid = ?", submission.Data.ID).Row().Scan(&persisted))
+	var persistedText string
+	require.NoError(t, db.Raw("SELECT data::text FROM form_submissions WHERE uuid = ?", submission.Data.ID).Row().Scan(&persistedText))
+	require.Contains(t, persistedText, `"large":1e1023`)
+	require.Contains(t, persistedText, `"tiny":1e-1024`)
 	for field, expected := range map[string]string{"large": "1e1023", "tiny": "1e-1024"} {
 		actual, ok := new(big.Rat).SetString(string(persisted[field].(json.Number)))
 		require.True(t, ok)
 		want, ok := new(big.Rat).SetString(expected)
 		require.True(t, ok)
-		require.Zero(t, actual.Cmp(want), "JSONB expansion must preserve the value")
+		require.Zero(t, actual.Cmp(want), "submission JSON must preserve the value")
 	}
 	var count int64
 	require.NoError(t, db.Table("form_submissions").Where("form_id = ?", form.Data.ID).Count(&count).Error)
 	require.EqualValues(t, 1, count)
-	// Accepted boundary spellings must remain readable after JSONB expands
-	// exponents and preserves fractional trailing zeros, including signed zero.
+	// Schema JSONB normalization must remain value-compatible with accepted
+	// submission JSON, including exponent expansion and signed zero.
 	for _, number := range []string{"0.00e-1022", "-0.00e-1022", "1.00e-1022", "1e1023", "1e-1024", "0e1024"} {
 		t.Run("jsonb_normalization_"+number, func(t *testing.T) {
 			var input, normalized model.JSON

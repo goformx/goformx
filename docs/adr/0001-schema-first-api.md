@@ -36,17 +36,29 @@ This removes the creation/version contradiction found in #140 without changing p
 The #144 correction preserves numeric tokens with `json.Number` at request and
 database decoding boundaries. Schema constraints, immutable snapshots, accepted
 payloads and management/public responses must not silently pass through float64.
-JSONB may change notation (for example `1e3` to `1000`), not the numeric value.
-Idempotency and immutable-schema comparisons therefore compare exact numeric
-values rather than Go types or token spelling.
+Schema definitions and optional submission metadata use PostgreSQL `jsonb`,
+which may change notation (for example `1e3` to `1000`) but not the numeric
+value. Immutable accepted submission `data` intentionally uses PostgreSQL
+`json`, matching the original migration and preserving the accepted numeric
+token spelling. Idempotency and immutable-schema comparisons nevertheless
+compare exact numeric values rather than Go types or token spelling.
+
+This split is deliberate. Submission data is write-once/read-many evidence and
+is never queried by JSON operators; retaining `json` avoids rewriting immutable
+history and preserves lexical evidence at no indexing cost. Schemas and metadata
+remain `jsonb` for their established constraints and query behavior. The model
+tags and real PostgreSQL verification suite assert the migrated types. Changing
+submission data to `jsonb` requires a separate compatibility inventory and
+explicit migration; application startup must not convert it implicitly.
 
 Arbitrary-precision validation has explicit resource budgets in OpenAPI's
 `x-goformx-numeric-limits`: 4096 bytes per numeric token, an explicit exponent
 between -1024 and 1024, and at most 1024 integer and 1024 fractional decimal
 places after expansion. Fractional scale includes trailing zeros because JSONB
 preserves them. These checks run before schema compilation. They reject excessive
-representations rather than rounding, and permit the normalized JSONB form to
-be read and submitted again. This policy is covered by contract/runtime tests.
+representations rather than rounding, and permit normalized schema JSONB or
+preserved submission JSON to be read and submitted again. This policy is covered
+by contract/runtime tests.
 
 Clients must preserve exact numbers too; ordinary JavaScript `JSON.parse` and
 `JSON.stringify` can lose precision. Use source-aware parsing/raw numeric values
