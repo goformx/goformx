@@ -76,7 +76,8 @@ func TestServiceTokenListUsesOpaqueKeysetPaginationAndStrictQuery(t *testing.T) 
 	require.Equal(t, created, tokens.listOptions.Before)
 	require.Equal(t, "abcdefghijklmnop", tokens.listOptions.BeforeID)
 
-	for _, query := range []string{"unknown=1", "limit=1&limit=2", "cursor=invalid", "cursor=" + strings.Repeat("a", 4097)} {
+	for _, query := range []string{"unknown=1", "limit=", "cursor=", "limit=1&limit=2", "cursor=invalid",
+		"cursor=" + strings.Repeat("a", 1025), "cursor=" + strings.Repeat("a", 4097)} {
 		response := requestJSON(t, router, http.MethodGet, "/v1/service-tokens?"+query, nil, plaintext, "", nil)
 		require.Equal(t, http.StatusBadRequest, response.Code, query)
 	}

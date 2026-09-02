@@ -16,6 +16,7 @@ func TestTokenListOptionsRequireBoundedCompleteCursor(t *testing.T) {
 		Before: time.Now().UTC(), BeforeID: "abcdefghijklmnop"}).Validate())
 	for _, options := range []auth.TokenListOptions{
 		{}, {Limit: auth.MaxTokenPageLimit + 1}, {Limit: 1, Before: time.Now().UTC()}, {Limit: 1, BeforeID: "abcdefghijklmnop"},
+		{Limit: 1, Before: time.Now().UTC(), BeforeID: "not-valid"},
 	} {
 		require.Error(t, options.Validate())
 	}

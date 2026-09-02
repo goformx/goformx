@@ -64,10 +64,19 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	base := now.Add(-time.Hour)
 	for index := range 105 {
 		id := fmt.Sprintf("%016d", index)
+		createdAt := base.Add(time.Duration(index) * time.Second)
+		if index >= 56 && index <= 66 {
+			createdAt = base.Add(66 * time.Second)
+		}
+		if index == 65 {
+			id = "aaaaaaaaaaaaaa-_"
+		} else if index == 64 {
+			id = "______________--"
+		}
 		require.NoError(t, db.Exec(`INSERT INTO service_tokens
 			(token_id, name, organization_id, token_hash, scopes, created_at, expires_at)
 			VALUES (?, ?, ?, ?, '["forms:read"]'::jsonb, ?, ?)`,
-			id, "bulk-"+id, ownerID, []byte("hash-"+id), base.Add(time.Duration(index)*time.Second), now.Add(time.Hour)).Error)
+			id, "bulk-"+id, ownerID, []byte("hash-"+id), createdAt, now.Add(time.Hour)).Error)
 	}
 	seen := map[string]struct{}{}
 	options := auth.TokenListOptions{Limit: 40}
@@ -92,6 +101,8 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 		options.Before, options.BeforeID = last.CreatedAt, last.ID
 	}
 	require.Len(t, seen, 106)
+	require.Contains(t, seen, "aaaaaaaaaaaaaa-_")
+	require.Contains(t, seen, "______________--")
 	require.NotContains(t, seen, "zzzzzzzzzzzzzzzz", "newer inserts must not enter an existing keyset walk")
 	foreign, hasMore, err := store.ListByOrganization(t.Context(), uuid.NewString(), auth.TokenListOptions{Limit: 25})
 	require.NoError(t, err)

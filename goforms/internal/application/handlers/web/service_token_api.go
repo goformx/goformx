@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,8 +60,6 @@ func (h *V1APIHandler) listServiceTokens(c echo.Context) error {
 
 const maxServiceTokenQueryBytes = 4096
 
-var serviceTokenIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16}$`)
-
 type serviceTokenCursor struct {
 	CreatedAt time.Time `json:"createdAt"`
 	ID        string    `json:"id"`
@@ -82,6 +79,9 @@ func serviceTokenListOptions(c echo.Context) (auth.TokenListOptions, error) {
 		}
 		if len(values) != 1 {
 			return auth.TokenListOptions{}, errors.New("service-token filters must not be repeated")
+		}
+		if values[0] == "" {
+			return auth.TokenListOptions{}, errors.New("service-token filters must not be empty")
 		}
 	}
 	limit, err := serviceTokenPageLimit(parameters.Get("limit"))
@@ -111,12 +111,15 @@ func decodeServiceTokenCursor(value string) (time.Time, string, error) {
 	if value == "" {
 		return time.Time{}, "", nil
 	}
+	if len(value) > 1024 {
+		return time.Time{}, "", errors.New("cursor is invalid")
+	}
 	encoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
 		return time.Time{}, "", errors.New("cursor is invalid")
 	}
 	var cursor serviceTokenCursor
-	if err := json.Unmarshal(encoded, &cursor); err != nil || cursor.CreatedAt.IsZero() || !serviceTokenIDPattern.MatchString(cursor.ID) {
+	if err := json.Unmarshal(encoded, &cursor); err != nil || cursor.CreatedAt.IsZero() || !auth.ValidTokenLookupID(cursor.ID) {
 		return time.Time{}, "", errors.New("cursor is invalid")
 	}
 	return cursor.CreatedAt.UTC(), cursor.ID, nil

@@ -50,8 +50,9 @@ caller does not possess. The operator-only bootstrap CLI is described in the
 Service-token metadata uses bounded opaque-cursor pagination. Follow
 `meta.nextCursor` until it is `null`; do not treat the first 100 records as a
 complete inventory. Pages are ordered by creation time and token ID, newest
-first. A newer concurrent issuance does not enter an older in-progress walk, and
-revocation does not reorder records. Reads never return plaintext or hashes. If
+first. Normally, a newer concurrent issuance does not enter an older in-progress
+walk; pagination is not a transaction snapshot, and writers with skewed clocks
+can appear behind a cursor. Revocation does not reorder records. Reads never return plaintext or hashes. If
 an issuance response is lost, reload every page, identify the unclaimed metadata
 record, and revoke it; never retry issuance blindly or expect secret recovery.
 

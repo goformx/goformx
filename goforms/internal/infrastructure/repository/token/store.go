@@ -113,7 +113,7 @@ func (s *Store) ListByOrganization(ctx context.Context, organizationID string, o
 		Where("organization_id = ?", organizationID).
 		Order("created_at DESC, token_id DESC")
 	if !options.Before.IsZero() {
-		query = query.Where("created_at < ? OR (created_at = ? AND token_id < ?)", options.Before, options.Before, options.BeforeID)
+		query = query.Where("(created_at, token_id) < (?, ?)", options.Before, options.BeforeID)
 	}
 	if err := query.Limit(options.Limit + 1).Find(&rows).Error; err != nil {
 		return nil, false, fmt.Errorf("list service tokens: %w", err)
