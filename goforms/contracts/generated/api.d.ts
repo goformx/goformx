@@ -300,7 +300,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List service-token metadata for the authenticated organization */
+        /**
+         * List service-token metadata for the authenticated organization
+         * @description Returns metadata newest first by creation time and token ID. Pass meta.nextCursor back unchanged to reach older credentials. Pagination is organization-scoped and is not a snapshot of newer concurrent inserts; revocation does not change ordering. Unknown or repeated query parameters are rejected and the encoded query is limited to 4096 bytes.
+         */
         get: operations["listServiceTokens"];
         put?: never;
         /**
@@ -701,6 +704,8 @@ export interface components {
         IfMatch: string;
         /** @description Opaque cursor returned as meta.nextCursor by the previous page. */
         SubmissionCursor: string;
+        /** @description Opaque cursor returned as meta.nextCursor by the previous service-token page. */
+        ServiceTokenCursor: string;
     };
     requestBodies: never;
     headers: never;
@@ -1342,6 +1347,8 @@ export interface operations {
             query?: {
                 /** @description Maximum resources returned in this bounded collection. */
                 limit?: components["parameters"]["PageLimit"];
+                /** @description Opaque cursor returned as meta.nextCursor by the previous service-token page. */
+                cursor?: components["parameters"]["ServiceTokenCursor"];
             };
             header?: never;
             path?: never;
@@ -1357,9 +1364,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["ServiceToken"][];
-                        meta: {
-                            limit: number;
-                        };
+                        meta: components["schemas"]["CursorPageMeta"];
                     };
                 };
             };

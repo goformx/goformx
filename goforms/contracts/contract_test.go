@@ -220,6 +220,10 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 					"#/components/parameters/SubmissionReceivedFrom", "#/components/parameters/SubmissionReceivedBefore",
 					"#/components/parameters/SubmissionStatusFilter", "#/components/parameters/SubmissionSchemaVersionFilter",
 				}, parameterRefs(op.Parameters))
+			case "listServiceTokens":
+				require.Equal(t, []string{
+					"#/components/parameters/PageLimit", "#/components/parameters/ServiceTokenCursor",
+				}, parameterRefs(op.Parameters))
 			case "updateForm":
 				require.Equal(t, []string{"#/components/parameters/IfMatch"}, parameterRefs(op.Parameters))
 				require.Contains(t, op.Responses, "412")

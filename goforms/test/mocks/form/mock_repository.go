@@ -874,12 +874,13 @@ func (m *MockServiceTokenManagementRepository) EXPECT() *MockServiceTokenManagem
 }
 
 // ListByOrganization mocks base method.
-func (m *MockServiceTokenManagementRepository) ListByOrganization(arg0 context.Context, arg1 string, arg2 int) ([]*auth.ServiceToken, error) {
+func (m *MockServiceTokenManagementRepository) ListByOrganization(arg0 context.Context, arg1 string, arg2 auth.TokenListOptions) ([]*auth.ServiceToken, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListByOrganization", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]*auth.ServiceToken)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // ListByOrganization indicates an expected call of ListByOrganization.
@@ -895,19 +896,19 @@ type MockServiceTokenManagementRepositoryListByOrganizationCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockServiceTokenManagementRepositoryListByOrganizationCall) Return(arg0 []*auth.ServiceToken, arg1 error) *MockServiceTokenManagementRepositoryListByOrganizationCall {
-	c.Call = c.Call.Return(arg0, arg1)
+func (c *MockServiceTokenManagementRepositoryListByOrganizationCall) Return(arg0 []*auth.ServiceToken, arg1 bool, arg2 error) *MockServiceTokenManagementRepositoryListByOrganizationCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockServiceTokenManagementRepositoryListByOrganizationCall) Do(f func(context.Context, string, int) ([]*auth.ServiceToken, error)) *MockServiceTokenManagementRepositoryListByOrganizationCall {
+func (c *MockServiceTokenManagementRepositoryListByOrganizationCall) Do(f func(context.Context, string, auth.TokenListOptions) ([]*auth.ServiceToken, bool, error)) *MockServiceTokenManagementRepositoryListByOrganizationCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockServiceTokenManagementRepositoryListByOrganizationCall) DoAndReturn(f func(context.Context, string, int) ([]*auth.ServiceToken, error)) *MockServiceTokenManagementRepositoryListByOrganizationCall {
+func (c *MockServiceTokenManagementRepositoryListByOrganizationCall) DoAndReturn(f func(context.Context, string, auth.TokenListOptions) ([]*auth.ServiceToken, bool, error)) *MockServiceTokenManagementRepositoryListByOrganizationCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

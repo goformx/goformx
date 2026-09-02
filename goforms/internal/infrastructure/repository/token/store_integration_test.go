@@ -2,6 +2,7 @@ package token_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -53,14 +54,60 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	require.Error(t, store.Save(t.Context(), token, auth.AuditActor{}), "actor is mandatory, not an optional fallback")
 	require.Error(t, store.Save(t.Context(), token, auth.DatabaseAuditActor("fixture", uuid.NewString())))
 	require.NoError(t, store.Save(t.Context(), token, actor))
-	listed, err := store.ListByOrganization(t.Context(), ownerID, 25)
+	listed, hasMore, err := store.ListByOrganization(t.Context(), ownerID, auth.TokenListOptions{Limit: 25})
 	require.NoError(t, err)
+	require.False(t, hasMore)
 	require.Len(t, listed, 1)
 	require.Equal(t, token.ID, listed[0].ID)
 	require.Equal(t, token.Name, listed[0].Name)
 	require.Empty(t, listed[0].Hash, "metadata listing must not load the stored secret hash")
-	foreign, err := store.ListByOrganization(t.Context(), uuid.NewString(), 25)
+	base := now.Add(-time.Hour)
+	for index := range 105 {
+		id := fmt.Sprintf("%016d", index)
+		createdAt := base.Add(time.Duration(index) * time.Second)
+		if index >= 56 && index <= 66 {
+			createdAt = base.Add(66 * time.Second)
+		}
+		switch index {
+		case 65:
+			id = "aaaaaaaaaaaaaa-_"
+		case 64:
+			id = "______________--"
+		}
+		require.NoError(t, db.Exec(`INSERT INTO service_tokens
+			(token_id, name, organization_id, token_hash, scopes, created_at, expires_at)
+			VALUES (?, ?, ?, ?, '["forms:read"]'::jsonb, ?, ?)`,
+			id, "bulk-"+id, ownerID, []byte("hash-"+id), createdAt, now.Add(time.Hour)).Error)
+	}
+	seen := map[string]struct{}{}
+	options := auth.TokenListOptions{Limit: 40}
+	for page := 0; ; page++ {
+		pageTokens, more, err := store.ListByOrganization(t.Context(), ownerID, options)
+		require.NoError(t, err)
+		for _, item := range pageTokens {
+			_, duplicate := seen[item.ID]
+			require.False(t, duplicate, item.ID)
+			seen[item.ID] = struct{}{}
+		}
+		if page == 0 {
+			require.NoError(t, db.Exec(`INSERT INTO service_tokens
+				(token_id, name, organization_id, token_hash, scopes, created_at, expires_at)
+				VALUES ('zzzzzzzzzzzzzzzz', 'concurrent-newer', ?, ?, '["forms:read"]'::jsonb, ?, ?)`,
+				ownerID, []byte("concurrent-newer-hash"), now.Add(time.Hour), now.Add(2*time.Hour)).Error)
+		}
+		if !more {
+			break
+		}
+		last := pageTokens[len(pageTokens)-1]
+		options.Before, options.BeforeID = last.CreatedAt, last.ID
+	}
+	require.Len(t, seen, 106)
+	require.Contains(t, seen, "aaaaaaaaaaaaaa-_")
+	require.Contains(t, seen, "______________--")
+	require.NotContains(t, seen, "zzzzzzzzzzzzzzzz", "newer inserts must not enter an existing keyset walk")
+	foreign, hasMore, err := store.ListByOrganization(t.Context(), uuid.NewString(), auth.TokenListOptions{Limit: 25})
 	require.NoError(t, err)
+	require.False(t, hasMore)
 	require.Empty(t, foreign)
 
 	loaded, err := store.FindByID(t.Context(), auth.LookupID(plaintext))
