@@ -330,7 +330,8 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 		}
 	case "listServiceTokens":
 		if allowed {
-			tokens.EXPECT().ListByOrganization(gomock.Any(), scopeOrganizationID, 25).Return([]*auth.ServiceToken{}, nil)
+			tokens.EXPECT().ListByOrganization(gomock.Any(), scopeOrganizationID,
+				auth.TokenListOptions{Limit: auth.DefaultTokenPageLimit}).Return([]*auth.ServiceToken{}, false, nil)
 		}
 	case "createServiceToken":
 		fixture.status, fixture.body = http.StatusCreated, map[string]any{"name": "Delegated token", "scopes": []auth.Scope{auth.ScopeTokensWrite}}

@@ -1,8 +1,13 @@
 package web
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,12 +38,12 @@ func (h *V1APIHandler) listServiceTokens(c echo.Context) error {
 	if h.tokens == nil {
 		return h.writeError(c, http.StatusServiceUnavailable, "service_unavailable", "Token management is unavailable.", nil)
 	}
-	limit, err := submissionPageLimit(c.QueryParam("limit"))
+	options, err := serviceTokenListOptions(c)
 	if err != nil {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
 	}
 	principal, _ := serviceauth.PrincipalFrom(c)
-	tokens, err := h.tokens.ListByOrganization(c.Request().Context(), principal.OwnerID, limit)
+	tokens, hasMore, err := h.tokens.ListByOrganization(c.Request().Context(), principal.OwnerID, options)
 	if err != nil {
 		return h.writeRepositoryError(c, err)
 	}
@@ -46,10 +51,80 @@ func (h *V1APIHandler) listServiceTokens(c echo.Context) error {
 	for _, token := range tokens {
 		data = append(data, serviceTokenResource(token, time.Now().UTC()))
 	}
-	return c.JSON(http.StatusOK, map[string]any{
-		"data": data,
-		"meta": map[string]any{"limit": limit},
-	})
+	var nextCursor any
+	if hasMore && len(tokens) > 0 {
+		nextCursor = encodeServiceTokenCursor(tokens[len(tokens)-1])
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": data,
+		"meta": map[string]any{"limit": options.Limit, "nextCursor": nextCursor}})
+}
+
+const maxServiceTokenQueryBytes = 4096
+
+var serviceTokenIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16}$`)
+
+type serviceTokenCursor struct {
+	CreatedAt time.Time `json:"createdAt"`
+	ID        string    `json:"id"`
+}
+
+func serviceTokenListOptions(c echo.Context) (auth.TokenListOptions, error) {
+	if len(c.Request().URL.RawQuery) > maxServiceTokenQueryBytes {
+		return auth.TokenListOptions{}, errors.New("service-token query must not exceed 4096 bytes")
+	}
+	parameters, err := url.ParseQuery(c.Request().URL.RawQuery)
+	if err != nil {
+		return auth.TokenListOptions{}, errors.New("service-token query encoding is invalid")
+	}
+	for name, values := range parameters {
+		if name != "limit" && name != "cursor" {
+			return auth.TokenListOptions{}, errors.New("unsupported service-token filter")
+		}
+		if len(values) != 1 {
+			return auth.TokenListOptions{}, errors.New("service-token filters must not be repeated")
+		}
+	}
+	limit, err := serviceTokenPageLimit(parameters.Get("limit"))
+	if err != nil {
+		return auth.TokenListOptions{}, err
+	}
+	before, beforeID, err := decodeServiceTokenCursor(parameters.Get("cursor"))
+	if err != nil {
+		return auth.TokenListOptions{}, err
+	}
+	options := auth.TokenListOptions{Limit: limit, Before: before, BeforeID: beforeID}
+	return options, options.Validate()
+}
+
+func serviceTokenPageLimit(value string) (int, error) {
+	if value == "" {
+		return auth.DefaultTokenPageLimit, nil
+	}
+	limit, err := positiveInt(value)
+	if err != nil || limit > auth.MaxTokenPageLimit {
+		return 0, fmt.Errorf("limit must be between 1 and %d", auth.MaxTokenPageLimit)
+	}
+	return limit, nil
+}
+
+func decodeServiceTokenCursor(value string) (time.Time, string, error) {
+	if value == "" {
+		return time.Time{}, "", nil
+	}
+	encoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return time.Time{}, "", errors.New("cursor is invalid")
+	}
+	var cursor serviceTokenCursor
+	if err := json.Unmarshal(encoded, &cursor); err != nil || cursor.CreatedAt.IsZero() || !serviceTokenIDPattern.MatchString(cursor.ID) {
+		return time.Time{}, "", errors.New("cursor is invalid")
+	}
+	return cursor.CreatedAt.UTC(), cursor.ID, nil
+}
+
+func encodeServiceTokenCursor(token *auth.ServiceToken) string {
+	encoded, _ := json.Marshal(serviceTokenCursor{CreatedAt: token.CreatedAt.UTC(), ID: token.ID})
+	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
 func (h *V1APIHandler) createServiceToken(c echo.Context) error {

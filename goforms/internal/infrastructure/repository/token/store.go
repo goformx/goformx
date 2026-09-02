@@ -103,18 +103,24 @@ func (s *Store) MarkUsed(ctx context.Context, tokenID string, now time.Time) err
 }
 
 // ListByOrganization returns bounded service-token metadata without secret hashes.
-func (s *Store) ListByOrganization(ctx context.Context, organizationID string, limit int) ([]*auth.ServiceToken, error) {
-	if organizationID == "" || limit < 1 || limit > 100 {
-		return nil, errors.New("organization and a limit between 1 and 100 are required")
+func (s *Store) ListByOrganization(ctx context.Context, organizationID string, options auth.TokenListOptions) ([]*auth.ServiceToken, bool, error) {
+	if organizationID == "" || options.Validate() != nil {
+		return nil, false, errors.New("organization and valid token list options are required")
 	}
 	var rows []record
-	if err := s.db.GetDB().WithContext(ctx).
+	query := s.db.GetDB().WithContext(ctx).
 		Select("token_id", "name", "organization_id", "scopes", "created_at", "expires_at", "revoked_at", "last_used_at", "replaced_by_token_id", "revocation_reason").
 		Where("organization_id = ?", organizationID).
-		Order("created_at DESC, token_id DESC").
-		Limit(limit).
-		Find(&rows).Error; err != nil {
-		return nil, fmt.Errorf("list service tokens: %w", err)
+		Order("created_at DESC, token_id DESC")
+	if !options.Before.IsZero() {
+		query = query.Where("created_at < ? OR (created_at = ? AND token_id < ?)", options.Before, options.Before, options.BeforeID)
+	}
+	if err := query.Limit(options.Limit + 1).Find(&rows).Error; err != nil {
+		return nil, false, fmt.Errorf("list service tokens: %w", err)
+	}
+	hasMore := len(rows) > options.Limit
+	if hasMore {
+		rows = rows[:options.Limit]
 	}
 	tokens := make([]*auth.ServiceToken, 0, len(rows))
 	for _, row := range rows {
@@ -132,7 +138,7 @@ func (s *Store) ListByOrganization(ctx context.Context, organizationID string, l
 		}
 		tokens = append(tokens, token)
 	}
-	return tokens, nil
+	return tokens, hasMore, nil
 }
 
 // RevokeByOrganization prevents a token ID from crossing an organization boundary.

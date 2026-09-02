@@ -564,12 +564,19 @@ paths:
   /v1/service-tokens:
     get:
       summary: List service-token metadata for the authenticated organization
+      description: >-
+        Returns metadata newest first by creation time and token ID. Pass
+        meta.nextCursor back unchanged to reach older credentials. Pagination is
+        organization-scoped and is not a snapshot of newer concurrent inserts;
+        revocation does not change ordering. Unknown or repeated query parameters
+        are rejected and the encoded query is limited to 4096 bytes.
       operationId: listServiceTokens
       tags: [Control plane]
       security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
       x-goformx-required-scopes: [tokens:read]
       parameters:
         - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/ServiceTokenCursor'
       responses:
         '200':
           description: Bounded token metadata; hashes and plaintext credentials are never returned
@@ -583,12 +590,7 @@ paths:
                   data:
                     type: array
                     items: { $ref: '#/components/schemas/ServiceToken' }
-                  meta:
-                    type: object
-                    required: [limit]
-                    additionalProperties: false
-                    properties:
-                      limit: { type: integer, minimum: 1, maximum: 100 }
+                  meta: { $ref: '#/components/schemas/CursorPageMeta' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
     post:
@@ -829,6 +831,12 @@ components:
       required: false
       description: Opaque cursor returned as meta.nextCursor by the previous page.
       schema: { type: string, minLength: 1 }
+    ServiceTokenCursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor returned as meta.nextCursor by the previous service-token page.
+      schema: { type: string, minLength: 1, maxLength: 1024 }
   schemas:
     ProbeEnvelope:
       type: object
@@ -1085,6 +1093,7 @@ components:
     CursorPageMeta:
       type: object
       required: [limit, nextCursor]
+      additionalProperties: false
       properties:
         limit: { type: integer, minimum: 1, maximum: 100 }
         nextCursor:
