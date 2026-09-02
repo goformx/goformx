@@ -96,11 +96,11 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 			t.Cleanup(server.Close)
 			client := &http.Client{Timeout: 10 * time.Second}
 			var lastActor auth.AuditActor
-			credential := func(organization string) string {
+			credentialForScope := func(organization string, scope auth.Scope) string {
 				if credentialClass == auth.CredentialClassServiceToken {
 					caller, secret := parent, parentSecret
-					if organization != organizationID {
-						caller, secret, err = auth.Issue(organization, []auth.Scope{auth.ScopeTokensWrite}, time.Hour, time.Now())
+					if organization != organizationID || scope != auth.ScopeTokensWrite {
+						caller, secret, err = auth.Issue(organization, []auth.Scope{scope}, time.Hour, time.Now())
 						require.NoError(t, err)
 						require.NoError(t, tokens.Save(t.Context(), caller, auth.DatabaseAuditActor("fixture", organization)))
 					}
@@ -109,7 +109,7 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 					return secret
 				}
 				assertionID := uuid.NewString()
-				bearer := signBoundaryAssertion(t, privateKey, "audit-key", organization, assertionID, auth.ScopeTokensWrite, time.Now().UTC())
+				bearer := signBoundaryAssertion(t, privateKey, "audit-key", organization, assertionID, scope, time.Now().UTC())
 				payload, err := base64.RawURLEncoding.DecodeString(strings.Split(bearer, ".")[1])
 				require.NoError(t, err)
 				var claims struct {
@@ -121,11 +121,16 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 					CredentialClass: credentialClass, CredentialID: assertionID, RequestID: claims.Request}
 				return bearer
 			}
-			request := func(method, path, bearer string, body []byte, status int) []byte {
+			credential := func(organization string) string {
+				return credentialForScope(organization, auth.ScopeTokensWrite)
+			}
+			requestWithMedia := func(method, path, bearer string, body []byte, contentType *string, status int) []byte {
 				req, err := http.NewRequestWithContext(t.Context(), method, server.URL+path, bytes.NewReader(body))
 				require.NoError(t, err)
 				req.Header.Set("Authorization", "Bearer "+bearer)
-				req.Header.Set("Content-Type", "application/json")
+				if contentType != nil {
+					req.Header.Set("Content-Type", *contentType)
+				}
 				if auth.IsFirstPartyAssertion(bearer) {
 					req.Header.Set(constants.HeaderTraceID, uuid.NewString()) // signed rid must win
 				}
@@ -136,7 +141,12 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				data, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 				require.NoError(t, err)
 				require.Equal(t, status, response.StatusCode, string(data))
-				if auth.IsFirstPartyAssertion(bearer) {
+				// Media-type/document rejection run before authentication, while
+				// scope rejection happens before the verified principal is attached
+				// to the request context. Once a principal is attached, its signed
+				// identity must override the untrusted caller trace.
+				prePrincipalRejection := status == http.StatusUnsupportedMediaType || status == http.StatusBadRequest || status == http.StatusForbidden
+				if auth.IsFirstPartyAssertion(bearer) && !prePrincipalRejection {
 					require.Equal(t, lastActor.RequestID, response.Header.Get(constants.HeaderTraceID))
 				} else {
 					lastActor.RequestID = response.Header.Get(constants.HeaderTraceID)
@@ -144,7 +154,44 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				require.NotContains(t, string(data), "audit-failure-canary")
 				return data
 			}
+			request := func(method, path, bearer string, body []byte, status int) []byte {
+				contentType := "application/json"
+				return requestWithMedia(method, path, bearer, body, &contentType, status)
+			}
 			body := []byte(`{"name":"private-token-nickname","scopes":["tokens:write"],"expiresInSeconds":3600}`)
+			denied := request(http.MethodPost, "/v1/service-tokens", credentialForScope(organizationID, auth.ScopeFormsRead),
+				body, http.StatusForbidden)
+			require.Contains(t, string(denied), `"code":"forbidden"`)
+			var initialTokens, initialAudits int64
+			require.NoError(t, db.Table("service_tokens").Count(&initialTokens).Error)
+			require.NoError(t, db.Table("management_audit").Count(&initialAudits).Error)
+			for _, rejection := range []struct {
+				name, body string
+				media      *string
+				status     int
+			}{
+				{"missing content type", string(body), nil, http.StatusUnsupportedMediaType},
+				{"wrong content type", string(body), pointerTo("text/plain"), http.StatusUnsupportedMediaType},
+				{"duplicate member", `{"name":"first","name":"second","scopes":["tokens:write"]}`, pointerTo("application/json"), http.StatusBadRequest},
+				{"escape-equivalent member", `{"name":"first","na\u006de":"second","scopes":["tokens:write"]}`, pointerTo("application/json"), http.StatusBadRequest},
+				{"nested duplicate", `{"name":"first","scopes":["tokens:write"],"extra":{"x":1,"x":2}}`, pointerTo("application/json"), http.StatusBadRequest},
+				{"trailing document", string(body) + ` {}`, pointerTo("application/json"), http.StatusBadRequest},
+			} {
+				t.Run(rejection.name, func(t *testing.T) {
+					response := requestWithMedia(http.MethodPost, "/v1/service-tokens", credential(organizationID),
+						[]byte(rejection.body), rejection.media, rejection.status)
+					if rejection.status == http.StatusUnsupportedMediaType {
+						require.Contains(t, string(response), `"code":"unsupported_media_type"`)
+					} else {
+						require.Contains(t, string(response), `"code":"invalid_request"`)
+					}
+				})
+			}
+			var rejectedTokens, rejectedAudits int64
+			require.NoError(t, db.Table("service_tokens").Count(&rejectedTokens).Error)
+			require.NoError(t, db.Table("management_audit").Count(&rejectedAudits).Error)
+			require.Equal(t, initialTokens, rejectedTokens, "rejected request bodies cannot issue credentials")
+			require.Equal(t, initialAudits, rejectedAudits, "rejected request bodies cannot append mutation audits")
 			created := request(http.MethodPost, "/v1/service-tokens", credential(organizationID), body, http.StatusCreated)
 			createdActor := lastActor
 			var envelope struct {
@@ -208,3 +255,5 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 		})
 	}
 }
+
+func pointerTo[T any](value T) *T { return &value }

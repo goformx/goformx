@@ -16,6 +16,13 @@ info:
     1024 fractional decimal places. Excessive numeric representations return
     400 rather than being rounded. JSONB may normalize numeric notation;
     numerically equivalent retries remain idempotent.
+    Every requestBody operation requires exactly its documented media type.
+    Content-Type may omit parameters or include only `charset=utf-8`
+    (case-insensitive); missing headers, other media types, charsets, or
+    parameters return 415 `unsupported_media_type`. Request documents must be
+    one JSON object. Duplicate object member names are rejected before decoding
+    at every nesting depth, including escape-equivalent names such as `a` and
+    `\u0061`; malformed or trailing JSON returns 400 `invalid_request`.
 x-goformx-numeric-limits:
   maxTokenBytes: 4096
   maxAbsoluteExponent: 1024
@@ -135,6 +142,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FormEnvelope' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms/{formId}:
@@ -188,6 +196,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/FormEnvelope' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
@@ -233,6 +242,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/SchemaVersionEnvelope' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms/{formId}/versions/{version}:
@@ -415,6 +425,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms/{formId}/submissions/{submissionId}:
@@ -470,6 +481,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/WebhookEndpointEnvelope' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
     patch:
@@ -490,6 +502,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/WebhookEndpointEnvelope' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
     delete:
@@ -614,6 +627,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CreatedServiceTokenEnvelope' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
   /v1/service-tokens/{tokenId}:
@@ -695,6 +709,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '422': { $ref: '#/components/responses/ValidationError' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
 components:
@@ -1147,6 +1162,16 @@ components:
                 - pointer: /data/email
                   code: format
                   message: Must be a valid email address.
+    UnsupportedMediaType:
+      description: Content-Type is missing or does not match the operation's documented JSON media type and optional UTF-8 charset policy
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              code: unsupported_media_type
+              message: Content-Type must match the operation's documented JSON media type; only an optional UTF-8 charset parameter is accepted.
+              requestId: req_01K4Q9X2JXQG67A4WZ8X9CEQ4G
     PreconditionRequired:
       description: If-Match is required for this mutation
       content:
