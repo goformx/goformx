@@ -145,9 +145,10 @@ func (h *V1APIHandler) exportSubmissions(c echo.Context) error {
 		return h.writeExportError(c, err)
 	}
 	principal, _ := serviceauth.PrincipalFrom(c)
+	auditRequestID, _ := managementAuditRequestIdentity(c, principal)
 	audit := submission.ExportAudit{ID: meta.ExportID, OrganizationID: form.OrganizationID, FormID: form.ID,
 		SubjectID: principal.SubjectID, CredentialClass: string(principal.CredentialClass), CredentialID: principal.CredentialID,
-		RequestID: requestID(c), Format: format, RowCount: len(records), ByteCount: len(encoded), PreparedAt: meta.PreparedAt}
+		RequestID: auditRequestID, Format: format, RowCount: len(records), ByteCount: len(encoded), PreparedAt: meta.PreparedAt}
 	if err := ctx.Err(); err != nil {
 		return h.writeExportError(c, err)
 	}
