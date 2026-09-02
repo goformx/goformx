@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 	"gorm.io/gorm"
 
+	"github.com/goformx/goforms/internal/application/constants"
 	"github.com/goformx/goforms/internal/application/handlers/web"
 	"github.com/goformx/goforms/internal/domain/auth"
 	"github.com/goformx/goforms/internal/domain/form/model"
@@ -86,6 +87,9 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 		if key != "" {
 			req.Header.Set("Idempotency-Key", key)
 		}
+		if strings.HasSuffix(path, "/submissions/export") {
+			req.Header.Set(constants.HeaderTraceID, "caller-export-trace")
+		}
 		response, err := client.Do(req)
 		require.NoError(t, err)
 		defer response.Body.Close()
@@ -94,6 +98,7 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 		require.Equal(t, expected, response.StatusCode, "synthetic %s %s", method, path)
 		require.Equal(t, "no-store", response.Header.Get("Cache-Control"))
 		if strings.HasSuffix(path, "/submissions/export") {
+			require.Equal(t, "caller-export-trace", response.Header.Get(constants.HeaderTraceID))
 			if expected == http.StatusOK {
 				require.Equal(t, strconv.Itoa(len(encoded)), response.Header.Get("Content-Length"))
 				require.NotEmpty(t, response.Header.Get("X-GoFormX-Export-ID"))
@@ -183,6 +188,7 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 		SubjectID       string
 		CredentialClass string
 		CredentialID    string
+		RequestID       string
 		Format          string
 		RowCount        int
 		ByteCount       int
@@ -192,6 +198,8 @@ func TestSubmissionPrivacyUsesAcceptedVersionThroughHTTPAndPostgres(t *testing.T
 	require.Equal(t, "service_token", audit.CredentialClass)
 	require.Equal(t, auth.LookupID(credential), audit.CredentialID)
 	require.Equal(t, audit.CredentialID, audit.SubjectID)
+	require.NoError(t, uuid.Validate(audit.RequestID))
+	require.NotEqual(t, "caller-export-trace", audit.RequestID)
 	require.Equal(t, "json", audit.Format)
 	require.Equal(t, 2, audit.RowCount)
 	require.Equal(t, len(jsonExport), audit.ByteCount)

@@ -163,6 +163,10 @@ include export/organization/form IDs, actor ID, credential class and non-secret
 lookup ID, request ID, format, row/byte counts and time. They do not include
 payloads, schema, filters, bearer credentials, or body digests. `prepared` means
 the artifact was prepared and audited; it does not claim the client received it.
+For a first-party assertion, the audit request ID is its authenticated signed
+`rid`. For a service token, the server creates a fresh audit request UUID; a
+caller-selected trace header remains the response/log correlation value and is
+not allowed to choose or collide the durable export-audit identity.
 Successful responses declare the complete artifact size in `Content-Length`.
 Download proxies must compare this with received bytes before releasing a file;
 a capped or interrupted HTTP read must not become a successful partial export.
