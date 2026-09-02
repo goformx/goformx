@@ -101,6 +101,10 @@ func TestWebhookLifecycleAtomicityThroughRealHTTPAndPostgres(t *testing.T) {
 				req.Header.Set("Authorization", "Bearer "+bearer)
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("X-Organization-ID", foreignID)
+				if credentialClass == auth.CredentialClassServiceToken {
+					lastActor.CorrelationID = "caller-" + uuid.NewString()
+					req.Header.Set(constants.HeaderTraceID, lastActor.CorrelationID)
+				}
 				response, requestErr := client.Do(req)
 				require.NoError(t, requestErr)
 				defer response.Body.Close()
@@ -110,7 +114,9 @@ func TestWebhookLifecycleAtomicityThroughRealHTTPAndPostgres(t *testing.T) {
 				if credentialClass == auth.CredentialClassFirstPartyAssertion {
 					require.Equal(t, lastActor.RequestID, response.Header.Get(constants.HeaderTraceID))
 				}
-				lastActor.RequestID = response.Header.Get(constants.HeaderTraceID)
+				if credentialClass == auth.CredentialClassServiceToken {
+					require.Equal(t, lastActor.CorrelationID, response.Header.Get(constants.HeaderTraceID))
+				}
 				for _, secret := range []string{"webhook-audit-failure-canary", "old-signing-secret", "new-signing-secret", "Bearer private-header", "/private-path"} {
 					require.NotContains(t, string(data), secret)
 				}
@@ -125,13 +131,31 @@ func TestWebhookLifecycleAtomicityThroughRealHTTPAndPostgres(t *testing.T) {
 				return count
 			}
 			assertLastAudit := func(kind string) {
-				var record struct{ SubjectID, CredentialID, CredentialClass, OrganizationID, RequestID, Event string }
-				require.NoError(t, db.Table("management_audit").Where("form_id = ? AND request_id = ?", form.ID, lastActor.RequestID).First(&record).Error)
+				var records []struct{ AuditID, SubjectID, CredentialID, CredentialClass, OrganizationID, RequestID, CorrelationID, Event string }
+				query := db.Table("management_audit").Where(
+					"form_id = ? AND event = ? AND credential_id = ?", form.ID, kind, lastActor.CredentialID)
+				if credentialClass == auth.CredentialClassFirstPartyAssertion {
+					query = query.Where("request_id = ?", lastActor.RequestID)
+				} else {
+					query = query.Where("correlation_id = ?", lastActor.CorrelationID)
+				}
+				require.NoError(t, query.Find(&records).Error)
+				require.Len(t, records, 1, "one mutation must produce one independently identified event")
+				record := records[0]
+				require.NoError(t, uuid.Validate(record.AuditID))
 				require.Equal(t, lastActor.SubjectID, record.SubjectID)
 				require.Equal(t, lastActor.CredentialID, record.CredentialID)
 				require.Equal(t, string(credentialClass), record.CredentialClass)
 				require.Equal(t, organizationID, record.OrganizationID)
 				require.Equal(t, kind, record.Event)
+				if credentialClass == auth.CredentialClassFirstPartyAssertion {
+					require.Equal(t, lastActor.RequestID, record.RequestID)
+					require.Empty(t, record.CorrelationID)
+				} else {
+					require.NoError(t, uuid.Validate(record.RequestID))
+					require.NotEqual(t, lastActor.CorrelationID, record.RequestID)
+					require.Equal(t, lastActor.CorrelationID, record.CorrelationID)
+				}
 			}
 			fault := func(enabled bool) {
 				if enabled {

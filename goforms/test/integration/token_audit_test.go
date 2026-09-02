@@ -105,7 +105,7 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 						require.NoError(t, tokens.Save(t.Context(), caller, auth.DatabaseAuditActor("fixture", organization)))
 					}
 					lastActor = auth.AuditActor{OrganizationID: organization, SubjectID: caller.ID,
-						CredentialClass: credentialClass, CredentialID: caller.ID, RequestID: uuid.NewString()}
+						CredentialClass: credentialClass, CredentialID: caller.ID}
 					return secret
 				}
 				assertionID := uuid.NewString()
@@ -133,7 +133,11 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				}
 				if auth.IsFirstPartyAssertion(bearer) {
 					req.Header.Set(constants.HeaderTraceID, uuid.NewString()) // signed rid must win
+				} else {
+					lastActor.CorrelationID = "caller-" + uuid.NewString()
+					req.Header.Set(constants.HeaderTraceID, lastActor.CorrelationID)
 				}
+				callerTrace := req.Header.Get(constants.HeaderTraceID)
 				req.Header.Set("X-Organization-ID", uuid.NewString()) // never audit authority
 				response, err := client.Do(req)
 				require.NoError(t, err)
@@ -146,10 +150,15 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				// to the request context. Once a principal is attached, its signed
 				// identity must override the untrusted caller trace.
 				prePrincipalRejection := status == http.StatusUnsupportedMediaType || status == http.StatusBadRequest || status == http.StatusForbidden
-				if auth.IsFirstPartyAssertion(bearer) && !prePrincipalRejection {
-					require.Equal(t, lastActor.RequestID, response.Header.Get(constants.HeaderTraceID))
+				if auth.IsFirstPartyAssertion(bearer) {
+					if prePrincipalRejection {
+						require.Contains(t, []string{callerTrace, lastActor.RequestID},
+							response.Header.Get(constants.HeaderTraceID), "a rejecting boundary may run before or after principal attachment")
+					} else {
+						require.Equal(t, lastActor.RequestID, response.Header.Get(constants.HeaderTraceID))
+					}
 				} else {
-					lastActor.RequestID = response.Header.Get(constants.HeaderTraceID)
+					require.Equal(t, lastActor.CorrelationID, response.Header.Get(constants.HeaderTraceID))
 				}
 				require.NotContains(t, string(data), "audit-failure-canary")
 				return data
@@ -205,12 +214,20 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 			require.NoError(t, json.Unmarshal(created, &envelope))
 			tokenID, tokenSecret := envelope.Data.Metadata.ID, envelope.Data.Token
 			require.Equal(t, tokenID, auth.LookupID(tokenSecret))
-			var row struct{ SubjectID, CredentialClass, CredentialID, RequestID, OrganizationID, Event string }
-			require.NoError(t, db.Table("management_audit").Where("target_id = ?", tokenID).First(&row).Error)
+			var row struct{ AuditID, SubjectID, CredentialClass, CredentialID, RequestID, CorrelationID, OrganizationID, Event string }
+			require.NoError(t, db.Table("management_audit").Where("target_id = ? AND event = ?", tokenID, "service_token.created").Take(&row).Error)
+			require.NoError(t, uuid.Validate(row.AuditID))
 			require.Equal(t, createdActor.SubjectID, row.SubjectID)
 			require.Equal(t, string(createdActor.CredentialClass), row.CredentialClass)
 			require.Equal(t, createdActor.CredentialID, row.CredentialID)
-			require.Equal(t, createdActor.RequestID, row.RequestID)
+			if credentialClass == auth.CredentialClassFirstPartyAssertion {
+				require.Equal(t, createdActor.RequestID, row.RequestID)
+				require.Empty(t, row.CorrelationID)
+			} else {
+				require.NoError(t, uuid.Validate(row.RequestID))
+				require.NotEqual(t, createdActor.CorrelationID, row.RequestID)
+				require.Equal(t, createdActor.CorrelationID, row.CorrelationID)
+			}
 			require.Equal(t, organizationID, row.OrganizationID)
 			require.Equal(t, "service_token.created", row.Event)
 			var storedAudit string
@@ -247,6 +264,12 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 			require.NoError(t, db.Exec("DELETE FROM service_tokens").Error)
 			require.NoError(t, db.Table("management_audit").Where("target_id = ?", tokenID).Count(&audits).Error)
 			require.EqualValues(t, 2, audits, "audit history survives credential deletion")
+			if credentialClass == auth.CredentialClassServiceToken {
+				correlationDown, readErr := os.ReadFile("../../migrations/postgresql/2026090102_management_audit_correlation.down.sql")
+				require.NoError(t, readErr)
+				require.ErrorContains(t, db.Exec(string(correlationDown)).Error,
+					"cannot remove retained management audit correlation data")
+			}
 			down, err := os.ReadFile("../../migrations/postgresql/2026083003_management_audit.down.sql")
 			require.NoError(t, err)
 			require.ErrorContains(t, db.Exec(string(down)).Error, "cannot roll back a populated management audit")

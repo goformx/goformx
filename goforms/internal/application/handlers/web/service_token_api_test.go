@@ -8,10 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/goformx/goforms/internal/application/constants"
 	"github.com/goformx/goforms/internal/application/validation"
 	"github.com/goformx/goforms/internal/domain/auth"
 	mockform "github.com/goformx/goforms/test/mocks/form"
@@ -100,9 +102,10 @@ func TestServiceTokenManagementScopesSecretsAndOrganizationBoundary(t *testing.T
 	router := echo.New()
 	newV1APIHandler(repository, tokens, validation.NewComprehensiveValidator(), nil).RegisterRoutes(router)
 
+	callerTrace := "shared-caller-correlation"
 	created := requestJSON(t, router, http.MethodPost, "/v1/service-tokens", map[string]any{
 		"name": "Read-only dashboard", "scopes": []string{"forms:read"}, "expiresInSeconds": 3600,
-	}, plaintext, "", nil)
+	}, plaintext, "", map[string]string{constants.HeaderTraceID: callerTrace})
 	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
 	require.Equal(t, "no-store", created.Header().Get(echo.HeaderCacheControl))
 	require.Contains(t, created.Body.String(), `"token":"gfst_`)
@@ -110,6 +113,11 @@ func TestServiceTokenManagementScopesSecretsAndOrganizationBoundary(t *testing.T
 	require.Equal(t, "Read-only dashboard", tokens.saved.Name)
 	require.True(t, tokens.saved.HasScope(auth.ScopeFormsRead))
 	require.False(t, tokens.saved.HasScope(auth.ScopeFormsWrite))
+	firstAuditRequest := tokens.actor.RequestID
+	require.NoError(t, uuid.Validate(firstAuditRequest))
+	require.NotEqual(t, callerTrace, firstAuditRequest)
+	require.Equal(t, callerTrace, tokens.actor.CorrelationID)
+	require.Equal(t, callerTrace, created.Header().Get(constants.HeaderTraceID))
 
 	listed := requestJSON(t, router, http.MethodGet, "/v1/service-tokens", nil, plaintext, "", nil)
 	require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
@@ -117,6 +125,20 @@ func TestServiceTokenManagementScopesSecretsAndOrganizationBoundary(t *testing.T
 	require.Contains(t, listed.Body.String(), `"organizationId":"owner-a"`)
 	require.NotContains(t, listed.Body.String(), `"token":"gfst_`)
 	require.NotContains(t, strings.ToLower(listed.Body.String()), "hash")
+
+	repeated := requestJSON(t, router, http.MethodPost, "/v1/service-tokens", map[string]any{
+		"name": "Repeated caller trace", "scopes": []string{"forms:read"}, "expiresInSeconds": 3600,
+	}, plaintext, "", map[string]string{constants.HeaderTraceID: callerTrace})
+	require.Equal(t, http.StatusCreated, repeated.Code, repeated.Body.String())
+	require.NotEqual(t, firstAuditRequest, tokens.actor.RequestID)
+	require.Equal(t, callerTrace, tokens.actor.CorrelationID)
+
+	invalid := requestJSON(t, router, http.MethodPost, "/v1/service-tokens", map[string]any{
+		"name": "Invalid caller trace", "scopes": []string{"forms:read"}, "expiresInSeconds": 3600,
+	}, plaintext, "", map[string]string{constants.HeaderTraceID: "not valid!"})
+	require.Equal(t, http.StatusCreated, invalid.Code, invalid.Body.String())
+	require.Empty(t, tokens.actor.CorrelationID)
+	require.NoError(t, uuid.Validate(tokens.actor.RequestID))
 
 	deniedDelegation := requestJSON(t, router, http.MethodPost, "/v1/service-tokens", map[string]any{
 		"name": "Too powerful", "scopes": []string{"forms:write"}, "expiresInSeconds": 3600,

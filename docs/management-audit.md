@@ -12,35 +12,56 @@ whose one-time secret was not received.
 ## Identity and contents
 
 - First-party calls record the verified subject, organization, assertion ID and
-  signed request ID. A browser/body/header cannot supply the actor.
+  signed `rid` as `request_id`. A browser/body/header cannot supply the actor or
+  replace that authenticated request identity.
 - Service-token calls record the authenticated non-secret lookup ID as subject
-  and credential ID, plus the resolved organization and request correlation ID.
+  and credential ID, plus the resolved organization. The server issues a fresh
+  `request_id` for the audit operation. A syntactically valid `X-GoFormX-Trace-ID`
+  is retained separately as nullable `correlation_id`; it remains untrusted and
+  repeated caller values do not merge, replace or deduplicate audit events.
 - Operator CLI calls record `database_operator` and the connection's authenticated
   `current_user`, represented as `db:` plus base64url-encoded role bytes. This is
   database-role attribution, **not a claim to identify the human using that role**.
   Operators need individual authenticated roles or an external access trail when
   individual human attribution is required. No caller-provided actor flag exists.
 
-The fixed record contains an audit UUID, actor identifiers, organization, event,
+The fixed record contains an `audit_id` UUID, actor identifiers, organization, event,
 target token ID, optional replacement token ID, canonical granted scopes, expiry
 when applicable, and event time. It has no arbitrary metadata bag. Token values,
 hashes, names, request bodies, headers and payload digests are excluded. Opaque
 user/organization identifiers still require access and retention controls.
+
+These identifiers have deliberately different meanings:
+
+- `audit_id` is the unique immutable identity of exactly one audit event.
+- `request_id` is authenticated for first-party assertions and server-issued for
+  service-token and database-operator work. It groups events produced by one
+  request and is deliberately not unique.
+- `correlation_id` is optional caller-supplied service-token tracing data. It is
+  useful for log joins only and never grants authority, idempotency or uniqueness.
+- Retry grouping is defined only by an operation's explicit idempotency contract.
+  Public submissions use their idempotency key; management mutations generally
+  require state reconciliation and never use an audit or trace identifier as a
+  retry key.
 
 Events are `service_token.created`, `service_token.revoked`, and
 `service_token.rotated`. Rotation records the old target, replacement ID, inherited
 scopes and new expiry as one atomic event. Concurrent/repeated revocation of an
 already-revoked owned token preserves its original timestamp and does not create
 another mutation event. A denied, invalid, or foreign-owned request does not create
-a successful-change record. Authentication failures/access attempts belong to a
-separate operational security log; last-use updates are not credential mutations.
+a successful-change record. No-op revocation attempts, authentication failures and
+access attempts belong to request metrics or a separate operational security log;
+they must not fabricate duplicate change history. Last-use updates are not
+credential mutations.
 
 ## Operational use and rollback
 
 Authorized operators can query the table by `organization_id`, `target_id` and
-`occurred_at`, and correlate the `request_id` with the response/operational log.
-Generated trace IDs now remain stable throughout one request. Request correlation
-is not authorization. This slice does **not** expose an audit-list HTTP/UI endpoint.
+`occurred_at`, and join trusted `request_id` or optional untrusted `correlation_id`
+with the appropriate operational log. Generated response trace IDs remain stable
+throughout one request, but a service-token response trace is not its audit request
+identity. Neither field is authorization. This slice does **not** expose an
+audit-list HTTP/UI endpoint.
 
 Webhook records add the form UUID and, for live-endpoint configuration changes,
 the resulting `enabled` flag. Target IDs identify endpoints, or deliveries for
@@ -57,8 +78,9 @@ produce a record. Audit failure returns `503 management_audit_unavailable` and
 rolls back the entire webhook change. Network/commit uncertainty still requires
 inspecting metadata rather than assuming success or failure.
 
-Apply migrations through `2026083004` before this binary (`2026083003` introduced
-token audits; `2026083004` adds webhook events and typed fields). Audit records have no
+Apply migrations through `2026090102` before this binary (`2026083003` introduced
+token audits; `2026083004` adds webhook events and typed fields; `2026090102`
+separates optional caller correlation). Audit records have no
 cascading foreign keys, so credential/account cleanup cannot erase history.
 Database triggers reject update, delete and truncate. A routine down migration
 refuses to drop a populated audit table; the webhook migration refuses to remove
@@ -85,12 +107,14 @@ sensitive and must go directly to secret custody.
 ## Verification
 
 The normal `task verify` suite covers both authenticated HTTP credential classes
-against PostgreSQL, failed-audit rollback with no secret reveal, real revocation,
+against PostgreSQL, failed-audit rollback with no secret reveal or fabricated event, real revocation,
 foreign-organization denial, duplicate/concurrent revocation, missing actor
 rejection, immutable retained records and populated-down refusal. CLI tests prove
 issue/rotate/revoke atomicity and database-role attribution. A retained-red trace
 regression demonstrates the former repeated-ID-generation bug; the fixed handler
-keeps audit, response and logging correlation aligned. Webhook tests exercise
+keeps each identity stable at its intended trust boundary. Repeated and invalid
+caller traces, non-unique request grouping and unique event IDs are covered.
+Webhook tests exercise
 real HTTP and PostgreSQL for both credentials, missing/mismatched actors,
 audit-failure rollback for creation/replacement/pause/rotation/deletion/replay,
 concurrent pause, encrypted-field preservation, retained delivery snapshots,

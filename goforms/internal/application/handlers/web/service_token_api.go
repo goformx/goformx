@@ -207,8 +207,10 @@ func (h *V1APIHandler) revokeServiceToken(c echo.Context) error {
 
 func managementAuditActor(c echo.Context) auth.AuditActor {
 	principal, _ := serviceauth.PrincipalFrom(c)
+	auditRequestID, correlationID := managementAuditRequestIdentity(c, principal)
 	return auth.AuditActor{OrganizationID: principal.OrganizationID, SubjectID: principal.SubjectID,
-		CredentialClass: principal.CredentialClass, CredentialID: principal.CredentialID, RequestID: requestID(c)}
+		CredentialClass: principal.CredentialClass, CredentialID: principal.CredentialID,
+		RequestID: auditRequestID, CorrelationID: correlationID}
 }
 
 func (h *V1APIHandler) writeManagementMutationError(c echo.Context, err error) error {

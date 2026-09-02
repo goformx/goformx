@@ -1059,6 +1059,32 @@ func requestID(c echo.Context) string {
 	return id
 }
 
+const auditRequestIdentityContextKey = "management_audit_request_identity"
+
+type auditRequestIdentity struct {
+	requestID     string
+	correlationID string
+}
+
+// managementAuditRequestIdentity separates trusted audit request identity from
+// caller-controlled tracing. First-party assertions authenticate their signed
+// rid. Service-token calls receive a server identity while retaining only a
+// syntactically safe caller trace as untrusted correlation data.
+func managementAuditRequestIdentity(c echo.Context, principal serviceauth.Principal) (string, string) {
+	if principal.CredentialClass == auth.CredentialClassFirstPartyAssertion && principal.RequestID != "" {
+		return principal.RequestID, ""
+	}
+	if cached, ok := c.Get(auditRequestIdentityContextKey).(auditRequestIdentity); ok {
+		return cached.requestID, cached.correlationID
+	}
+	identity := auditRequestIdentity{requestID: uuid.NewString()}
+	if callerTrace := c.Request().Header.Get(constants.HeaderTraceID); traceIDPattern.MatchString(callerTrace) {
+		identity.correlationID = callerTrace
+	}
+	c.Set(auditRequestIdentityContextKey, identity)
+	return identity.requestID, identity.correlationID
+}
+
 func (h *V1APIHandler) writeError(
 	c echo.Context,
 	status int,

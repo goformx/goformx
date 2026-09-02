@@ -151,4 +151,19 @@ func TestStorePersistsOnlyTokenHashScopesAndRevocation(t *testing.T) {
 	var revocations int64
 	require.NoError(t, db.Table("management_audit").Where("target_id = ? AND event = ?", concurrent.ID, "service_token.revoked").Count(&revocations).Error)
 	require.EqualValues(t, 1, revocations, "row locking must serialize concurrent idempotent revocation")
+
+	// A request identity groups work; it is not an event key. One logical
+	// operator request may append multiple independently identified events.
+	multiEventActor := auth.DatabaseAuditActor("multi-event-fixture", ownerID)
+	for range 2 {
+		additional, _, issueErr := auth.Issue(ownerID, []auth.Scope{auth.ScopeFormsRead}, time.Hour, now)
+		require.NoError(t, issueErr)
+		require.NoError(t, store.Save(t.Context(), additional, multiEventActor))
+	}
+	var groupedEvents, distinctEventIDs int64
+	require.NoError(t, db.Table("management_audit").Where("request_id = ?", multiEventActor.RequestID).Count(&groupedEvents).Error)
+	require.NoError(t, db.Raw("SELECT count(DISTINCT audit_id) FROM management_audit WHERE request_id = ?", multiEventActor.RequestID).
+		Scan(&distinctEventIDs).Error)
+	require.EqualValues(t, 2, groupedEvents)
+	require.Equal(t, groupedEvents, distinctEventIDs, "audit_id, not request_id, is unique event identity")
 }

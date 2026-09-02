@@ -26,6 +26,7 @@ type AuditActor struct {
 	CredentialClass CredentialClass
 	CredentialID    string
 	RequestID       string
+	CorrelationID   string
 }
 
 func (a AuditActor) Validate() error {
@@ -37,6 +38,12 @@ func (a AuditActor) Validate() error {
 		if !auditIdentityPattern.MatchString(id) {
 			return invalid
 		}
+	}
+	if a.CorrelationID != "" && !auditIdentityPattern.MatchString(a.CorrelationID) {
+		return invalid
+	}
+	if a.CorrelationID != "" && a.CredentialClass != CredentialClassServiceToken {
+		return invalid
 	}
 	switch a.CredentialClass {
 	case CredentialClassServiceToken, CredentialClassDatabaseOperator:
