@@ -241,6 +241,9 @@ func (s *Store) CreateSchemaVersion(
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
 			"organization_id = ? AND uuid = ?", organizationID, formID,
 		).First(&formModel).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return common.NewNotFoundErrorWithCause("lock", "form", formID, err)
+			}
 			return fmt.Errorf("lock form: %w", err)
 		}
 		var latest int
@@ -292,6 +295,9 @@ func (s *Store) GetSchemaVersion(
 		Joins("JOIN forms ON forms.uuid = form_schemas.form_id").
 		Where("forms.deleted_at IS NULL AND forms.organization_id = ? AND form_schemas.form_id = ? AND form_schemas.version = ?", organizationID, formID, version).
 		First(&record).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, common.NewNotFoundErrorWithCause("get", "schema version", fmt.Sprintf("%s/%d", formID, version), err)
+		}
 		return nil, fmt.Errorf("get schema version: %w", err)
 	}
 	return restoreSchema(record)
@@ -372,6 +378,9 @@ func (s *Store) PublishSchemaVersion(
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
 			"organization_id = ? AND uuid = ?", organizationID, formID,
 		).First(&formModel).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return common.NewNotFoundErrorWithCause("lock", "form", formID, err)
+			}
 			return fmt.Errorf("lock form: %w", err)
 		}
 		if formModel.Status == model.LifecyclePublished && version < formModel.CurrentSchemaVersion {
@@ -381,6 +390,9 @@ func (s *Store) PublishSchemaVersion(
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(
 			"form_id = ? AND version = ?", formID, version,
 		).First(&record).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return common.NewNotFoundErrorWithCause("get", "schema version", fmt.Sprintf("%s/%d", formID, version), err)
+			}
 			return fmt.Errorf("get schema version: %w", err)
 		}
 		existing, err := restoreSchema(record)

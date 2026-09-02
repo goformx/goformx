@@ -36,6 +36,36 @@ func (r fixedTokenRepository) MarkUsed(_ context.Context, _ string, _ time.Time)
 	return nil
 }
 
+func TestMissingSchemaVersionReturnsNotFound(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		method string
+		scope  auth.Scope
+		suffix string
+	}{
+		{"read", http.MethodGet, auth.ScopeFormsRead, ""},
+		{"publish", http.MethodPost, auth.ScopeFormsPublish, "/publish"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repository := mockform.NewMockRepository(ctrl)
+			formModel := model.NewForm("owner-a", "Schema error", "", contactSchema("email"))
+			formModel.ID = "11111111-1111-4111-8111-111111111111"
+			repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", formModel.ID).Return(formModel, nil)
+			repository.EXPECT().GetSchemaVersion(gomock.Any(), "owner-a", formModel.ID, 99).Return(nil,
+				repositorycommon.NewNotFoundError("get", "schema version", formModel.ID+"/99"))
+			token, plaintext, err := auth.Issue("owner-a", []auth.Scope{test.scope}, time.Hour, time.Now())
+			require.NoError(t, err)
+			router := echo.New()
+			NewV1APIHandler(repository, fixedTokenRepository{token: token}, nil).RegisterRoutes(router)
+
+			response := requestJSON(t, router, test.method, "/v1/forms/"+formModel.ID+"/versions/99"+test.suffix, nil, plaintext, "", nil)
+			require.Equal(t, http.StatusNotFound, response.Code, response.Body.String())
+			require.Contains(t, response.Body.String(), `"code":"not_found"`)
+		})
+	}
+}
+
 func TestV1ContactFormVerticalSlice(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repository := mockform.NewMockRepository(ctrl)

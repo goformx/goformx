@@ -116,8 +116,10 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	foreignOrganizationID := uuid.NewString()
 	_, err = store.CreateSchemaVersion(t.Context(), foreignOrganizationID, form.ID, form.Schema)
 	require.ErrorContains(t, err, "record not found")
+	require.ErrorIs(t, err, repositorycommon.ErrNotFound)
 	_, err = store.GetSchemaVersion(t.Context(), foreignOrganizationID, form.ID, 1)
 	require.ErrorContains(t, err, "record not found")
+	require.ErrorIs(t, err, repositorycommon.ErrNotFound)
 
 	version, err := store.CreateSchemaVersion(t.Context(), ownerID, form.ID, form.Schema)
 	require.NoError(t, err)
@@ -145,6 +147,7 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	require.Equal(t, 2, exactVersion.Version())
 	_, err = store.PublishSchemaVersion(t.Context(), foreignOrganizationID, form.ID, 2)
 	require.ErrorContains(t, err, "record not found")
+	require.ErrorIs(t, err, repositorycommon.ErrNotFound)
 	_, err = store.PublishSchemaVersion(t.Context(), ownerID, form.ID, 1)
 	require.ErrorContains(t, err, "cannot move backwards")
 
