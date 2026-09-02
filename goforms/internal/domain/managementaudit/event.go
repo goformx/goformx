@@ -75,7 +75,7 @@ func (e Event) Validate() error {
 		}
 		return nil
 	}
-	if len(e.Scopes) == 0 || e.ExpiresAt == nil || e.ExpiresAt.IsZero() {
+	if len(e.Scopes) == 0 || len(e.Scopes) > auth.ScopeCount() || e.ExpiresAt == nil || e.ExpiresAt.IsZero() {
 		return ErrInvalid
 	}
 	seen := make(map[auth.Scope]bool)

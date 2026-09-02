@@ -118,6 +118,29 @@ func TestManagementScopeContract(t *testing.T) {
 	}
 }
 
+func TestManagementScopeInventoryMatchesOpenAPI(t *testing.T) {
+	t.Parallel()
+	document, err := os.ReadFile("../../../../contracts/openapi.v1.yaml")
+	require.NoError(t, err)
+	var contract struct {
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]struct {
+					Items struct {
+						Enum []auth.Scope `yaml:"enum"`
+					} `yaml:"items"`
+				} `yaml:"properties"`
+			} `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	require.NoError(t, yaml.Unmarshal(document, &contract))
+	for _, schema := range []string{"CreateServiceToken", "ServiceToken"} {
+		scopes := contract.Components.Schemas[schema].Properties["scopes"].Items.Enum
+		require.ElementsMatch(t, auth.AllScopes(), scopes,
+			"%s must project the complete canonical scope inventory", schema)
+	}
+}
+
 func assertManagementRouteInventory(t *testing.T, operations []managementOperation) {
 	t.Helper()
 	router := echo.New()
