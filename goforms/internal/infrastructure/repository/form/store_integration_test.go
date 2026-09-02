@@ -22,6 +22,7 @@ import (
 	"github.com/goformx/goforms/internal/domain/form/model"
 	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
+	repositorycommon "github.com/goformx/goforms/internal/infrastructure/repository/common"
 	formrepository "github.com/goformx/goforms/internal/infrastructure/repository/form"
 	mocklogging "github.com/goformx/goforms/test/mocks/logging"
 )
@@ -53,6 +54,13 @@ func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 		VALUES (?, 'form-fixture@example.test', 'not-used', 'Form', 'Fixture')
 		ON CONFLICT (uuid) DO NOTHING
 	`, ownerID).Error)
+	duplicateUserErr := db.Exec(`
+		INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
+		VALUES (?, 'duplicate-fixture@example.test', 'not-used', 'Duplicate', 'Fixture')
+	`, ownerID).Error
+	require.Error(t, duplicateUserErr)
+	require.ErrorIs(t, repositorycommon.NewDatabaseError("create", "user", ownerID, duplicateUserErr), repositorycommon.ErrConflict,
+		"a real PostgreSQL unique violation must expose the stable conflict category")
 	t.Cleanup(func() {
 		_ = db.Exec("DELETE FROM forms WHERE organization_id = ?", ownerID).Error
 		_ = db.Exec("DELETE FROM users WHERE uuid = ?", ownerID).Error

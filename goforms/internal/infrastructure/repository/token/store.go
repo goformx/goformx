@@ -13,6 +13,7 @@ import (
 	"github.com/goformx/goforms/internal/domain/auth"
 	"github.com/goformx/goforms/internal/domain/managementaudit"
 	"github.com/goformx/goforms/internal/infrastructure/database"
+	"github.com/goformx/goforms/internal/infrastructure/repository/common"
 	auditstore "github.com/goformx/goforms/internal/infrastructure/repository/managementaudit"
 )
 
@@ -58,7 +59,7 @@ func (s *Store) Save(ctx context.Context, token *auth.ServiceToken, actor auth.A
 		return auditstore.AppendGORM(ctx, tx, event)
 	})
 	if err != nil {
-		return fmt.Errorf("save service token: %w", err)
+		return fmt.Errorf("save service token: %w", common.NewDatabaseError("save", "service token", token.ID, err))
 	}
 	return nil
 }
@@ -66,7 +67,10 @@ func (s *Store) Save(ctx context.Context, token *auth.ServiceToken, actor auth.A
 func (s *Store) FindByID(ctx context.Context, tokenID string) (*auth.ServiceToken, error) {
 	var row record
 	if err := s.db.GetDB().WithContext(ctx).Where("token_id = ?", tokenID).First(&row).Error; err != nil {
-		return nil, fmt.Errorf("find service token: %w", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("find service token: %w", common.NewNotFoundErrorWithCause("find", "service token", tokenID, err))
+		}
+		return nil, fmt.Errorf("find service token: %w", common.NewDatabaseError("find", "service token", tokenID, err))
 	}
 	if len(row.TokenHash) != 32 {
 		return nil, errors.New("stored service token hash is invalid")
@@ -94,10 +98,10 @@ func (s *Store) MarkUsed(ctx context.Context, tokenID string, now time.Time) err
 		"token_id = ? AND revoked_at IS NULL AND expires_at > ?", tokenID, now.UTC(),
 	).Update("last_used_at", now.UTC())
 	if result.Error != nil {
-		return fmt.Errorf("mark service token used: %w", result.Error)
+		return fmt.Errorf("mark service token used: %w", common.NewDatabaseError("mark used", "service token", tokenID, result.Error))
 	}
 	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
+		return common.NewNotFoundErrorWithCause("mark used", "service token", tokenID, gorm.ErrRecordNotFound)
 	}
 	return nil
 }
@@ -105,7 +109,8 @@ func (s *Store) MarkUsed(ctx context.Context, tokenID string, now time.Time) err
 // ListByOrganization returns bounded service-token metadata without secret hashes.
 func (s *Store) ListByOrganization(ctx context.Context, organizationID string, options auth.TokenListOptions) ([]*auth.ServiceToken, bool, error) {
 	if organizationID == "" || options.Validate() != nil {
-		return nil, false, errors.New("organization and valid token list options are required")
+		return nil, false, common.NewInvalidInputError("list", "service token", organizationID,
+			errors.New("organization and valid token list options are required"))
 	}
 	var rows []record
 	query := s.db.GetDB().WithContext(ctx).
@@ -116,7 +121,7 @@ func (s *Store) ListByOrganization(ctx context.Context, organizationID string, o
 		query = query.Where("(created_at, token_id) < (?, ?)", options.Before, options.BeforeID)
 	}
 	if err := query.Limit(options.Limit + 1).Find(&rows).Error; err != nil {
-		return nil, false, fmt.Errorf("list service tokens: %w", err)
+		return nil, false, fmt.Errorf("list service tokens: %w", common.NewDatabaseError("list", "service token", organizationID, err))
 	}
 	hasMore := len(rows) > options.Limit
 	if hasMore {
@@ -146,7 +151,7 @@ func (s *Store) RevokeByOrganization(ctx context.Context, organizationID, tokenI
 	if actor.Validate() != nil || actor.OrganizationID != organizationID {
 		return managementaudit.ErrInvalid
 	}
-	return s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row record
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("organization_id = ? AND token_id = ?", organizationID, tokenID).First(&row).Error; err != nil {
@@ -164,4 +169,11 @@ func (s *Store) RevokeByOrganization(ctx context.Context, organizationID, tokenI
 			ID: uuid.NewString(), Actor: actor, Kind: managementaudit.TokenRevoked, TargetID: tokenID, OccurredAt: now,
 		})
 	})
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return common.NewNotFoundErrorWithCause("revoke", "service token", tokenID, err)
+	}
+	return common.NewDatabaseError("revoke", "service token", tokenID, err)
 }

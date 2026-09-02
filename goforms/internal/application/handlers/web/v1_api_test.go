@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,6 +19,7 @@ import (
 	domainform "github.com/goformx/goforms/internal/domain/form"
 	"github.com/goformx/goforms/internal/domain/form/model"
 	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
+	repositorycommon "github.com/goformx/goforms/internal/infrastructure/repository/common"
 	mockform "github.com/goformx/goforms/test/mocks/form"
 )
 
@@ -225,7 +225,8 @@ func TestValidateOriginsAcceptsOriginsAndRejectsURLsOrDuplicates(t *testing.T) {
 func TestControlPlaneRejectsCrossOwnerFormAccess(t *testing.T) {
 	t.Parallel()
 	repository := mockform.NewMockRepository(gomock.NewController(t))
-	repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", "form-owned-by-b").Return(nil, errors.New("not found"))
+	repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", "form-owned-by-b").Return(nil,
+		repositorycommon.NewNotFoundError("get", "form", "form-owned-by-b"))
 	now := time.Now()
 	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeFormsRead}, time.Hour, now)
 	require.NoError(t, err)

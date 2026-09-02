@@ -30,6 +30,7 @@ import (
 	"github.com/goformx/goforms/internal/domain/form/model"
 	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
+	repositorycommon "github.com/goformx/goforms/internal/infrastructure/repository/common"
 )
 
 var (
@@ -990,14 +991,13 @@ func (h *V1APIHandler) writeRepositoryError(c echo.Context, err error) error {
 	if errors.Is(err, model.ErrPreconditionFailed) {
 		return h.writeError(c, http.StatusPreconditionFailed, "precondition_failed", "The form was modified by another request.", nil)
 	}
-	message := strings.ToLower(err.Error())
-	if strings.Contains(message, "not found") || strings.Contains(message, "record not found") {
+	if errors.Is(err, repositorycommon.ErrNotFound) {
 		return h.writeError(c, http.StatusNotFound, "not_found", "The requested resource was not found.", nil)
 	}
-	if strings.Contains(message, "duplicate") || strings.Contains(message, "unique") {
+	if errors.Is(err, repositorycommon.ErrConflict) {
 		return h.writeError(c, http.StatusConflict, "conflict", "The resource already exists.", nil)
 	}
-	if strings.Contains(message, "invalid input") || strings.Contains(message, "invalid uuid") {
+	if errors.Is(err, repositorycommon.ErrInvalidInput) {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "The resource identifier is invalid.", nil)
 	}
 	if h.logger != nil {
