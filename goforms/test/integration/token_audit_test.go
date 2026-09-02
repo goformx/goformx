@@ -141,7 +141,10 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				data, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
 				require.NoError(t, err)
 				require.Equal(t, status, response.StatusCode, string(data))
-				if auth.IsFirstPartyAssertion(bearer) {
+				// Media-type rejection runs before authentication, so it cannot use
+				// the signed request identity. Once authentication runs, the signed
+				// identity must override the untrusted caller trace.
+				if auth.IsFirstPartyAssertion(bearer) && status != http.StatusUnsupportedMediaType {
 					require.Equal(t, lastActor.RequestID, response.Header.Get(constants.HeaderTraceID))
 				} else {
 					lastActor.RequestID = response.Header.Get(constants.HeaderTraceID)
