@@ -33,6 +33,7 @@ func requestRawExport(router *echo.Echo, path, body, credential string) *httptes
 func TestExportFilterNumbersHonorIntegerSemanticsWithoutRounding(t *testing.T) {
 	for _, number := range []string{"1", "1.0", "1e0", "0.01e2"} {
 		request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"format":"json","schemaVersion":`+number+`}`))
+		request.Header.Set(echo.HeaderContentType, mediaTypeJSON)
 		format, filters, err := decodeExportRequest(echo.New().NewContext(request, httptest.NewRecorder()))
 		require.NoError(t, err)
 		require.Equal(t, submission.ExportJSON, format)
@@ -40,6 +41,7 @@ func TestExportFilterNumbersHonorIntegerSemanticsWithoutRounding(t *testing.T) {
 	}
 	for _, number := range []string{"1.00000000000000000001", "1e999999999", "null", `"1"`, "2147483648", "-1", "0"} {
 		request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"format":"json","schemaVersion":`+number+`}`))
+		request.Header.Set(echo.HeaderContentType, mediaTypeJSON)
 		_, _, err := decodeExportRequest(echo.New().NewContext(request, httptest.NewRecorder()))
 		require.ErrorIs(t, err, submission.ErrExportRequest)
 	}

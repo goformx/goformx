@@ -97,6 +97,17 @@ records afterward: there is no supported form-delete API in this contract.
 
 ## Semantics clients must preserve
 
+- **Request media and JSON objects:** every operation with a request body requires
+  the exact OpenAPI media type. Form metadata PATCH uses
+  `application/merge-patch+json`; every other current body uses
+  `application/json`. The header may have no parameters or only
+  `charset=utf-8` (case-insensitive). Missing headers, other media types,
+  charsets, or parameters return `415 unsupported_media_type`. Send exactly one
+  JSON object. GoFormX rejects duplicate member names before map decoding at any
+  nesting depth, including escape-equivalent spellings, plus malformed or
+  trailing JSON. Those requests do not mutate data. This tightening makes
+  previously ambiguous last-member-wins payloads invalid; it does not change
+  number precision, body budgets, authentication, or scope rules.
 - **Exact numbers (contract 1.1.1):** schemas and submission values retain numeric
   precision; JSONB may normalize spelling, not value. Use a lossless codec for
   values outside native precision. Numeric token/exponent/decimal-place budgets

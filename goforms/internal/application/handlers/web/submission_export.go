@@ -26,6 +26,9 @@ func decodeExportRequest(c echo.Context) (submission.ExportFormat, submission.Ex
 	if c.Request().URL.RawQuery != "" {
 		return bad()
 	}
+	if err := requireRequestMediaType(c.Request(), mediaTypeJSON); err != nil {
+		return "", submission.ExportFilters{}, err
+	}
 	decoder := json.NewDecoder(http.MaxBytesReader(c.Response(), c.Request().Body, submission.MaxExportRequestBytes))
 	start, err := decoder.Token()
 	if err != nil || start != json.Delim('{') {
@@ -119,6 +122,9 @@ func (h *V1APIHandler) exportSubmissions(c echo.Context) error {
 	}
 	format, filters, err := decodeExportRequest(c)
 	if err != nil {
+		if errors.Is(err, errUnsupportedRequestMediaType) {
+			return h.writeRequestDecodeError(c, err, "")
+		}
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "Export requires a valid format and supported body filters.", nil)
 	}
 	records, err := h.repository.ReadSubmissionExport(ctx, form.OrganizationID, form.ID, filters)

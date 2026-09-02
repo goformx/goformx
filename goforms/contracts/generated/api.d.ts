@@ -629,6 +629,24 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description Content-Type is missing or does not match the operation's documented JSON media type and optional UTF-8 charset policy */
+        UnsupportedMediaType: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "code": "unsupported_media_type",
+                 *         "message": "Content-Type must match the operation's documented JSON media type; only an optional UTF-8 charset parameter is accepted.",
+                 *         "requestId": "req_01K4Q9X2JXQG67A4WZ8X9CEQ4G"
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description If-Match is required for this mutation */
         PreconditionRequired: {
             headers: {
@@ -802,6 +820,7 @@ export interface operations {
                     "application/json": components["schemas"]["FormEnvelope"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];
         };
@@ -866,6 +885,7 @@ export interface operations {
                 };
             };
             412: components["responses"]["PreconditionFailed"];
+            415: components["responses"]["UnsupportedMediaType"];
             428: components["responses"]["PreconditionRequired"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];
@@ -926,6 +946,7 @@ export interface operations {
                     "application/json": components["schemas"]["SchemaVersionEnvelope"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];
         };
@@ -1090,6 +1111,7 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             /** @description Another export is active on this API instance; retry later */
             429: {
                 headers: {
@@ -1195,6 +1217,7 @@ export interface operations {
                     "application/json": components["schemas"]["WebhookEndpointEnvelope"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];
         };
@@ -1245,6 +1268,7 @@ export interface operations {
                     "application/json": components["schemas"]["WebhookEndpointEnvelope"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];
         };
@@ -1366,6 +1390,7 @@ export interface operations {
                     "application/json": components["schemas"]["CreatedServiceTokenEnvelope"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];
         };
@@ -1456,6 +1481,7 @@ export interface operations {
                     "application/json": components["schemas"]["SubmissionEnvelope"];
                 };
             };
+            415: components["responses"]["UnsupportedMediaType"];
             422: components["responses"]["ValidationError"];
             /** @description Per-form burst or rolling submission budget exceeded */
             429: {

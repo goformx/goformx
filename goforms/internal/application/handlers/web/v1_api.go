@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -280,8 +279,8 @@ type createFormRequest struct {
 
 func (h *V1APIHandler) createForm(c echo.Context) error {
 	var request createFormRequest
-	if err := decodeJSON(c, &request); err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	if err := decodeJSON(c, &request, mediaTypeJSON); err != nil {
+		return h.writeRequestDecodeError(c, err, "")
 	}
 	if !formNamePattern.MatchString(request.Name) {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Form metadata is invalid.",
@@ -375,8 +374,8 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 		return h.writeError(c, http.StatusPreconditionFailed, "precondition_failed", "The form was modified by another request.", nil)
 	}
 	var request updateFormRequest
-	if err := decodeJSON(c, &request); err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	if err := decodeJSON(c, &request, mediaTypeMergePatch); err != nil {
+		return h.writeRequestDecodeError(c, err, "")
 	}
 	if request.Title == nil && request.Description == nil && request.AllowedOrigins == nil {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "At least one metadata field is required.", nil)
@@ -465,8 +464,8 @@ func (h *V1APIHandler) createSchemaVersion(c echo.Context) error {
 		return nil
 	}
 	var request createVersionRequest
-	if err := decodeJSON(c, &request); err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	if err := decodeJSON(c, &request, mediaTypeJSON); err != nil {
+		return h.writeRequestDecodeError(c, err, "")
 	}
 	if result := h.validator.ValidateSchema(request.Schema); !result.IsValid {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Form schema is invalid.", prefixErrors(result.Errors, "/schema"))
@@ -587,8 +586,8 @@ func (h *V1APIHandler) putWebhook(c echo.Context) error {
 			"Webhook delivery is not configured on this service.", nil)
 	}
 	var request putWebhookRequest
-	if err := decodeJSON(c, &request); err != nil {
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	if err := decodeJSON(c, &request, mediaTypeJSON); err != nil {
+		return h.writeRequestDecodeError(c, err, "")
 	}
 	target, err := h.destinations.Validate(c.Request().Context(), request.URL)
 	if err != nil {
@@ -849,10 +848,10 @@ func (h *V1APIHandler) createSubmission(c echo.Context) error {
 		return h.writeError(c, http.StatusTooManyRequests, "rate_limited", "This form is receiving too many submissions.", nil)
 	}
 	var request submissionRequest
-	if err := decodeJSON(c, &request); err != nil {
+	if err := decodeJSON(c, &request, mediaTypeJSON); err != nil {
 		// Decoder errors may quote payload keys or values. They are not safe
 		// response diagnostics, even before the privacy policy is resolved.
-		return h.writeError(c, http.StatusBadRequest, "invalid_request", "Submission body must be a JSON object with an object-valued data field.", nil)
+		return h.writeRequestDecodeError(c, err, "Submission body must be a JSON object with an object-valued data field.")
 	}
 	if request.Data == nil {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "Submission body must be a JSON object with an object-valued data field.", nil)
@@ -914,18 +913,6 @@ func (h *V1APIHandler) requireIdempotencyKey(c echo.Context) (string, bool) {
 		return "", false
 	}
 	return key, true
-}
-
-func decodeJSON(c echo.Context, destination any) error {
-	decoder := json.NewDecoder(http.MaxBytesReader(c.Response(), c.Request().Body, 1<<20))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(destination); err != nil {
-		return fmt.Errorf("request body must be valid JSON: %w", err)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("request body must contain one JSON object")
-	}
-	return nil
 }
 
 func positiveInt(value string) (int, error) {

@@ -38,11 +38,15 @@ const (
 )
 
 type managementOperation struct {
-	ID       string                `yaml:"operationId"`
-	Security []map[string][]string `yaml:"security"`
-	Scopes   []auth.Scope          `yaml:"x-goformx-required-scopes"`
-	method   string
-	path     string
+	ID          string                `yaml:"operationId"`
+	Security    []map[string][]string `yaml:"security"`
+	Scopes      []auth.Scope          `yaml:"x-goformx-required-scopes"`
+	method      string
+	path        string
+	mediaType   string
+	RequestBody *struct {
+		Content map[string]any `yaml:"content"`
+	} `yaml:"requestBody"`
 }
 
 // Keep the contract independent of production scope wiring: copying the route
@@ -74,6 +78,12 @@ func managementOperations(t *testing.T) []managementOperation {
 			require.True(t, operation.Scopes[0].Valid())
 			require.ElementsMatch(t, []map[string][]string{{"serviceToken": {}}, {"firstPartyAssertion": {}}}, operation.Security)
 			operation.method, operation.path = strings.ToUpper(method), path
+			if operation.RequestBody != nil {
+				require.Len(t, operation.RequestBody.Content, 1, "%s needs one request media type", operation.ID)
+				for mediaType := range operation.RequestBody.Content {
+					operation.mediaType = mediaType
+				}
+			}
 			operations = append(operations, operation)
 		}
 	}
@@ -160,6 +170,12 @@ func runManagementScopeCase(t *testing.T, operation managementOperation, credent
 
 	allowed := slices.Contains(scopes, operation.Scopes[0])
 	fixture := managementSuccessFixture(t, operation.ID, repositories, tokens.MockServiceTokenManagementRepository, allowed, credentialClass)
+	if fixture.body != nil && operation.mediaType != "" {
+		if fixture.headers == nil {
+			fixture.headers = map[string]string{}
+		}
+		fixture.headers[echo.HeaderContentType] = operation.mediaType
+	}
 	status := http.StatusForbidden
 	if credentialClass == "anonymous" {
 		status = http.StatusUnauthorized
