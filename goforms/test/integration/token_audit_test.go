@@ -70,6 +70,82 @@ func tokenAuditDatabase(t *testing.T) *gorm.DB {
 	return db
 }
 
+func TestServiceTokenInventoryWalksEveryRealHTTPAndPostgresPage(t *testing.T) {
+	db := tokenAuditDatabase(t)
+	database := &boundaryDB{db: db}
+	tokens := tokenrepository.NewStore(database)
+	organizationID := uuid.NewString()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	caller, callerSecret, err := auth.Issue(organizationID, []auth.Scope{auth.ScopeTokensRead}, time.Hour, now)
+	require.NoError(t, err)
+	caller.Name = "inventory-caller"
+	require.NoError(t, tokens.Save(t.Context(), caller, auth.DatabaseAuditActor("fixture", organizationID)))
+
+	for index := range 205 {
+		token, _, issueErr := auth.Issue(organizationID, []auth.Scope{auth.ScopeFormsRead}, time.Hour, now.Add(-time.Duration(index+1)*time.Second))
+		require.NoError(t, issueErr)
+		token.Name = fmt.Sprintf("inventory-%03d", index)
+		require.NoError(t, tokens.Save(t.Context(), token, auth.DatabaseAuditActor("fixture", organizationID)))
+	}
+	foreignOrganizationID := uuid.NewString()
+	foreign, _, err := auth.Issue(foreignOrganizationID, []auth.Scope{auth.ScopeFormsRead}, time.Hour, now)
+	require.NoError(t, err)
+	require.NoError(t, tokens.Save(t.Context(), foreign, auth.DatabaseAuditActor("fixture", foreignOrganizationID)))
+
+	router := echo.New()
+	logger := mocklogging.NewMockLogger(gomock.NewController(t))
+	web.NewV1APIHandler(formrepository.NewStore(database, logger), tokens, nil).RegisterRoutes(router)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+	client := &http.Client{Timeout: 10 * time.Second}
+	seen := make(map[string]struct{}, 206)
+	cursor := ""
+	pageSizes := make([]int, 0, 3)
+	for {
+		path := "/v1/service-tokens?limit=100"
+		if cursor != "" {
+			path += "&cursor=" + url.QueryEscape(cursor)
+		}
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+path, nil)
+		require.NoError(t, err)
+		req.Header.Set("Authorization", "Bearer "+callerSecret)
+		response, err := client.Do(req)
+		require.NoError(t, err)
+		data, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+		require.NoError(t, response.Body.Close())
+		require.NoError(t, readErr)
+		require.Equal(t, http.StatusOK, response.StatusCode, string(data))
+		var page struct {
+			Data []struct {
+				ID             string `json:"id"`
+				OrganizationID string `json:"organizationId"`
+			} `json:"data"`
+			Meta struct {
+				Limit      int     `json:"limit"`
+				NextCursor *string `json:"nextCursor"`
+			} `json:"meta"`
+		}
+		require.NoError(t, json.Unmarshal(data, &page))
+		require.Equal(t, 100, page.Meta.Limit)
+		pageSizes = append(pageSizes, len(page.Data))
+		for _, token := range page.Data {
+			require.Equal(t, organizationID, token.OrganizationID)
+			require.NotEqual(t, foreign.ID, token.ID)
+			_, duplicate := seen[token.ID]
+			require.False(t, duplicate, "cursor walk returned token %s twice", token.ID)
+			seen[token.ID] = struct{}{}
+		}
+		if page.Meta.NextCursor == nil {
+			break
+		}
+		require.NotEmpty(t, *page.Meta.NextCursor)
+		cursor = *page.Meta.NextCursor
+		require.LessOrEqual(t, len(pageSizes), 3, "inventory walk did not terminate")
+	}
+	require.Equal(t, []int{100, 100, 6}, pageSizes)
+	require.Len(t, seen, 206)
+}
+
 func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing.T) {
 	for _, credentialClass := range []auth.CredentialClass{auth.CredentialClassServiceToken, auth.CredentialClassFirstPartyAssertion} {
 		t.Run(string(credentialClass), func(t *testing.T) {
