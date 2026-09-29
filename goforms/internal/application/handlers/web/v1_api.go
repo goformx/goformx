@@ -3,6 +3,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -44,6 +45,7 @@ const requestTraceContextKey = "goformx.request_trace_id"
 // V1APIHandler implements the schema-first control and public data planes.
 type V1APIHandler struct {
 	repository   V1Repository
+	sites        SiteRepository
 	auth         *serviceauth.Middleware
 	validator    *validation.ComprehensiveValidator
 	admission    *submissionLimiter
@@ -146,12 +148,21 @@ func newV1APIHandlerWithLimits(
 	if candidate, ok := tokens.(ServiceTokenManagementRepository); ok {
 		tokenManagement = candidate
 	}
+	var sites SiteRepository
+	if candidate, ok := repository.(SiteRepository); ok {
+		sites = candidate
+	}
 	return &V1APIHandler{repository: repository, auth: serviceauth.New(tokens), validator: validator,
+		sites:     sites,
 		admission: newSubmissionLimiter(limits), webhooks: webhooks, tokens: tokenManagement,
 		destinations: deliveryapp.NewDestinationPolicy(nil), logger: logger}
 }
 
 func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
+	sites := e.Group(constants.PathV1Sites)
+	sites.GET("", h.instrument("list_sites", h.listSites), h.require(auth.ScopeFormsRead, "listSites"))
+	sites.POST("", h.instrument("create_site", h.createSite), h.require(auth.ScopeFormsWrite, "createSite"))
+	sites.GET("/:siteId", h.instrument("get_site", h.getSite), h.require(auth.ScopeFormsRead, "getSite"))
 	control := e.Group(constants.PathV1Forms)
 	control.GET("", h.instrument("list_forms", h.listForms), h.require(auth.ScopeFormsRead, "listForms"))
 	control.POST("", h.instrument("create_form", h.createForm), h.require(auth.ScopeFormsWrite, "createForm"))
@@ -273,6 +284,7 @@ func (h *V1APIHandler) require(scope auth.Scope, operationID string) echo.Middle
 }
 
 type createFormRequest struct {
+	SiteID         *string    `json:"siteId"`
 	Name           string     `json:"name"`
 	Title          string     `json:"title"`
 	Description    string     `json:"description"`
@@ -302,6 +314,7 @@ func (h *V1APIHandler) createForm(c echo.Context) error {
 	principal, _ := serviceauth.PrincipalFrom(c)
 	formModel := model.NewForm(principal.OwnerID, request.Title, request.Description, request.Schema)
 	formModel.Name = request.Name
+	formModel.SiteID = request.SiteID
 	formModel.SetCorsConfig(request.AllowedOrigins, []string{http.MethodGet, http.MethodPost, http.MethodOptions},
 		[]string{echo.HeaderContentType, constants.HeaderIdempotencyKey, constants.HeaderSchemaVersion})
 	if err := formModel.Validate(h.validator); err != nil {
@@ -392,9 +405,10 @@ func (h *V1APIHandler) getForm(c echo.Context) error {
 }
 
 type updateFormRequest struct {
-	Title          *string   `json:"title"`
-	Description    *string   `json:"description"`
-	AllowedOrigins *[]string `json:"allowedOrigins"`
+	SiteID         json.RawMessage `json:"siteId"`
+	Title          *string         `json:"title"`
+	Description    *string         `json:"description"`
+	AllowedOrigins *[]string       `json:"allowedOrigins"`
 }
 
 func (h *V1APIHandler) updateForm(c echo.Context) error {
@@ -414,7 +428,7 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 	if err := decodeJSON(c, &request, mediaTypeMergePatch); err != nil {
 		return h.writeRequestDecodeError(c, err, "")
 	}
-	if request.Title == nil && request.Description == nil && request.AllowedOrigins == nil {
+	if request.Title == nil && request.Description == nil && request.AllowedOrigins == nil && len(request.SiteID) == 0 {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "At least one metadata field is required.", nil)
 	}
 	if request.Title != nil {
@@ -425,6 +439,19 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 	}
 	if request.Description != nil {
 		formModel.Description = *request.Description
+	}
+	if len(request.SiteID) > 0 {
+		formModel.SiteIDSet = true
+		if bytes.Equal(bytes.TrimSpace(request.SiteID), []byte("null")) {
+			formModel.SiteID = nil
+		} else {
+			var siteID string
+			if err := json.Unmarshal(request.SiteID, &siteID); err != nil || siteID == "" {
+				return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Site association is invalid.",
+					[]validation.Error{{Pointer: "/siteId", Code: "format", Message: "Must be a site UUID or null."}})
+			}
+			formModel.SiteID = &siteID
+		}
 	}
 	if request.AllowedOrigins != nil {
 		if originErrors := validateOrigins(*request.AllowedOrigins); len(originErrors) > 0 {
@@ -1004,7 +1031,8 @@ func formResource(formModel *model.Form) map[string]any {
 		origins = []string{}
 	}
 	return map[string]any{"id": formModel.ID, "organizationId": formModel.OrganizationID,
-		"name": formModel.Name, "title": formModel.Title,
+		"siteId": formModel.SiteID,
+		"name":   formModel.Name, "title": formModel.Title,
 		"description": formModel.Description, "publicKey": formModel.PublicKey, "allowedOrigins": origins, "status": formModel.Status,
 		"currentVersion": formModel.CurrentSchemaVersion, "createdAt": formModel.CreatedAt.UTC().Format(time.RFC3339),
 		"updatedAt": formModel.UpdatedAt.UTC().Format(time.RFC3339)}

@@ -38,6 +38,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List organization sites */
+        get: operations["listSites"];
+        put?: never;
+        /**
+         * Create or reconcile a site by its normalized origin
+         * @description The same organization, normalized origin and name returns the existing site with 200. A different name for that origin returns 409.
+         */
+        post: operations["createSite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sites/{siteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                siteId: string;
+            };
+            cookie?: never;
+        };
+        /** Get organization site */
+        get: operations["getSite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forms": {
         parameters: {
             query?: never;
@@ -416,6 +456,11 @@ export interface components {
             id: string;
             /** Format: uuid */
             organizationId: string;
+            /**
+             * Format: uuid
+             * @description Null for legacy forms not associated with a site.
+             */
+            siteId: string | null;
             name: string;
             title: string;
             description?: string;
@@ -432,6 +477,11 @@ export interface components {
         };
         CreateForm: {
             name: string;
+            /**
+             * Format: uuid
+             * @description Organization-owned site to associate.
+             */
+            siteId?: string;
             title: string;
             description?: string;
             schema: components["schemas"]["FormDefinition"];
@@ -475,6 +525,44 @@ export interface components {
             data: components["schemas"]["Submission"] & {
                 schema: components["schemas"]["FormDefinition"];
             };
+        };
+        CreateSite: {
+            name: string;
+            /**
+             * Format: uri
+             * @description HTTPS origin, or HTTP localhost for development. No path, credentials, query or fragment.
+             */
+            origin: string;
+        };
+        Site: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            name: string;
+            /** Format: uri */
+            origin: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SiteEnvelope: {
+            data: components["schemas"]["Site"];
+        };
+        SiteCollection: {
+            data: components["schemas"]["Site"][];
+            meta: components["schemas"]["SitePageMeta"];
+        };
+        SitePageMeta: {
+            limit: number;
+            offset: number;
+            total: number;
+            /**
+             * Format: uuid
+             * @description Authenticated organization used to scope this result, including an empty page.
+             */
+            organizationId: string;
         };
         FormEnvelope: {
             data: components["schemas"]["Form"];
@@ -766,6 +854,95 @@ export interface operations {
             "4XX": components["responses"]["Error"];
         };
     };
+    listSites: {
+        parameters: {
+            query?: {
+                /** @description Maximum resources returned in this bounded collection. */
+                limit?: components["parameters"]["PageLimit"];
+                /** @description Zero-based form collection offset; bounded to prevent unbounded scans. */
+                offset?: components["parameters"]["PageOffset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization-owned site page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteCollection"];
+                };
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    createSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSite"];
+            };
+        };
+        responses: {
+            /** @description Exact origin and name resolved to existing site */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteEnvelope"];
+                };
+            };
+            /** @description Site created */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteEnvelope"];
+                };
+            };
+            409: components["responses"]["Error"];
+            415: components["responses"]["UnsupportedMediaType"];
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    getSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                siteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization-owned site */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteEnvelope"];
+                };
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
     listForms: {
         parameters: {
             query?: {
@@ -879,6 +1056,11 @@ export interface operations {
                 "application/merge-patch+json": {
                     title?: string;
                     description?: string;
+                    /**
+                     * Format: uuid
+                     * @description Move the form to a site owned by the same organization, or null to clear the association.
+                     */
+                    siteId?: string | null;
                     allowedOrigins?: string[];
                 };
             };

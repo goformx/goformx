@@ -3,6 +3,7 @@ package constants
 
 const (
 	PathV1Forms         = "/v1/forms"
+	PathV1Sites         = "/v1/sites"
 	PathV1ServiceTokens = "/v1/service-tokens"
 	PathV1PublicForms   = "/v1/public/forms"
 

@@ -95,6 +95,9 @@ func (s *Store) CreateForm(ctx context.Context, formModel *model.Form) error {
 }
 
 func createFormAndVersion(tx *gorm.DB, formModel *model.Form) error {
+	if err := validateSiteAssociation(tx, formModel.OrganizationID, formModel.SiteID); err != nil {
+		return err
+	}
 	if err := tx.Create(formModel).Error; err != nil {
 		return err
 	}
@@ -263,6 +266,9 @@ func escapeLike(value string) string {
 // UpdateForm updates a form
 func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form, expectedUpdatedAt time.Time) error {
 	return s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateSiteAssociation(tx, formModel.OrganizationID, formModel.SiteID); err != nil {
+			return err
+		}
 		var current schemaRecord
 		if err := tx.Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).First(&current).Error; err != nil {
 			return fmt.Errorf("load schema for update: %w", err)
@@ -290,6 +296,12 @@ func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form, expectedU
 		}
 		if result.RowsAffected == 0 {
 			return model.ErrPreconditionFailed
+		}
+		if formModel.SiteIDSet && formModel.SiteID == nil {
+			if err := tx.Model(&model.Form{}).Where("organization_id = ? AND uuid = ?", formModel.OrganizationID, formModel.ID).
+				UpdateColumn("site_id", nil).Error; err != nil {
+				return fmt.Errorf("clear form site: %w", common.NewDatabaseError("update", "form", formModel.ID, err))
+			}
 		}
 		return nil
 	})
