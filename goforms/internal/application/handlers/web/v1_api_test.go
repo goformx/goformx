@@ -81,8 +81,8 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 	versions := map[int]*model.SchemaVersion{}
 	submissions := map[string]*model.FormSubmission{}
 
-	repository.EXPECT().CreateForm(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, candidate *model.Form) error {
+	repository.EXPECT().CreateFormIdempotent(gomock.Any(), gomock.Any(), "create-contact-0001", gomock.Any()).DoAndReturn(
+		func(_ context.Context, candidate *model.Form, _, _ string) (*model.Form, bool, error) {
 			candidate.ID = "11111111-1111-4111-8111-111111111111"
 			candidate.PublicKey = "gfpk_abcdefghijklmnopqrstuvwxyz123456"
 			candidate.CurrentSchemaVersion = 1
@@ -92,7 +92,7 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 			version, createErr := model.NewSchemaVersion(candidate.ID, 1, candidate.Schema, validator)
 			require.NoError(t, createErr)
 			versions[1] = version
-			return nil
+			return candidate, false, nil
 		},
 	)
 	repository.EXPECT().GetFormByID(gomock.Any(), "owner-a", gomock.Any()).DoAndReturn(
@@ -240,6 +240,54 @@ func TestV1ContactFormVerticalSlice(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, unauthorized.Code, unauthorized.Body.String())
 	require.Contains(t, unauthorized.Body.String(), `"code":"unauthorized"`)
 	require.NotEmpty(t, unauthorized.Header().Get("X-Trace-Id"))
+}
+
+func TestCreateFormOptionalRetryKeyContract(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	repository := mockform.NewMockRepository(ctrl)
+	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeFormsWrite}, time.Hour, time.Now())
+	require.NoError(t, err)
+	router := echo.New()
+	NewV1APIHandler(repository, fixedTokenRepository{token: token}, nil).RegisterRoutes(router)
+	create := map[string]any{"name": "retry-contact", "title": "Retry Contact", "description": "Original",
+		"schema": contactSchema("email"), "allowedOrigins": []string{"https://example.test"}}
+	key := "create-retry-key-001"
+	firstForm := model.NewForm("owner-a", "Retry Contact", "Original", contactSchema("email"))
+	firstForm.ID = "11111111-1111-4111-8111-111111111111"
+	firstForm.Name = "retry-contact"
+	firstForm.PublicKey = "gfpk_abcdefghijklmnopqrstuvwxyz123456"
+	firstForm.CurrentSchemaVersion = 1
+	firstForm.Status = model.LifecycleDraft
+	firstForm.CreatedAt, firstForm.UpdatedAt = time.Now().UTC(), time.Now().UTC()
+	firstForm.SetCorsConfig([]string{"https://example.test"}, []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		[]string{echo.HeaderContentType, constants.HeaderIdempotencyKey, constants.HeaderSchemaVersion})
+	var digest string
+	repository.EXPECT().CreateFormIdempotent(gomock.Any(), gomock.Any(), key, gomock.Any()).DoAndReturn(
+		func(_ context.Context, _ *model.Form, _, suppliedDigest string) (*model.Form, bool, error) {
+			digest = suppliedDigest
+			return firstForm, false, nil
+		})
+	created := requestJSON(t, router, http.MethodPost, "/v1/forms", create, plaintext, key, nil)
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	require.Empty(t, created.Header().Get("X-GoFormX-Replayed"))
+	repository.EXPECT().CreateFormIdempotent(gomock.Any(), gomock.Any(), key, digest).Return(firstForm, true, nil)
+	retry := requestJSON(t, router, http.MethodPost, "/v1/forms", create, plaintext, key, nil)
+	require.Equal(t, http.StatusCreated, retry.Code, retry.Body.String())
+	require.Equal(t, "true", retry.Header().Get("X-GoFormX-Replayed"))
+	require.JSONEq(t, created.Body.String(), retry.Body.String())
+	require.Equal(t, created.Header().Get(echo.HeaderLocation), retry.Header().Get(echo.HeaderLocation))
+	require.Equal(t, created.Header().Get(constants.HeaderETag), retry.Header().Get(constants.HeaderETag))
+	changed := map[string]any{"name": "retry-contact", "title": "Different title", "description": "Original",
+		"schema": contactSchema("email"), "allowedOrigins": []string{"https://example.test"}}
+	repository.EXPECT().CreateFormIdempotent(gomock.Any(), gomock.Any(), key, gomock.Not(digest)).Return(nil, false, domainform.ErrFormIdempotencyConflict)
+	conflict := requestJSON(t, router, http.MethodPost, "/v1/forms", changed, plaintext, key, nil)
+	require.Equal(t, http.StatusConflict, conflict.Code, conflict.Body.String())
+	require.Contains(t, conflict.Body.String(), `"code":"idempotency_conflict"`)
+	invalid := requestJSON(t, router, http.MethodPost, "/v1/forms", create, plaintext, "short", nil)
+	require.Equal(t, http.StatusBadRequest, invalid.Code, invalid.Body.String())
+	repository.EXPECT().CreateForm(gomock.Any(), gomock.Any()).Return(nil)
+	legacy := requestJSON(t, router, http.MethodPost, "/v1/forms", create, plaintext, "", nil)
+	require.Equal(t, http.StatusCreated, legacy.Code, legacy.Body.String())
 }
 
 func TestValidateOriginsAcceptsOriginsAndRejectsURLsOrDuplicates(t *testing.T) {

@@ -110,7 +110,8 @@ only its generated database and roles; never point this fixture at production.
 The canonical migration tool's full-chain/down/up checks remain separate and
 unchanged; the fixture's metadata table is not a substitute for testing that tool.
 
-Evidence includes real form/schema/publication/submission/idempotency, token
+Evidence includes real form/schema/publication/submission/idempotency, keyed
+form creation and durable receipt replay under the runtime role, token
 creation/use/revocation, replay consumption/cleanup, webhook lifecycle/outbox/
 worker/replay, export and both audit tables; actual token CLI issue/rotate/revoke;
 storage-key rotation and verification; backup SELECT/locks; SQLSTATE 42501 on

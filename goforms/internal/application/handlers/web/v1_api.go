@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,6 +60,7 @@ type V1APIHandler struct {
 // It intentionally excludes legacy users, plans, pagination, and browser sessions.
 type V1Repository interface {
 	CreateForm(context.Context, *model.Form) error
+	CreateFormIdempotent(context.Context, *model.Form, string, string) (*model.Form, bool, error)
 	ListForms(context.Context, string, model.FormListOptions) ([]*model.Form, int64, error)
 	GetFormByID(context.Context, string, string) (*model.Form, error)
 	UpdateForm(context.Context, *model.Form, time.Time) error
@@ -305,12 +307,46 @@ func (h *V1APIHandler) createForm(c echo.Context) error {
 	if err := formModel.Validate(h.validator); err != nil {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
 	}
-	if err := h.repository.CreateForm(c.Request().Context(), formModel); err != nil {
+	if _, present := c.Request().Header[http.CanonicalHeaderKey(constants.HeaderIdempotencyKey)]; present {
+		key, ok := h.requireIdempotencyKey(c)
+		if !ok {
+			return nil
+		}
+		digest, err := createFormDigest(request)
+		if err != nil {
+			return h.writeError(c, http.StatusInternalServerError, "internal_error", "The request could not be completed.", nil)
+		}
+		stored, replayed, err := h.repository.CreateFormIdempotent(c.Request().Context(), formModel, key, digest)
+		if errors.Is(err, domainform.ErrFormIdempotencyConflict) {
+			return h.writeError(c, http.StatusConflict, "idempotency_conflict", "The idempotency key was already used with different form inputs.", nil)
+		}
+		if err != nil {
+			return h.writeRepositoryError(c, err)
+		}
+		formModel = stored
+		if replayed {
+			c.Response().Header().Set("X-GoFormX-Replayed", "true")
+		}
+	} else if err := h.repository.CreateForm(c.Request().Context(), formModel); err != nil {
 		return h.writeRepositoryError(c, err)
 	}
 	c.Response().Header().Set(constants.HeaderETag, formETag(formModel))
 	c.Response().Header().Set(echo.HeaderLocation, constants.PathV1Forms+"/"+formModel.ID)
 	return c.JSON(http.StatusCreated, map[string]any{"data": formResource(formModel)})
+}
+
+// createFormDigest covers the accepted request model, so adding a field to
+// createFormRequest automatically adds it to the idempotency comparison.
+func createFormDigest(request createFormRequest) (string, error) {
+	if request.AllowedOrigins == nil {
+		request.AllowedOrigins = []string{}
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(encoded)
+	return "create-form-v1:" + hex.EncodeToString(hash[:]), nil
 }
 
 func (h *V1APIHandler) listForms(c echo.Context) error {

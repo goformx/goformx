@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -28,6 +29,65 @@ import (
 	tokenrepository "github.com/goformx/goforms/internal/infrastructure/repository/token"
 	mocklogging "github.com/goformx/goforms/test/mocks/logging"
 )
+
+func TestCreateFormUncertainRetryNeedsFreshAssertion(t *testing.T) {
+	databaseURL := os.Getenv("GOFORMX_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("PostgreSQL integration is run by the canonical task verify command")
+	}
+	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
+	require.NoError(t, err)
+	organizationID := uuid.NewString()
+	require.NoError(t, db.Exec(`INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
+		VALUES (?, ?, 'not-used', 'Retry', 'Fixture')`, organizationID, organizationID+"@example.test").Error)
+	t.Cleanup(func() {
+		_ = db.Exec("DELETE FROM first_party_assertion_replays WHERE organization_id = ?", organizationID).Error
+		_ = db.Exec("DELETE FROM form_create_receipts WHERE organization_id = ?", organizationID).Error
+		_ = db.Exec("DELETE FROM forms WHERE organization_id = ?", organizationID).Error
+		_ = db.Exec("DELETE FROM users WHERE uuid = ?", organizationID).Error
+	})
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	keyID := "gofx-create-retry-integration"
+	snapshot := fmt.Sprintf(`{"keys":[{"kty":"OKP","crv":"Ed25519","x":"%s","kid":"%s","use":"sig","alg":"EdDSA","state":"active"}]}`,
+		base64.RawURLEncoding.EncodeToString(publicKey), keyID)
+	keys, err := authn.NewJWKSProvider(authn.JWKSProviderConfig{Snapshot: snapshot})
+	require.NoError(t, err)
+	verifier, err := auth.NewFirstPartyVerifier("https://goformx.com", "https://api.goformx.com",
+		keys, assertionreplay.NewStore(&boundaryDB{db: db}))
+	require.NoError(t, err)
+	logger := mocklogging.NewMockLogger(gomock.NewController(t))
+	router := echo.New()
+	web.NewV1APIHandlerWithLimits(
+		formrepository.NewStore(&boundaryDB{db: db}, logger), tokenrepository.NewStore(&boundaryDB{db: db}), nil,
+		web.DefaultV1Limits(), verifier,
+	).RegisterRoutes(router)
+	body := []byte(`{"name":"fpa-retry-contact","title":"FPA Retry Contact","schema":{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"message":{"type":"string"}},"required":["message"],"additionalProperties":false}}`)
+	const key = "fpa-create-retry-key-001"
+	request := func(credential string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/v1/forms", bytes.NewReader(body))
+		req.Header.Set(echo.HeaderAuthorization, "Bearer "+credential)
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Idempotency-Key", key)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		return response
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	firstCredential := signBoundaryAssertion(t, privateKey, keyID, organizationID, uuid.NewString(), auth.ScopeFormsWrite, "createForm", now)
+	first := request(firstCredential)
+	require.Equal(t, http.StatusCreated, first.Code, first.Body.String())
+	require.Equal(t, http.StatusUnauthorized, request(firstCredential).Code, "the assertion cannot be replayed")
+	wrongOperation := signBoundaryAssertion(t, privateKey, keyID, organizationID, uuid.NewString(), auth.ScopeFormsWrite, "updateForm", now)
+	require.Equal(t, http.StatusUnauthorized, request(wrongOperation).Code)
+	secondCredential := signBoundaryAssertion(t, privateKey, keyID, organizationID, uuid.NewString(), auth.ScopeFormsWrite, "createForm", now)
+	second := request(secondCredential)
+	require.Equal(t, http.StatusCreated, second.Code, second.Body.String())
+	require.Equal(t, "true", second.Header().Get("X-GoFormX-Replayed"))
+	require.JSONEq(t, first.Body.String(), second.Body.String())
+	require.Equal(t, first.Header().Get(echo.HeaderLocation), second.Header().Get(echo.HeaderLocation))
+	require.Equal(t, first.Header().Get("ETag"), second.Header().Get("ETag"))
+}
 
 type boundaryDB struct{ db *gorm.DB }
 

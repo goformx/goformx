@@ -184,6 +184,19 @@
         "x-goformx-required-scopes": [
           "forms:write"
         ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Optional for legacy callers. A key of 16 to 128 characters is scoped to the authenticated organization and permanently binds the accepted create inputs. Retrying with the same inputs returns the original 201 response; changing inputs returns idempotency_conflict. Use a fresh first-party assertion for each retry because assertions are single use.",
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 128
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -245,6 +258,15 @@
                   "type": "string"
                 },
                 "description": "Strong validator required by later metadata updates."
+              },
+              "X-GoFormX-Replayed": {
+                "description": "Set to true when this key returned the original creation result.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true"
+                  ]
+                }
               }
             },
             "content": {
@@ -254,6 +276,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"

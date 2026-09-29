@@ -83,6 +83,46 @@ func (c *MockRepositoryCreateFormCall) DoAndReturn(f func(context.Context, *mode
 	return c
 }
 
+// CreateFormIdempotent mocks base method.
+func (m *MockRepository) CreateFormIdempotent(arg0 context.Context, arg1 *model.Form, arg2, arg3 string) (*model.Form, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateFormIdempotent", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(*model.Form)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// CreateFormIdempotent indicates an expected call of CreateFormIdempotent.
+func (mr *MockRepositoryMockRecorder) CreateFormIdempotent(arg0, arg1, arg2, arg3 any) *MockRepositoryCreateFormIdempotentCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateFormIdempotent", reflect.TypeOf((*MockRepository)(nil).CreateFormIdempotent), arg0, arg1, arg2, arg3)
+	return &MockRepositoryCreateFormIdempotentCall{Call: call}
+}
+
+// MockRepositoryCreateFormIdempotentCall wrap *gomock.Call
+type MockRepositoryCreateFormIdempotentCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryCreateFormIdempotentCall) Return(arg0 *model.Form, arg1 bool, arg2 error) *MockRepositoryCreateFormIdempotentCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryCreateFormIdempotentCall) Do(f func(context.Context, *model.Form, string, string) (*model.Form, bool, error)) *MockRepositoryCreateFormIdempotentCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryCreateFormIdempotentCall) DoAndReturn(f func(context.Context, *model.Form, string, string) (*model.Form, bool, error)) *MockRepositoryCreateFormIdempotentCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // CreateSchemaVersion mocks base method.
 func (m *MockRepository) CreateSchemaVersion(arg0 context.Context, arg1, arg2 string, arg3 model.JSON) (*model.SchemaVersion, error) {
 	m.ctrl.T.Helper()

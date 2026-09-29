@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -39,6 +40,126 @@ func (d *integrationDB) Ping(ctx context.Context) error {
 	return sqlDB.PingContext(ctx)
 }
 func (d *integrationDB) GetDB() *gorm.DB { return d.db }
+
+func TestCreateFormReceiptIsAtomicAndScoped(t *testing.T) {
+	databaseURL := os.Getenv("GOFORMX_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("GOFORMX_TEST_DATABASE_URL is not set")
+	}
+	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
+	require.NoError(t, err)
+	owners := []string{uuid.NewString(), uuid.NewString()}
+	for _, owner := range owners {
+		require.NoError(t, db.Exec(`INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
+			VALUES (?, ?, 'not-used', 'Retry', 'Fixture')`, owner, owner+"@example.test").Error)
+	}
+	t.Cleanup(func() {
+		for _, owner := range owners {
+			_ = db.Exec("DELETE FROM form_create_receipts WHERE organization_id = ?", owner).Error
+			_ = db.Exec("DELETE FROM forms WHERE organization_id = ?", owner).Error
+			_ = db.Exec("DELETE FROM users WHERE uuid = ?", owner).Error
+		}
+	})
+	store := formrepository.NewStore(&integrationDB{db: db}, mocklogging.NewMockLogger(gomock.NewController(t)))
+	newCandidate := func(owner string) *model.Form {
+		form := model.NewForm(owner, "Retry Contact", "Original", model.JSON{
+			"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object",
+			"properties": map[string]any{"name": map[string]any{"type": "string"}},
+		})
+		form.Name = "retry-contact"
+		return form
+	}
+	const key = "create-retry-key-001"
+	const digest = "create-form-v1:unchanged"
+	start := make(chan struct{})
+	type outcome struct {
+		form     *model.Form
+		replayed bool
+		err      error
+	}
+	outcomes := make(chan outcome, 2)
+	for range 2 {
+		go func() {
+			<-start
+			created, replayed, createErr := store.CreateFormIdempotent(t.Context(), newCandidate(owners[0]), key, digest)
+			outcomes <- outcome{created, replayed, createErr}
+		}()
+	}
+	close(start)
+	first, second := <-outcomes, <-outcomes
+	require.NoError(t, first.err)
+	require.NoError(t, second.err)
+	require.Equal(t, first.form.ID, second.form.ID)
+	require.NotEqual(t, first.replayed, second.replayed)
+	require.Equal(t, first.form.PublicKey, second.form.PublicKey)
+	var forms, versions, receipts int64
+	require.NoError(t, db.Model(&model.Form{}).Where("organization_id = ?", owners[0]).Count(&forms).Error)
+	require.NoError(t, db.Table("form_schemas").Where("form_id = ?", first.form.ID).Count(&versions).Error)
+	require.NoError(t, db.Table("form_create_receipts").Where("organization_id = ?", owners[0]).Count(&receipts).Error)
+	require.EqualValues(t, 1, forms)
+	require.EqualValues(t, 1, versions)
+	require.EqualValues(t, 1, receipts)
+
+	_, _, err = store.CreateFormIdempotent(t.Context(), newCandidate(owners[0]), key, "create-form-v1:changed")
+	require.ErrorIs(t, err, domainform.ErrFormIdempotencyConflict)
+	other, replayed, err := store.CreateFormIdempotent(t.Context(), newCandidate(owners[1]), key, "create-form-v1:changed")
+	require.NoError(t, err)
+	require.False(t, replayed)
+	require.NotEqual(t, first.form.ID, other.ID)
+
+	original := first.form
+	original.Title = "Edited title"
+	require.NoError(t, store.UpdateForm(t.Context(), original, original.UpdatedAt))
+	retry, replayed, err := store.CreateFormIdempotent(t.Context(), newCandidate(owners[0]), key, digest)
+	require.NoError(t, err)
+	require.True(t, replayed)
+	require.Equal(t, "Retry Contact", retry.Title)
+	require.Equal(t, first.form.ID, retry.ID)
+
+	legacy := newCandidate(owners[0])
+	legacy.Name = "legacy-contact"
+	require.NoError(t, store.CreateForm(t.Context(), legacy))
+	require.NotEqual(t, first.form.ID, legacy.ID)
+}
+
+func TestCreateFormReceiptInsertFailureRollsBackFormAndVersion(t *testing.T) {
+	databaseURL := os.Getenv("GOFORMX_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("GOFORMX_TEST_DATABASE_URL is not set")
+	}
+	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
+	require.NoError(t, err)
+	owner := uuid.NewString()
+	require.NoError(t, db.Exec(`INSERT INTO users (uuid, email, hashed_password, first_name, last_name)
+		VALUES (?, ?, 'not-used', 'Failure', 'Fixture')`, owner, owner+"@example.test").Error)
+	t.Cleanup(func() {
+		_ = db.Exec("DELETE FROM form_create_receipts WHERE organization_id = ?", owner).Error
+		_ = db.Exec("DELETE FROM forms WHERE organization_id = ?", owner).Error
+		_ = db.Exec("DELETE FROM users WHERE uuid = ?", owner).Error
+	})
+	key := "receipt-fail-" + uuid.NewString()
+	constraint := "reject_form_receipt_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+	require.NoError(t, db.Exec("ALTER TABLE form_create_receipts ADD CONSTRAINT "+constraint+
+		" CHECK (idempotency_key <> '"+key+"')").Error)
+	t.Cleanup(func() {
+		require.NoError(t, db.Exec("ALTER TABLE form_create_receipts DROP CONSTRAINT "+constraint).Error)
+	})
+	store := formrepository.NewStore(&integrationDB{db: db}, mocklogging.NewMockLogger(gomock.NewController(t)))
+	form := model.NewForm(owner, "Atomic receipt failure", "", model.JSON{
+		"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object",
+	})
+	form.Name = "atomic-failure"
+	_, _, err = store.CreateFormIdempotent(t.Context(), form, key, "create-form-v1:failure")
+	require.Error(t, err)
+	require.NotEmpty(t, form.ID, "the form insert was attempted before receipt rejection")
+	var forms, versions, receipts int64
+	require.NoError(t, db.Model(&model.Form{}).Where("uuid = ?", form.ID).Count(&forms).Error)
+	require.NoError(t, db.Table("form_schemas").Where("form_id = ?", form.ID).Count(&versions).Error)
+	require.NoError(t, db.Table("form_create_receipts").Where("organization_id = ? AND idempotency_key = ?", owner, key).Count(&receipts).Error)
+	require.Zero(t, forms)
+	require.Zero(t, versions)
+	require.Zero(t, receipts)
+}
 
 func TestStorePersistsImmutableVersionsAndPublicKeys(t *testing.T) {
 	databaseURL := os.Getenv("GOFORMX_TEST_DATABASE_URL")

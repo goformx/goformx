@@ -803,7 +803,10 @@ export interface operations {
     createForm: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional for legacy callers. A key of 16 to 128 characters is scoped to the authenticated organization and permanently binds the accepted create inputs. Retrying with the same inputs returns the original 201 response; changing inputs returns idempotency_conflict. Use a fresh first-party assertion for each retry because assertions are single use. */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -819,12 +822,15 @@ export interface operations {
                     Location?: string;
                     /** @description Strong validator required by later metadata updates. */
                     ETag?: string;
+                    /** @description Set to true when this key returned the original creation result. */
+                    "X-GoFormX-Replayed"?: "true";
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["FormEnvelope"];
                 };
             };
+            409: components["responses"]["Error"];
             415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];

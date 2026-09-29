@@ -152,8 +152,13 @@ records afterward: there is no supported form-delete API in this contract.
 - **Idempotency:** public submission requests require an idempotency key. Reuse
   the key only for the same logical request when retrying. Supply
   `X-GoFormX-Schema-Version` to bind validation to an exact published version.
-  Management creation has no general idempotency-key contract; reconcile an
-  uncertain response before retrying a create or publish action.
+  `POST /v1/forms` optionally accepts a 16 to 128 character `Idempotency-Key`.
+  Assistant callers should retain one random key per intended form creation and
+  use a fresh first-party assertion for each attempt. A matching retry returns
+  the original 201 creation result with `X-GoFormX-Replayed: true`; a changed
+  request in the same organization returns 409 `idempotency_conflict`. Other
+  management creates and publish actions have no retry-key contract; reconcile
+  an uncertain response before retrying those operations.
 - **Errors:** read HTTP status and the stable `error` envelope (`code`, `message`,
   `requestId`, optional JSON-Pointer `fields`). 401 means authentication failed,
   403 means insufficient scope, and 404 may deliberately conceal a foreign-owned

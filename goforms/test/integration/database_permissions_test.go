@@ -183,7 +183,7 @@ func TestDatabasePermissionContract(t *testing.T) {
 		require.NoError(t, err)
 		tables, err := pgx.CollectRows(rows, pgx.RowTo[string])
 		require.NoError(t, err)
-		require.Equal(t, []string{"first_party_assertion_replays", "form_schemas", "form_submissions", "forms", "management_audit", "schema_migrations", "service_tokens", "submission_export_audit", "users", "webhook_deliveries", "webhook_endpoints"}, tables, "new tables require an intentional permission inventory update")
+		require.Equal(t, []string{"first_party_assertion_replays", "form_create_receipts", "form_schemas", "form_submissions", "forms", "management_audit", "schema_migrations", "service_tokens", "submission_export_audit", "users", "webhook_deliveries", "webhook_endpoints"}, tables, "new tables require an intentional permission inventory update")
 		var sequences, definerFunctions int
 		require.NoError(t, f.owner.QueryRow(t.Context(), "SELECT count(*) FROM pg_sequences WHERE schemaname = 'public'").Scan(&sequences))
 		require.Zero(t, sequences, "introducing sequences requires explicit permission review")
@@ -205,6 +205,7 @@ func TestDatabasePermissionContract(t *testing.T) {
 			"UPDATE service_tokens SET token_hash = token_hash", "UPDATE service_tokens SET scopes = scopes",
 			"UPDATE form_submissions SET data = data", "DELETE FROM form_submissions", "DELETE FROM forms",
 			"UPDATE form_schemas SET schema = schema", "DELETE FROM form_schemas",
+			"UPDATE form_create_receipts SET request_digest = request_digest", "DELETE FROM form_create_receipts", "TRUNCATE form_create_receipts",
 			"UPDATE webhook_deliveries SET encrypted_config = encrypted_config", "DELETE FROM webhook_deliveries",
 		} {
 			permissionDenied(t, runtime, statement)
@@ -226,7 +227,69 @@ func TestDatabasePermissionContract(t *testing.T) {
 			}
 		}
 	})
+	t.Run("receipt rollback fences a concurrent insert", func(t *testing.T) {
+		downSQL, err := os.ReadFile("../../migrations/postgresql/2026092901_form_create_receipts.down.sql")
+		require.NoError(t, err)
+		runtimeWriter := f.connect(t, "runtime")
+		writerTx, err := runtimeWriter.Begin(t.Context())
+		require.NoError(t, err)
+		org, key := uuid.NewString(), "rollback-race-"+uuid.NewString()
+		_, err = writerTx.Exec(t.Context(), `INSERT INTO form_create_receipts
+			(organization_id, idempotency_key, request_digest, form_id, form_snapshot)
+			VALUES ($1, $2, 'create-form-v1:race', $3, '{}'::jsonb)`, org, key, uuid.NewString())
+		require.NoError(t, err)
+		downConn := f.connect(t, "migrator")
+		_, err = downConn.Exec(t.Context(), "SET ROLE "+pgx.Identifier{f.roles["owner"]}.Sanitize())
+		require.NoError(t, err)
+		var downPID int
+		require.NoError(t, downConn.QueryRow(t.Context(), "SELECT pg_backend_pid()").Scan(&downPID))
+		downResult := make(chan error, 1)
+		go func() {
+			_, downErr := downConn.Exec(t.Context(), string(downSQL))
+			downResult <- downErr
+		}()
+		deadline := time.Now().Add(5 * time.Second)
+		waiting := false
+		for time.Now().Before(deadline) {
+			require.NoError(t, f.owner.QueryRow(t.Context(), `SELECT EXISTS (
+				SELECT 1 FROM pg_locks WHERE pid = $1
+				AND relation = 'form_create_receipts'::regclass
+				AND mode = 'AccessExclusiveLock' AND NOT granted)`, downPID).Scan(&waiting))
+			if waiting {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		require.True(t, waiting, "rollback must wait on a concurrent receipt write")
+		require.NoError(t, writerTx.Commit(t.Context()))
+		require.ErrorContains(t, <-downResult, "cannot roll back populated form create receipts")
+		var count int
+		require.NoError(t, f.owner.QueryRow(t.Context(), "SELECT count(*) FROM form_create_receipts WHERE organization_id = $1 AND idempotency_key = $2", org, key).Scan(&count))
+		require.Equal(t, 1, count)
+		_, err = f.owner.Exec(t.Context(), "DELETE FROM form_create_receipts WHERE organization_id = $1 AND idempotency_key = $2", org, key)
+		require.NoError(t, err)
+	})
 	t.Run("real runtime and maintenance operations", func(t *testing.T) { exercisePermissionOperations(t, f) })
+	t.Run("populated form receipt refuses rollback", func(t *testing.T) {
+		var count int
+		require.NoError(t, f.owner.QueryRow(t.Context(), "SELECT count(*) FROM form_create_receipts").Scan(&count))
+		require.Positive(t, count)
+		downSQL, err := os.ReadFile("../../migrations/postgresql/2026092901_form_create_receipts.down.sql")
+		require.NoError(t, err)
+		_, err = f.owner.Exec(t.Context(), string(downSQL))
+		require.ErrorContains(t, err, "cannot roll back populated form create receipts")
+		require.NoError(t, f.owner.QueryRow(t.Context(), "SELECT count(*) FROM form_create_receipts").Scan(&count))
+		require.Positive(t, count)
+		tx, err := f.owner.Begin(t.Context())
+		require.NoError(t, err)
+		_, err = tx.Exec(t.Context(), "DELETE FROM form_create_receipts")
+		require.NoError(t, err)
+		_, err = tx.Exec(t.Context(), string(downSQL))
+		require.NoError(t, err, "empty receipt table remains reversible")
+		require.NoError(t, tx.Rollback(t.Context()))
+		require.NoError(t, f.owner.QueryRow(t.Context(), "SELECT count(*) FROM form_create_receipts").Scan(&count))
+		require.Positive(t, count)
+	})
 }
 
 func exercisePermissionOperations(t *testing.T, f *permissionDatabase) {
@@ -243,6 +306,15 @@ func exercisePermissionOperations(t *testing.T, f *permissionDatabase) {
 	form := model.NewForm(org, "Permission fixture", "", model.JSON{"$schema": model.JSONSchemaDraft202012URI, "type": "object"})
 	form.Name = "permissions"
 	require.NoError(t, forms.CreateForm(t.Context(), form))
+	keyed := model.NewForm(org, "Permission keyed", "", model.JSON{"$schema": model.JSONSchemaDraft202012URI, "type": "object"})
+	keyed.Name = "permissions-keyed"
+	created, replayed, err := forms.CreateFormIdempotent(t.Context(), keyed, "permission-create-key-001", "create-form-v1:permissions")
+	require.NoError(t, err)
+	require.False(t, replayed)
+	retry, replayed, err := forms.CreateFormIdempotent(t.Context(), model.NewForm(org, "Permission keyed", "", keyed.Schema), "permission-create-key-001", "create-form-v1:permissions")
+	require.NoError(t, err)
+	require.True(t, replayed)
+	require.Equal(t, created.ID, retry.ID)
 	_, err = forms.PublishSchemaVersion(t.Context(), org, form.ID, 1)
 	require.NoError(t, err)
 	_, _, err = forms.GetPublishedSchemaVersion(t.Context(), form.PublicKey, 1)
@@ -348,7 +420,7 @@ func exercisePermissionOperations(t *testing.T, f *permissionDatabase) {
 		permissionDenied(t, operator, statement)
 	}
 	backup := f.connect(t, "backup")
-	for _, table := range []string{"users", "forms", "form_schemas", "form_submissions", "service_tokens", "first_party_assertion_replays", "webhook_endpoints", "webhook_deliveries", "management_audit", "submission_export_audit", "schema_migrations"} {
+	for _, table := range []string{"users", "forms", "form_create_receipts", "form_schemas", "form_submissions", "service_tokens", "first_party_assertion_replays", "webhook_endpoints", "webhook_deliveries", "management_audit", "submission_export_audit", "schema_migrations"} {
 		// pg_dump needs SELECT and ACCESS SHARE; it must not inherit restore DDL.
 		tx, beginErr := backup.Begin(t.Context())
 		require.NoError(t, beginErr)
