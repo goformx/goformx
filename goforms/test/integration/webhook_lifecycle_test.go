@@ -86,7 +86,11 @@ func TestWebhookLifecycleAtomicityThroughRealHTTPAndPostgres(t *testing.T) {
 					CredentialID: auth.LookupID(bearer), SubjectID: auth.LookupID(bearer)}
 				if credentialClass == auth.CredentialClassFirstPartyAssertion {
 					id := uuid.NewString()
-					bearer = signBoundaryAssertion(t, privateKey, "webhook-audit", org, id, auth.ScopeWebhooksWrite, time.Now())
+					operationID := map[string]string{http.MethodPut: "putWebhookEndpoint", http.MethodPatch: "patchWebhookEndpoint", http.MethodDelete: "deleteWebhookEndpoint"}[method]
+					if method == http.MethodPost {
+						operationID = "replayWebhookDelivery"
+					}
+					bearer = signBoundaryAssertion(t, privateKey, "webhook-audit", org, id, auth.ScopeWebhooksWrite, operationID, time.Now())
 					payload, decodeErr := base64.RawURLEncoding.DecodeString(strings.Split(bearer, ".")[1])
 					require.NoError(t, decodeErr)
 					var claims struct {

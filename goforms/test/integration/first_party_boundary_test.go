@@ -80,17 +80,17 @@ func TestFirstPartyAssertionBoundaryEnforcesReplayScopeAndTenant(t *testing.T) {
 		formrepository.NewStore(database, logger), tokenrepository.NewStore(database), nil, web.DefaultV1Limits(), verifier,
 	).RegisterRoutes(router)
 	now := time.Now().UTC().Truncate(time.Second)
-	owned := signBoundaryAssertion(t, privateKey, keyID, organizationID, uuid.NewString(), auth.ScopeFormsRead, now)
+	owned := signBoundaryAssertion(t, privateKey, keyID, organizationID, uuid.NewString(), auth.ScopeFormsRead, "listForms", now)
 	response := boundaryRequest(router, http.MethodGet, "/v1/forms", owned)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	require.Contains(t, response.Body.String(), formID)
 	require.Equal(t, http.StatusUnauthorized,
 		boundaryRequest(router, http.MethodGet, "/v1/forms", owned).Code, "assertions are single-use")
 
-	underScoped := signBoundaryAssertion(t, privateKey, keyID, organizationID, uuid.NewString(), auth.ScopeFormsWrite, now)
+	underScoped := signBoundaryAssertion(t, privateKey, keyID, organizationID, uuid.NewString(), auth.ScopeFormsWrite, "listForms", now)
 	require.Equal(t, http.StatusForbidden,
 		boundaryRequest(router, http.MethodGet, "/v1/forms", underScoped).Code)
-	foreign := signBoundaryAssertion(t, privateKey, keyID, foreignOrganizationID, uuid.NewString(), auth.ScopeFormsRead, now)
+	foreign := signBoundaryAssertion(t, privateKey, keyID, foreignOrganizationID, uuid.NewString(), auth.ScopeFormsRead, "getForm", now)
 	foreignResponse := boundaryRequest(router, http.MethodGet, "/v1/forms/"+formID, foreign)
 	require.Equal(t, http.StatusNotFound, foreignResponse.Code, foreignResponse.Body.String())
 }
@@ -102,6 +102,20 @@ func signBoundaryAssertion(
 	organizationID string,
 	assertionID string,
 	scope auth.Scope,
+	operationID string,
+	now time.Time,
+) string {
+	return signBoundaryAssertionWithScopes(t, privateKey, keyID, organizationID, assertionID, []auth.Scope{scope}, operationID, now)
+}
+
+func signBoundaryAssertionWithScopes(
+	t *testing.T,
+	privateKey ed25519.PrivateKey,
+	keyID string,
+	organizationID string,
+	assertionID string,
+	scopes []auth.Scope,
+	operationID string,
 	now time.Time,
 ) string {
 	t.Helper()
@@ -111,8 +125,8 @@ func signBoundaryAssertion(
 	require.NoError(t, err)
 	claims, err := json.Marshal(map[string]any{
 		"iss": "https://goformx.com", "aud": "https://api.goformx.com", "sub": uuid.NewString(),
-		"org": organizationID, "scp": []auth.Scope{scope}, "iat": now.Unix(), "nbf": now.Unix(),
-		"exp": now.Add(time.Minute).Unix(), "jti": assertionID, "rid": uuid.NewString(), "ver": 1,
+		"org": organizationID, "scp": scopes, "iat": now.Unix(), "nbf": now.Unix(),
+		"exp": now.Add(time.Minute).Unix(), "jti": assertionID, "rid": uuid.NewString(), "op": operationID, "ver": auth.FirstPartyAssertionVersion,
 	})
 	require.NoError(t, err)
 	message := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(claims)

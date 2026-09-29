@@ -33,6 +33,7 @@ func (v *assertionVerifier) VerifyAndConsume(
 	_ context.Context,
 	_ string,
 	_ time.Time,
+	_ string,
 ) (auth.FirstPartyPrincipal, error) {
 	v.calls++
 	return v.principal, v.err
@@ -60,7 +61,7 @@ func TestMiddlewareEnforcesBearerScopeAndOwner(t *testing.T) {
 	middleware := serviceauth.New(repository)
 
 	e := echo.New()
-	handler := middleware.Require(auth.ScopeFormsRead)(func(c echo.Context) error {
+	handler := middleware.Require(auth.ScopeFormsRead, "listForms")(func(c echo.Context) error {
 		require.NoError(t, serviceauth.RequireOwner(c, "owner-a"))
 		require.Error(t, serviceauth.RequireOwner(c, "owner-b"))
 		principal, ok := serviceauth.PrincipalFrom(c)
@@ -76,7 +77,7 @@ func TestMiddlewareEnforcesBearerScopeAndOwner(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, recorder.Code)
 	require.NotNil(t, repository.usedAt)
 
-	denied := middleware.Require(auth.ScopeFormsWrite)(func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
+	denied := middleware.Require(auth.ScopeFormsWrite, "createForm")(func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
 	err = denied(e.NewContext(req, httptest.NewRecorder()))
 	var httpErr *echo.HTTPError
 	require.ErrorAs(t, err, &httpErr)
@@ -93,7 +94,7 @@ func TestMiddlewareConvergesFirstPartyAssertionWithoutTokenFallback(t *testing.T
 	}}
 	repository := &tokenRepository{}
 	middleware := serviceauth.NewWithAssertions(repository, verifier)
-	handler := middleware.Require(auth.ScopeFormsRead)(func(c echo.Context) error {
+	handler := middleware.Require(auth.ScopeFormsRead, "listForms")(func(c echo.Context) error {
 		principal, ok := serviceauth.PrincipalFrom(c)
 		require.True(t, ok)
 		require.Equal(t, serviceauth.CredentialClassFirstPartyAssertion, principal.CredentialClass)
@@ -109,7 +110,7 @@ func TestMiddlewareConvergesFirstPartyAssertionWithoutTokenFallback(t *testing.T
 	require.Equal(t, 1, verifier.calls)
 	require.Zero(t, repository.findCalls)
 
-	denied := middleware.Require(auth.ScopeFormsWrite)(func(c echo.Context) error {
+	denied := middleware.Require(auth.ScopeFormsWrite, "createForm")(func(c echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	})
 	err := denied(echo.New().NewContext(req, httptest.NewRecorder()))
@@ -127,7 +128,7 @@ func TestMiddlewareReturnsUnavailableForReplayStoreFailure(t *testing.T) {
 	t.Parallel()
 	verifier := &assertionVerifier{err: auth.ErrFirstPartyAuthUnavailable}
 	middleware := serviceauth.NewWithAssertions(&tokenRepository{}, verifier)
-	handler := middleware.Require(auth.ScopeFormsRead)(func(c echo.Context) error {
+	handler := middleware.Require(auth.ScopeFormsRead, "listForms")(func(c echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/v1/forms", nil)
@@ -142,7 +143,7 @@ func TestMiddlewareRejectsMissingAndUnknownTokens(t *testing.T) {
 	t.Parallel()
 	e := echo.New()
 	middleware := serviceauth.New(&tokenRepository{})
-	handler := middleware.Require(auth.ScopeFormsRead)(func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
+	handler := middleware.Require(auth.ScopeFormsRead, "listForms")(func(c echo.Context) error { return c.NoContent(http.StatusNoContent) })
 
 	err := handler(e.NewContext(httptest.NewRequest(http.MethodGet, "/v1/forms", nil), httptest.NewRecorder()))
 	var httpErr *echo.HTTPError
@@ -156,7 +157,7 @@ func TestMiddlewareFailsClosedWhenUsageAuditCannotBeWritten(t *testing.T) {
 	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeFormsRead}, time.Hour, now)
 	require.NoError(t, err)
 	middleware := serviceauth.New(&tokenRepository{token: token, markUsedErr: errors.New("database unavailable")})
-	handler := middleware.Require(auth.ScopeFormsRead)(func(c echo.Context) error {
+	handler := middleware.Require(auth.ScopeFormsRead, "listForms")(func(c echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	})
 	req := httptest.NewRequest(http.MethodGet, "/v1/forms", nil)
@@ -173,7 +174,7 @@ func TestMiddlewareTreatsExpiredServiceTokenAsAuthenticationFailure(t *testing.T
 	token, plaintext, err := auth.Issue("owner-a", []auth.Scope{auth.ScopeFormsRead}, time.Minute, now.Add(-2*time.Minute))
 	require.NoError(t, err)
 	middleware := serviceauth.New(&tokenRepository{token: token})
-	handler := middleware.Require(auth.ScopeFormsRead)(func(c echo.Context) error {
+	handler := middleware.Require(auth.ScopeFormsRead, "listForms")(func(c echo.Context) error {
 		return c.NoContent(http.StatusNoContent)
 	})
 	request := httptest.NewRequest(http.MethodGet, "/v1/forms", nil)

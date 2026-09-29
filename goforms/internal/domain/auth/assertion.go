@@ -18,7 +18,7 @@ import (
 const (
 	FirstPartyAssertionType      = "gofx-fpa+jwt"
 	FirstPartyAssertionAlgorithm = "EdDSA"
-	FirstPartyAssertionVersion   = 1
+	FirstPartyAssertionVersion   = 2
 	FirstPartyAssertionMaxTTL    = 60 * time.Second
 	FirstPartyAssertionMaxSkew   = 5 * time.Second
 )
@@ -109,6 +109,7 @@ type assertionClaims struct {
 	ExpiresAt      int64   `json:"exp"`
 	AssertionID    string  `json:"jti"`
 	RequestID      string  `json:"rid"`
+	OperationID    string  `json:"op"`
 	Version        int     `json:"ver"`
 }
 
@@ -133,6 +134,7 @@ func (v *FirstPartyVerifier) VerifyAndConsume(
 	ctx context.Context,
 	compact string,
 	now time.Time,
+	expectedOperationID string,
 ) (FirstPartyPrincipal, error) {
 	segments := strings.Split(compact, ".")
 	if len(segments) != 3 {
@@ -170,7 +172,7 @@ func (v *FirstPartyVerifier) VerifyAndConsume(
 		return FirstPartyPrincipal{}, ErrInvalidFirstPartyAssertion
 	}
 	var claims assertionClaims
-	if strictJSON(claimsBytes, &claims) != nil || v.validateClaims(claims, now.UTC()) != nil {
+	if strictJSON(claimsBytes, &claims) != nil || v.validateClaims(claims, now.UTC(), expectedOperationID) != nil {
 		return FirstPartyPrincipal{}, ErrInvalidFirstPartyAssertion
 	}
 	if err := v.replays.Consume(ctx, AssertionReplay{
@@ -191,8 +193,9 @@ func (v *FirstPartyVerifier) VerifyAndConsume(
 		OrganizationID: claims.OrganizationID, RequestID: claims.RequestID, KeyID: header.KeyID, Scopes: scopes}, nil
 }
 
-func (v *FirstPartyVerifier) validateClaims(claims assertionClaims, now time.Time) error {
-	if claims.Issuer != v.issuer || claims.Audience != v.audience || claims.Version != FirstPartyAssertionVersion {
+func (v *FirstPartyVerifier) validateClaims(claims assertionClaims, now time.Time, expectedOperationID string) error {
+	if claims.Issuer != v.issuer || claims.Audience != v.audience || claims.Version != FirstPartyAssertionVersion ||
+		expectedOperationID == "" || claims.OperationID != expectedOperationID {
 		return ErrInvalidFirstPartyAssertion
 	}
 	if !uuidValue(claims.SubjectID) || !uuidValue(claims.OrganizationID) ||

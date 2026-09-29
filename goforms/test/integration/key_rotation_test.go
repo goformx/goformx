@@ -123,12 +123,12 @@ func TestFirstPartyKeyRotationDrill(t *testing.T) {
 		return router
 	}
 	router := newRouter(t, published.Load().(string), true)
-	assertion := func(t *testing.T, key rotationKey, organization string, scope auth.Scope) string {
-		return signBoundaryAssertion(t, key.private, key.id, organization, uuid.NewString(), scope, time.Now().UTC().Truncate(time.Second))
+	assertion := func(t *testing.T, key rotationKey, organization string, scope auth.Scope, operationID string) string {
+		return signBoundaryAssertion(t, key.private, key.id, organization, uuid.NewString(), scope, operationID, time.Now().UTC().Truncate(time.Second))
 	}
 	check := func(t *testing.T, key rotationKey, expected int) {
 		t.Helper()
-		response := boundaryRequest(router, http.MethodGet, "/v1/forms/"+form.ID, assertion(t, key, organizationID, auth.ScopeFormsRead))
+		response := boundaryRequest(router, http.MethodGet, "/v1/forms/"+form.ID, assertion(t, key, organizationID, auth.ScopeFormsRead, "getForm"))
 		require.Equal(t, expected, response.Code, "unexpected status for key %s", key.id)
 		require.Equal(t, http.StatusOK, boundaryRequest(router, http.MethodGet, "/v1/forms/"+form.ID, serviceCredential).Code,
 			"assertion-key transitions must not affect external service tokens")
@@ -136,7 +136,7 @@ func TestFirstPartyKeyRotationDrill(t *testing.T) {
 
 	t.Run("active_and_single_use", func(t *testing.T) {
 		check(t, old, http.StatusOK)
-		credential := assertion(t, old, organizationID, auth.ScopeFormsRead)
+		credential := assertion(t, old, organizationID, auth.ScopeFormsRead, "listForms")
 		require.Equal(t, http.StatusOK, boundaryRequest(router, http.MethodGet, "/v1/forms", credential).Code)
 		require.Equal(t, http.StatusUnauthorized, boundaryRequest(router, http.MethodGet, "/v1/forms", credential).Code)
 	})
@@ -165,8 +165,8 @@ func TestFirstPartyKeyRotationDrill(t *testing.T) {
 		published.Store(rotationJWKS(t, stale, next))
 		check(t, old, http.StatusUnauthorized)
 		published.Store(rotationJWKS(t, next))
-		require.Equal(t, http.StatusForbidden, boundaryRequest(router, http.MethodGet, "/v1/forms", assertion(t, next, organizationID, auth.ScopeFormsWrite)).Code)
-		require.Equal(t, http.StatusNotFound, boundaryRequest(router, http.MethodGet, "/v1/forms/"+form.ID, assertion(t, next, foreignOrganizationID, auth.ScopeFormsRead)).Code)
+		require.Equal(t, http.StatusForbidden, boundaryRequest(router, http.MethodGet, "/v1/forms", assertion(t, next, organizationID, auth.ScopeFormsWrite, "listForms")).Code)
+		require.Equal(t, http.StatusNotFound, boundaryRequest(router, http.MethodGet, "/v1/forms/"+form.ID, assertion(t, next, foreignOrganizationID, auth.ScopeFormsRead, "getForm")).Code)
 	})
 	t.Run("emergency_revoke_and_stale_discovery", func(t *testing.T) {
 		next.state = auth.VerificationKeyRevoked
@@ -192,7 +192,7 @@ func TestFirstPartyKeyRotationDrill(t *testing.T) {
 		check(t, old, http.StatusUnauthorized)
 		check(t, next, http.StatusUnauthorized)
 		check(t, replacement, http.StatusOK)
-		credential := assertion(t, replacement, organizationID, auth.ScopeFormsRead)
+		credential := assertion(t, replacement, organizationID, auth.ScopeFormsRead, "listForms")
 		require.Equal(t, http.StatusOK, boundaryRequest(router, http.MethodGet, "/v1/forms", credential).Code)
 		router = newRouter(t, snapshot, true)
 		require.Equal(t, http.StatusUnauthorized, boundaryRequest(router, http.MethodGet, "/v1/forms", credential).Code,

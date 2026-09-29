@@ -28,6 +28,7 @@ func (stub assertionVerifierStub) VerifyAndConsume(
 	context.Context,
 	string,
 	time.Time,
+	string,
 ) (auth.FirstPartyPrincipal, error) {
 	return stub.principal, nil
 }

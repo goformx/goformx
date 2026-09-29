@@ -1582,9 +1582,9 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT (EdDSA)",
-        "description": "Single-use, at-most-60-second assertion minted by the Waaseyaa server after session authentication and organization membership resolution. Never delivered to a browser and never accepted as an external service token.",
+        "description": "Single-use, at-most-60-second assertion minted by the Waaseyaa server after session authentication and organization membership resolution. Version 2 binds the signed op claim to this route's canonical operationId. Never delivered to a browser and never accepted as an external service token.",
         "x-goformx-credential-class": "first-party-assertion",
-        "x-goformx-jwt-profile": "gofx-fpa-v1",
+        "x-goformx-jwt-profile": "gofx-fpa-v2",
         "x-goformx-jwks-uri": "https://goformx.com/.well-known/goformx-control-plane-jwks.json"
       }
     },

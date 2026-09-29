@@ -61,7 +61,7 @@ func TestFirstPartyVerifierAcceptsCanonicalAssertionOnce(t *testing.T) {
 	compact := signAssertion(t, privateKey, canonicalHeader(), canonicalClaims(now))
 	require.True(t, auth.IsFirstPartyAssertion(compact))
 
-	principal, err := verifier.VerifyAndConsume(t.Context(), compact, now)
+	principal, err := verifier.VerifyAndConsume(t.Context(), compact, now, "listForms")
 	require.NoError(t, err)
 	require.Equal(t, "22222222-2222-4222-8222-222222222222", principal.OrganizationID)
 	require.Equal(t, "11111111-1111-4111-8111-111111111111", principal.SubjectID)
@@ -70,8 +70,27 @@ func TestFirstPartyVerifierAcceptsCanonicalAssertionOnce(t *testing.T) {
 	require.Contains(t, principal.Scopes, auth.ScopeFormsWrite)
 	require.Equal(t, now.Add(65*time.Second), replays.consumed[testIssuer+principal.AssertionID].ExpiresAt)
 
-	_, err = verifier.VerifyAndConsume(t.Context(), compact, now)
+	_, err = verifier.VerifyAndConsume(t.Context(), compact, now, "listForms")
 	require.ErrorIs(t, err, auth.ErrInvalidFirstPartyAssertion)
+}
+
+func TestFirstPartyVerifierRejectsWrongOperationBeforeReplayConsumption(t *testing.T) {
+	t.Parallel()
+	now := time.Unix(1788033600, 0).UTC()
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	replays := &assertionReplayStore{consumed: map[string]auth.AssertionReplay{}}
+	verifier, err := auth.NewFirstPartyVerifier(testIssuer, testAudience,
+		assertionKeyProvider{key: auth.VerificationKey{ID: testKeyID, PublicKey: publicKey, State: auth.VerificationKeyActive}},
+		replays)
+	require.NoError(t, err)
+	compact := signAssertion(t, privateKey, canonicalHeader(), merge(canonicalClaims(now), "op", "createServiceToken"))
+	_, err = verifier.VerifyAndConsume(t.Context(), compact, now, "listForms")
+	require.ErrorIs(t, err, auth.ErrInvalidFirstPartyAssertion)
+	require.Empty(t, replays.consumed)
+	_, err = verifier.VerifyAndConsume(t.Context(), compact, now, "createServiceToken")
+	require.NoError(t, err)
+	require.Len(t, replays.consumed, 1)
 }
 
 func TestFirstPartyVerifierAcceptsStableNonV4IdentityAndCorrelationUUIDs(t *testing.T) {
@@ -89,7 +108,7 @@ func TestFirstPartyVerifierAcceptsStableNonV4IdentityAndCorrelationUUIDs(t *test
 	claims["org"] = "6ba7b811-9dad-11d1-80b4-00c04fd430c8"
 	claims["rid"] = "6ba7b812-9dad-11d1-80b4-00c04fd430c8"
 
-	principal, err := verifier.VerifyAndConsume(t.Context(), signAssertion(t, privateKey, canonicalHeader(), claims), now)
+	principal, err := verifier.VerifyAndConsume(t.Context(), signAssertion(t, privateKey, canonicalHeader(), claims), now, "listForms")
 	require.NoError(t, err)
 	require.Equal(t, claims["sub"], principal.SubjectID)
 	require.Equal(t, claims["org"], principal.OrganizationID)
@@ -115,7 +134,7 @@ func TestFirstPartyVerifierAcceptsEveryRotationOverlapState(t *testing.T) {
 				&assertionReplayStore{consumed: map[string]auth.AssertionReplay{}},
 			)
 			require.NoError(t, createErr)
-			_, verifyErr := verifier.VerifyAndConsume(t.Context(), compact, now)
+			_, verifyErr := verifier.VerifyAndConsume(t.Context(), compact, now, "listForms")
 			require.NoError(t, verifyErr)
 		})
 	}
@@ -141,6 +160,8 @@ func TestFirstPartyVerifierRejectsInvalidProfiles(t *testing.T) {
 		"wrong audience":           {claims: merge(canonicalClaims(now), "aud", "https://other.example")},
 		"audience array":           {claims: merge(canonicalClaims(now), "aud", []string{testAudience})},
 		"unknown claim":            {claims: merge(canonicalClaims(now), "email", "person@example.test")},
+		"wrong operation":          {claims: merge(canonicalClaims(now), "op", "createServiceToken")},
+		"version one":              {claims: merge(canonicalClaims(now), "ver", 1)},
 		"duplicate scope":          {claims: merge(canonicalClaims(now), "scp", []string{"forms:read", "forms:read"})},
 		"unknown scope":            {claims: merge(canonicalClaims(now), "scp", []string{"admin"})},
 		"non-v4 assertion ID":      {claims: merge(canonicalClaims(now), "jti", "33333333-3333-3333-8333-333333333333")},
@@ -183,7 +204,7 @@ func TestFirstPartyVerifierRejectsInvalidProfiles(t *testing.T) {
 			if verificationTime.IsZero() {
 				verificationTime = now
 			}
-			_, verifyErr := verifier.VerifyAndConsume(t.Context(), compact, verificationTime)
+			_, verifyErr := verifier.VerifyAndConsume(t.Context(), compact, verificationTime, "listForms")
 			require.ErrorIs(t, verifyErr, auth.ErrInvalidFirstPartyAssertion)
 		})
 	}
@@ -201,7 +222,7 @@ func TestFirstPartyVerifierDistinguishesInfrastructureFailure(t *testing.T) {
 		&assertionReplayStore{consumed: map[string]auth.AssertionReplay{}, err: errors.New("database unavailable")},
 	)
 	require.NoError(t, err)
-	_, err = verifier.VerifyAndConsume(t.Context(), compact, now)
+	_, err = verifier.VerifyAndConsume(t.Context(), compact, now, "listForms")
 	require.ErrorIs(t, err, auth.ErrFirstPartyAuthUnavailable)
 }
 
@@ -215,7 +236,7 @@ func canonicalClaims(now time.Time) map[string]any {
 		"sub": "11111111-1111-4111-8111-111111111111", "org": "22222222-2222-4222-8222-222222222222",
 		"scp": []string{"forms:read", "forms:write"}, "iat": now.Unix(), "nbf": now.Unix(),
 		"exp": now.Add(time.Minute).Unix(), "jti": "33333333-3333-4333-8333-333333333333",
-		"rid": "44444444-4444-4444-8444-444444444444", "ver": 1,
+		"rid": "44444444-4444-4444-8444-444444444444", "op": "listForms", "ver": auth.FirstPartyAssertionVersion,
 	}
 }
 
