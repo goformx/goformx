@@ -77,6 +77,21 @@ type Projection struct {
 	SubmittedAt   string                 `json:"submittedAt"`
 }
 
+// WorkspaceRow carries authoritative form metadata joined to one accepted row.
+type WorkspaceRow struct {
+	Submission *model.FormSubmission
+	SiteID     *string
+	FormName   string
+	FormTitle  string
+}
+
+type WorkspaceProjection struct {
+	*Projection
+	SiteID    *string `json:"siteId"`
+	FormName  string  `json:"formName"`
+	FormTitle string  `json:"formTitle"`
+}
+
 func Project(row *model.FormSubmission, schemaFormID string, version int, policy model.JSON) (*Projection, error) {
 	if row == nil || schemaFormID != row.FormID || version != row.SchemaVersion {
 		return nil, ErrRedactionPolicy

@@ -479,6 +479,46 @@ func (c *MockRepositoryListSubmissionsPageCall) DoAndReturn(f func(context.Conte
 	return c
 }
 
+// ListWorkspaceSubmissionsPage mocks base method.
+func (m *MockRepository) ListWorkspaceSubmissionsPage(arg0 context.Context, arg1 string, arg2 submission.WorkspaceListOptions) ([]submission.WorkspaceRow, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListWorkspaceSubmissionsPage", arg0, arg1, arg2)
+	ret0, _ := ret[0].([]submission.WorkspaceRow)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListWorkspaceSubmissionsPage indicates an expected call of ListWorkspaceSubmissionsPage.
+func (mr *MockRepositoryMockRecorder) ListWorkspaceSubmissionsPage(arg0, arg1, arg2 any) *MockRepositoryListWorkspaceSubmissionsPageCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceSubmissionsPage", reflect.TypeOf((*MockRepository)(nil).ListWorkspaceSubmissionsPage), arg0, arg1, arg2)
+	return &MockRepositoryListWorkspaceSubmissionsPageCall{Call: call}
+}
+
+// MockRepositoryListWorkspaceSubmissionsPageCall wrap *gomock.Call
+type MockRepositoryListWorkspaceSubmissionsPageCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockRepositoryListWorkspaceSubmissionsPageCall) Return(arg0 []submission.WorkspaceRow, arg1 bool, arg2 error) *MockRepositoryListWorkspaceSubmissionsPageCall {
+	c.Call = c.Call.Return(arg0, arg1, arg2)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockRepositoryListWorkspaceSubmissionsPageCall) Do(f func(context.Context, string, submission.WorkspaceListOptions) ([]submission.WorkspaceRow, bool, error)) *MockRepositoryListWorkspaceSubmissionsPageCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockRepositoryListWorkspaceSubmissionsPageCall) DoAndReturn(f func(context.Context, string, submission.WorkspaceListOptions) ([]submission.WorkspaceRow, bool, error)) *MockRepositoryListWorkspaceSubmissionsPageCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
 // PublishSchemaVersion mocks base method.
 func (m *MockRepository) PublishSchemaVersion(arg0 context.Context, arg1, arg2 string, arg3 int) (*model.SchemaVersion, error) {
 	m.ctrl.T.Helper()

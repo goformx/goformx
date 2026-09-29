@@ -64,7 +64,8 @@ func NormalizeOrigin(raw string) (string, error) {
 		}
 		port = strconv.Itoa(value)
 	}
-	if u.Scheme != "https" && !(u.Scheme == "http" && (host == "localhost" || host == "127.0.0.1" || host == "::1")) {
+	localHTTP := u.Scheme == "http" && (host == "localhost" || host == "127.0.0.1" || host == "::1")
+	if u.Scheme != "https" && !localHTTP {
 		return "", ErrInvalid
 	}
 	if ip := net.ParseIP(host); ip == nil && host != "localhost" && !strings.Contains(host, ".") {

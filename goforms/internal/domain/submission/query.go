@@ -29,6 +29,27 @@ type ListOptions struct {
 	SchemaVersion  int
 }
 
+// WorkspaceListOptions adds organization-scoped form and site selectors.
+type WorkspaceListOptions struct {
+	ListOptions
+	SiteID string
+	FormID string
+}
+
+func (o WorkspaceListOptions) Validate() error {
+	if err := o.ListOptions.Validate(); err != nil {
+		return err
+	}
+	for _, id := range []string{o.SiteID, o.FormID} {
+		if id != "" {
+			if _, err := uuid.Parse(id); err != nil {
+				return errors.New("workspace selector must be a UUID")
+			}
+		}
+	}
+	return nil
+}
+
 func (o ListOptions) Validate() error {
 	if o.Limit < 1 || o.Limit > MaxPageLimit {
 		return errors.New("submission page limit must be between 1 and 100")

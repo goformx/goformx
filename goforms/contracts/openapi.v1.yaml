@@ -365,6 +365,46 @@ paths:
               schema: { $ref: '#/components/schemas/SchemaVersionEnvelope' }
         default: { $ref: '#/components/responses/Error' }
         '4XX': { $ref: '#/components/responses/Error' }
+  /v1/submissions:
+    get:
+      summary: List submissions across organization-owned forms
+      operationId: listWorkspaceSubmissions
+      tags: [Control plane]
+      security: [{ serviceToken: [] }, { firstPartyAssertion: [] }]
+      x-goformx-required-scopes: [submissions:read]
+      parameters:
+        - $ref: '#/components/parameters/SubmissionLimit'
+        - $ref: '#/components/parameters/SubmissionCursor'
+        - $ref: '#/components/parameters/SubmissionReceivedFrom'
+        - $ref: '#/components/parameters/SubmissionReceivedBefore'
+        - $ref: '#/components/parameters/SubmissionStatusFilter'
+        - $ref: '#/components/parameters/SubmissionSchemaVersionFilter'
+        - $ref: '#/components/parameters/WorkspaceSubmissionSiteId'
+        - $ref: '#/components/parameters/WorkspaceSubmissionFormId'
+      responses:
+        '200':
+          description: |
+            Accepted submissions across non-deleted forms owned by the authenticated
+            organization, ordered by submittedAt DESC and ID DESC. An absent,
+            foreign, or mismatched siteId/formId selector returns the same 404.
+            Legacy forms without a site are included when siteId is omitted.
+            Reuse filters with nextCursor; pagination is not a snapshot of new
+            inserts. Unknown, repeated, or invalid filters return 400. The
+            encoded query is limited to 4096 bytes. Projection uses each row's
+            immutable accepted schema version. No organization selector exists.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 100
+                    items: { $ref: '#/components/schemas/WorkspaceSubmission' }
+                  meta: { $ref: '#/components/schemas/CursorPageMeta' }
+        default: { $ref: '#/components/responses/Error' }
+        '4XX': { $ref: '#/components/responses/Error' }
   /v1/forms/{formId}/submissions:
     parameters:
       - $ref: '#/components/parameters/FormId'
@@ -833,6 +873,16 @@ components:
       in: query
       description: Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version.
       schema: { type: integer, minimum: 1, maximum: 2147483647 }
+    WorkspaceSubmissionSiteId:
+      name: siteId
+      in: query
+      description: Organization-owned site. Foreign and absent identifiers return the same 404.
+      schema: { type: string, format: uuid }
+    WorkspaceSubmissionFormId:
+      name: formId
+      in: query
+      description: Organization-owned form. If siteId is also present, the form must belong to that site.
+      schema: { type: string, format: uuid }
     FormId:
       name: formId
       in: path
@@ -1040,6 +1090,15 @@ components:
           items: { type: string }
           description: Sorted JSON Pointers declared sensitive by the accepted schema, including absent optional targets. Empty when no fields are marked. Values are never returned via a reveal flag.
         submittedAt: { type: string, format: date-time }
+    WorkspaceSubmission:
+      allOf:
+        - $ref: '#/components/schemas/Submission'
+        - type: object
+          required: [siteId, formName, formTitle]
+          properties:
+            siteId: { type: [string, 'null'], format: uuid }
+            formName: { type: string }
+            formTitle: { type: string }
     SubmissionDetailEnvelope:
       type: object
       required: [data]

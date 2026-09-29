@@ -379,6 +379,13 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 			repositories.MockRepository.EXPECT().GetSchemaVersion(gomock.Any(), scopeOrganizationID, scopeFormID, 1).Return(version, nil)
 			repositories.MockRepository.EXPECT().ListSubmissionsPage(gomock.Any(), scopeOrganizationID, scopeFormID, domainsubmission.ListOptions{Limit: 25}).Return([]*model.FormSubmission{submission}, false, nil)
 		}
+	case "listWorkspaceSubmissions":
+		if allowed {
+			repositories.MockRepository.EXPECT().ListWorkspaceSubmissionsPage(gomock.Any(), scopeOrganizationID,
+				domainsubmission.WorkspaceListOptions{ListOptions: domainsubmission.ListOptions{Limit: 25}}).
+				Return([]domainsubmission.WorkspaceRow{{Submission: submission, FormName: form.Name, FormTitle: form.Title}}, false, nil)
+			repositories.MockRepository.EXPECT().GetSchemaVersion(gomock.Any(), scopeOrganizationID, scopeFormID, 1).Return(version, nil)
+		}
 	case "getSubmission":
 		if allowed {
 			repositories.MockRepository.EXPECT().GetSchemaVersion(gomock.Any(), scopeOrganizationID, scopeFormID, 1).Return(version, nil)

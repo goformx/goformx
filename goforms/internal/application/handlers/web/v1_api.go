@@ -71,6 +71,7 @@ type V1Repository interface {
 	GetSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
 	PublishSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
 	ListSubmissionsPage(context.Context, string, string, domainsubmission.ListOptions) ([]*model.FormSubmission, bool, error)
+	ListWorkspaceSubmissionsPage(context.Context, string, domainsubmission.WorkspaceListOptions) ([]domainsubmission.WorkspaceRow, bool, error)
 	ReadSubmissionExport(context.Context, string, string, domainsubmission.ExportFilters) ([]domainsubmission.ExportRecord, error)
 	SaveSubmissionExportAudit(context.Context, domainsubmission.ExportAudit) error
 	GetSubmissionByOrganization(context.Context, string, string, string) (*model.FormSubmission, error)
@@ -173,6 +174,7 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.GET("/:formId/versions/:version", h.instrument("get_schema_version", h.getSchemaVersion), h.require(auth.ScopeFormsRead, "getSchemaVersion"))
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish, "publishSchemaVersion"))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead, "listSubmissions"))
+	e.GET("/v1/submissions", h.instrument("list_workspace_submissions", h.listWorkspaceSubmissions), h.require(auth.ScopeSubmissionsRead, "listWorkspaceSubmissions"))
 	control.POST("/:formId/submissions/export", h.instrument("export_submissions", h.exportSubmissions), h.require(auth.ScopeSubmissionsRead, "exportSubmissions"))
 	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead, "getSubmission"))
 	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite, "putWebhookEndpoint"))
@@ -609,6 +611,41 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{
 		"limit": options.Limit, "nextCursor": nextCursor,
 	}})
+}
+
+func (h *V1APIHandler) listWorkspaceSubmissions(c echo.Context) error {
+	principal, _ := serviceauth.PrincipalFrom(c)
+	options, err := workspaceSubmissionListOptions(c)
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	rows, hasMore, err := h.repository.ListWorkspaceSubmissionsPage(c.Request().Context(), principal.OwnerID, options)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	data := make([]domainsubmission.WorkspaceProjection, 0, len(rows))
+	versions := make(map[string]*model.SchemaVersion)
+	for _, row := range rows {
+		key := fmt.Sprintf("%s:%d", row.Submission.FormID, row.Submission.SchemaVersion)
+		version := versions[key]
+		if version == nil {
+			version, err = h.repository.GetSchemaVersion(c.Request().Context(), principal.OwnerID, row.Submission.FormID, row.Submission.SchemaVersion)
+			if err != nil {
+				return h.writeRepositoryError(c, err)
+			}
+			versions[key] = version
+		}
+		projection, err := submissionResource(row.Submission, version)
+		if err != nil {
+			return h.writeRepositoryError(c, err)
+		}
+		data = append(data, domainsubmission.WorkspaceProjection{Projection: projection, SiteID: row.SiteID, FormName: row.FormName, FormTitle: row.FormTitle})
+	}
+	var nextCursor any
+	if hasMore && len(rows) > 0 {
+		nextCursor = encodeSubmissionCursor(rows[len(rows)-1].Submission)
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{"limit": options.Limit, "nextCursor": nextCursor}})
 }
 
 func (h *V1APIHandler) getSubmission(c echo.Context) error {

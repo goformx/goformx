@@ -36,10 +36,10 @@ mean SELECT/INSERT/UPDATE/DELETE. No runtime DELETE is implicit in table ownersh
 | Table | Runtime | Other operational access | Source |
 | --- | --- | --- | --- |
 | sites | S/I; no U/D | Backup S | repository/form/sites.go |
-| forms | S/I/U (GORM updates the model) | Backup S | repository/form/store.go |
+| forms | S/I/U (GORM updates the model) | Backup S | repository/form/store.go, workspace_submissions.go |
 | form_create_receipts | S/I; no U/D | Backup S | repository/form/store.go |
 | form_schemas | S/I; U only state, published_at | Backup S | repository/form/store.go |
-| form_submissions | S/I; no U/D | Backup S | repository/form/store.go, submission_export.go |
+| form_submissions | S/I; no U/D | Backup S | repository/form/store.go, submission_export.go, workspace_submissions.go |
 | service_tokens | S/I; U last_used_at, revoked_at, revocation_reason | Token operator S/I; U revoked_at, revocation_reason, replaced_by_token_id; backup S | repository/token/store.go; cmd/goformx-token/main.go |
 | first_party_assertion_replays | S/I/D; no U | Backup S | repository/assertionreplay/store.go |
 | management_audit | S/I only | Token operator S/I; backup S | repository/managementaudit; token/form repositories; token CLI |

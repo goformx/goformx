@@ -807,6 +807,86 @@
         }
       }
     },
+    "/v1/submissions": {
+      "get": {
+        "summary": "List submissions across organization-owned forms",
+        "operationId": "listWorkspaceSubmissions",
+        "tags": [
+          "Control plane"
+        ],
+        "security": [
+          {
+            "serviceToken": []
+          },
+          {
+            "firstPartyAssertion": []
+          }
+        ],
+        "x-goformx-required-scopes": [
+          "submissions:read"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SubmissionLimit"
+          },
+          {
+            "$ref": "#/components/parameters/SubmissionCursor"
+          },
+          {
+            "$ref": "#/components/parameters/SubmissionReceivedFrom"
+          },
+          {
+            "$ref": "#/components/parameters/SubmissionReceivedBefore"
+          },
+          {
+            "$ref": "#/components/parameters/SubmissionStatusFilter"
+          },
+          {
+            "$ref": "#/components/parameters/SubmissionSchemaVersionFilter"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceSubmissionSiteId"
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceSubmissionFormId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Accepted submissions across non-deleted forms owned by the authenticated\norganization, ordered by submittedAt DESC and ID DESC. An absent,\nforeign, or mismatched siteId/formId selector returns the same 404.\nLegacy forms without a site are included when siteId is omitted.\nReuse filters with nextCursor; pagination is not a snapshot of new\ninserts. Unknown, repeated, or invalid filters return 400. The\nencoded query is limited to 4096 bytes. Projection uses each row's\nimmutable accepted schema version. No organization selector exists.\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "$ref": "#/components/schemas/WorkspaceSubmission"
+                      }
+                    },
+                    "meta": {
+                      "$ref": "#/components/schemas/CursorPageMeta"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          },
+          "4XX": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/v1/forms/{formId}/submissions": {
       "parameters": [
         {
@@ -1827,6 +1907,24 @@
           "maximum": 2147483647
         }
       },
+      "WorkspaceSubmissionSiteId": {
+        "name": "siteId",
+        "in": "query",
+        "description": "Organization-owned site. Foreign and absent identifiers return the same 404.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "WorkspaceSubmissionFormId": {
+        "name": "formId",
+        "in": "query",
+        "description": "Organization-owned form. If siteId is also present, the form must belong to that site.",
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
       "FormId": {
         "name": "formId",
         "in": "path",
@@ -2318,6 +2416,36 @@
             "format": "date-time"
           }
         }
+      },
+      "WorkspaceSubmission": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Submission"
+          },
+          {
+            "type": "object",
+            "required": [
+              "siteId",
+              "formName",
+              "formTitle"
+            ],
+            "properties": {
+              "siteId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "formName": {
+                "type": "string"
+              },
+              "formTitle": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       },
       "SubmissionDetailEnvelope": {
         "type": "object",

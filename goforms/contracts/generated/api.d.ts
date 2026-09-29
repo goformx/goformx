@@ -176,6 +176,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List submissions across organization-owned forms */
+        get: operations["listWorkspaceSubmissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forms/{formId}/submissions": {
         parameters: {
             query?: never;
@@ -521,6 +538,12 @@ export interface components {
             /** Format: date-time */
             submittedAt: string;
         };
+        WorkspaceSubmission: components["schemas"]["Submission"] & {
+            /** Format: uuid */
+            siteId: string | null;
+            formName: string;
+            formTitle: string;
+        };
         SubmissionDetailEnvelope: {
             data: components["schemas"]["Submission"] & {
                 schema: components["schemas"]["FormDefinition"];
@@ -766,6 +789,10 @@ export interface components {
         SubmissionStatusFilter: "accepted";
         /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
         SubmissionSchemaVersionFilter: number;
+        /** @description Organization-owned site. Foreign and absent identifiers return the same 404. */
+        WorkspaceSubmissionSiteId: string;
+        /** @description Organization-owned form. If siteId is also present, the form must belong to that site. */
+        WorkspaceSubmissionFormId: string;
         FormId: string;
         /** @description Rotatable, non-secret identifier safe for browser embeds. */
         PublicKey: string;
@@ -1188,6 +1215,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SchemaVersionEnvelope"];
+                };
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    listWorkspaceSubmissions: {
+        parameters: {
+            query?: {
+                /** @description Maximum submissions returned in this page. */
+                limit?: components["parameters"]["SubmissionLimit"];
+                /** @description Opaque cursor returned as meta.nextCursor by the previous page. */
+                cursor?: components["parameters"]["SubmissionCursor"];
+                /** @description Inclusive submittedAt lower bound, RFC 3339 with an explicit offset and at most microsecond precision. Indexed with formId. */
+                receivedFrom?: components["parameters"]["SubmissionReceivedFrom"];
+                /** @description Exclusive submittedAt upper bound, RFC 3339 with an explicit offset and at most microsecond precision. Must be later than receivedFrom when both are present. */
+                receivedBefore?: components["parameters"]["SubmissionReceivedBefore"];
+                /** @description Accepted payloads are immutable; webhook delivery progress is a separate resource, not a submission status transition. */
+                status?: components["parameters"]["SubmissionStatusFilter"];
+                /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
+                schemaVersion?: components["parameters"]["SubmissionSchemaVersionFilter"];
+                /** @description Organization-owned site. Foreign and absent identifiers return the same 404. */
+                siteId?: components["parameters"]["WorkspaceSubmissionSiteId"];
+                /** @description Organization-owned form. If siteId is also present, the form must belong to that site. */
+                formId?: components["parameters"]["WorkspaceSubmissionFormId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Accepted submissions across non-deleted forms owned by the authenticated
+             *     organization, ordered by submittedAt DESC and ID DESC. An absent,
+             *     foreign, or mismatched siteId/formId selector returns the same 404.
+             *     Legacy forms without a site are included when siteId is omitted.
+             *     Reuse filters with nextCursor; pagination is not a snapshot of new
+             *     inserts. Unknown, repeated, or invalid filters return 400. The
+             *     encoded query is limited to 4096 bytes. Projection uses each row's
+             *     immutable accepted schema version. No organization selector exists.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["WorkspaceSubmission"][];
+                        meta: components["schemas"]["CursorPageMeta"];
+                    };
                 };
             };
             default: components["responses"]["Error"];
