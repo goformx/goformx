@@ -247,7 +247,7 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 		}
 	}
 	require.Equal(t, map[string]string{
-		"createForm": "application/json", "updateForm": "application/merge-patch+json",
+		"createForm": "application/json", "updateForm": "application/merge-patch+json", "createSite": "application/json",
 		"createSchemaVersion": "application/json", "exportSubmissions": "application/json",
 		"putWebhookEndpoint": "application/json", "patchWebhookEndpoint": "application/json",
 		"createServiceToken": "application/json", "createSubmission": "application/json",

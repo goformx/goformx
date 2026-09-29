@@ -26,6 +26,7 @@ import (
 	deliveryapp "github.com/goformx/goforms/internal/application/webhook"
 	"github.com/goformx/goforms/internal/domain/auth"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	"github.com/goformx/goforms/internal/domain/site"
 	domainsubmission "github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	mockform "github.com/goformx/goforms/test/mocks/form"
@@ -134,7 +135,7 @@ func TestEveryManagementRouteRejectsWrongAssertionOperationBeforeDispatch(t *tes
 			router := echo.New()
 			handler.RegisterRoutes(router)
 			path := strings.NewReplacer("{formId}", scopeFormID, "{version}", "1",
-				"{submissionId}", scopeResourceID, "{deliveryId}", scopeResourceID, "{tokenId}", scopeResourceID).Replace(operation.path)
+				"{submissionId}", scopeResourceID, "{deliveryId}", scopeResourceID, "{tokenId}", scopeResourceID, "{siteId}", scopeResourceID).Replace(operation.path)
 			response := requestJSON(t, router, operation.method, path, nil, assertion, "", nil)
 			require.Equal(t, http.StatusUnauthorized, response.Code, response.Body.String())
 			require.Zero(t, handler.requests.Load(), "wrong operation must stop before handler dispatch")
@@ -228,6 +229,18 @@ type scopeRepositories struct {
 	*mockform.MockWebhookRepository
 }
 
+func (scopeRepositories) CreateSite(_ context.Context, candidate *site.Site) (*site.Site, bool, error) {
+	candidate.ID = scopeResourceID
+	candidate.CreatedAt, candidate.UpdatedAt = time.Now(), time.Now()
+	return candidate, true, nil
+}
+func (scopeRepositories) GetSite(_ context.Context, organizationID, id string) (*site.Site, error) {
+	return &site.Site{ID: id, OrganizationID: organizationID, Name: "Scope site", Origin: "https://example.com", CreatedAt: time.Now(), UpdatedAt: time.Now()}, nil
+}
+func (scopeRepositories) ListSites(_ context.Context, organizationID string, _, _ int) ([]*site.Site, int64, error) {
+	return []*site.Site{{ID: scopeResourceID, OrganizationID: organizationID, Name: "Scope site", Origin: "https://example.com", CreatedAt: time.Now(), UpdatedAt: time.Now()}}, 1, nil
+}
+
 type scopeTokenRepository struct {
 	fixedTokenRepository
 	*mockform.MockServiceTokenManagementRepository
@@ -270,7 +283,7 @@ func runManagementScopeCase(t *testing.T, operation managementOperation, credent
 		status = fixture.status
 	}
 	path := strings.NewReplacer("{formId}", scopeFormID, "{version}", "1",
-		"{submissionId}", scopeResourceID, "{deliveryId}", scopeResourceID, "{tokenId}", scopeResourceID).Replace(operation.path)
+		"{submissionId}", scopeResourceID, "{deliveryId}", scopeResourceID, "{tokenId}", scopeResourceID, "{siteId}", scopeResourceID).Replace(operation.path)
 	require.NotContains(t, path, "{", "new path parameter needs a concrete fixture")
 	response := requestJSON(t, router, operation.method, path, fixture.body, credential, "", fixture.headers)
 	require.Equal(t, status, response.Code, response.Body.String())
@@ -312,6 +325,10 @@ func managementSuccessFixture(t *testing.T, operation string, repositories scope
 		}
 	}
 	switch operation {
+	case "listSites", "getSite":
+		// The site fixture repository returns one organization-owned record.
+	case "createSite":
+		fixture.status, fixture.body = http.StatusCreated, map[string]string{"name": "Scope site", "origin": "https://example.com"}
 	case "listForms":
 		if allowed {
 			repositories.MockRepository.EXPECT().ListForms(gomock.Any(), scopeOrganizationID, gomock.Any()).Return([]*model.Form{form}, 1, nil)

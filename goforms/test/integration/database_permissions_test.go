@@ -24,6 +24,7 @@ import (
 
 	"github.com/goformx/goforms/internal/domain/auth"
 	"github.com/goformx/goforms/internal/domain/form/model"
+	"github.com/goformx/goforms/internal/domain/site"
 	"github.com/goformx/goforms/internal/domain/submission"
 	domainwebhook "github.com/goformx/goforms/internal/domain/webhook"
 	assertionreplay "github.com/goformx/goforms/internal/infrastructure/repository/assertionreplay"
@@ -183,7 +184,7 @@ func TestDatabasePermissionContract(t *testing.T) {
 		require.NoError(t, err)
 		tables, err := pgx.CollectRows(rows, pgx.RowTo[string])
 		require.NoError(t, err)
-		require.Equal(t, []string{"first_party_assertion_replays", "form_schemas", "form_submissions", "forms", "management_audit", "schema_migrations", "service_tokens", "submission_export_audit", "users", "webhook_deliveries", "webhook_endpoints"}, tables, "new tables require an intentional permission inventory update")
+		require.Equal(t, []string{"first_party_assertion_replays", "form_schemas", "form_submissions", "forms", "management_audit", "schema_migrations", "service_tokens", "sites", "submission_export_audit", "users", "webhook_deliveries", "webhook_endpoints"}, tables, "new tables require an intentional permission inventory update")
 		var sequences, definerFunctions int
 		require.NoError(t, f.owner.QueryRow(t.Context(), "SELECT count(*) FROM pg_sequences WHERE schemaname = 'public'").Scan(&sequences))
 		require.Zero(t, sequences, "introducing sequences requires explicit permission review")
@@ -240,8 +241,16 @@ func exercisePermissionOperations(t *testing.T, f *permissionDatabase) {
 	cipher, err := domainwebhook.NewKeyring("old", map[string]string{"old": base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{7}, 32))}, "")
 	require.NoError(t, err)
 	forms := formrepository.NewStoreWithOptions(database, logger, formrepository.StoreOptions{WebhookCipher: cipher})
+	siteModel, err := site.New(org, "Permission site", "https://permissions.example")
+	require.NoError(t, err)
+	siteModel, createdSite, err := forms.CreateSite(t.Context(), siteModel)
+	require.NoError(t, err)
+	require.True(t, createdSite)
+	_, err = forms.GetSite(t.Context(), org, siteModel.ID)
+	require.NoError(t, err)
 	form := model.NewForm(org, "Permission fixture", "", model.JSON{"$schema": model.JSONSchemaDraft202012URI, "type": "object"})
 	form.Name = "permissions"
+	form.SiteID = &siteModel.ID
 	require.NoError(t, forms.CreateForm(t.Context(), form))
 	_, err = forms.PublishSchemaVersion(t.Context(), org, form.ID, 1)
 	require.NoError(t, err)
