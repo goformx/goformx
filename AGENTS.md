@@ -1,5 +1,7 @@
 # GoFormX contributor contract
 
+The 2026-09-29 [product vision](docs/product/PRODUCT-VISION.md) and [roadmap](docs/product/ROADMAP.md) govern product priority. In Russell's local workspace, `C:/projects/GoFormX/product` remains authoritative until these repository copies land. Build toward an assistant-created form and authorized submissions from multiple sites in one human inbox. Keep production safety and explicit publication boundaries. The personal-site contact flow is a retained regression gate, not the entire product milestone.
+
 ## Supported direction
 
 GoFormX is being rebuilt as an AI-first, schema-driven Go service. Work toward the roadmap in `goformx/goformx#84`.
@@ -8,7 +10,7 @@ GoFormX is being rebuilt as an AI-first, schema-driven Go service. Work toward t
 - JSON Schema Draft 2020-12 is the canonical form definition.
 - OpenAPI is the machine-readable HTTP contract.
 - PostgreSQL is the supported database.
-- Dashboard UI, billing, browser sessions, framework migrations, and renderer-specific schemas are not v1 requirements. Their retired implementations remain available in Git history, not in the working tree.
+- This Go runtime does not own the dashboard UI or browser sessions; those live in `goformx/control-plane`. Billing and renderer-specific schemas are outside the initial product scope.
 
 ## Required workflow
 
