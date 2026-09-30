@@ -39,6 +39,14 @@ and a controlled site. Publication must separately name the exact form/version.
 Qualification must use synthetic data, preserve retries, check the human inbox
 and revoke temporary grants. Email notifications remain unverified.
 
+On September 30, 2026, this candidate client directly discovered the existing
+hosted personal-site form and generated its integration module using a temporary
+`forms:read` grant. Public schema retrieval and allowed-origin CORS preflight
+also passed without management credentials. Revocation returned 204 and the
+next client call was denied with 401. No wrapper, publication or enquiry was
+used. These read-path checks do not qualify hosted creation, publication,
+submission/replay, inbox receipt or notification delivery as a complete setup.
+
 ## Historical integration dependencies
 
 - The server branch must add `Idempotency-Key` to `POST /v1/forms` and enforce one draft per logical retry. The local client persists and sends the header but this checkout alone cannot prove server behavior.
