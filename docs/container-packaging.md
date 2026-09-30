@@ -1,15 +1,17 @@
 # API and maintenance images
 
-The canonical `goforms/docker/production/Dockerfile` has two supported targets:
+The canonical `goforms/docker/production/Dockerfile` has three supported targets:
 
 - `api` contains only `/app/bin/goforms`, runs as UID 1001, and retains the API command, port 8090 and health check. It is also the default final target. Release CI explicitly selects `api` for the existing registry image.
 - `maintenance` contains `/app/bin/goformx-token` and `/app/bin/goformx-webhook-keys`, runs as UID 1001, and has no API health check. Its default command prints token CLI usage and exits; operators must explicitly select a maintenance operation.
+- `migration` contains pinned `golang-migrate` v4.19.1 and this revision's PostgreSQL migrations, runs as UID 1001, and has no API health check. Its default command prints usage. Supply the separate migrator connection through the maintenance path and select the owner role before DDL. Keep database credentials out of logs and the API environment.
 
 From the repository root at the reviewed release commit:
 
 ```sh
 docker build --target api -f goforms/docker/production/Dockerfile -t goformx-api:reviewed goforms
 docker build --target maintenance -f goforms/docker/production/Dockerfile -t goformx-maintenance:reviewed goforms
+docker build --target migration -f goforms/docker/production/Dockerfile -t goformx-migration:reviewed goforms
 ```
 
 Build both from the same exact source revision and record the resulting image IDs/digests. These local example tags are not immutable release identifiers. This change does not publish a new maintenance registry tag; build the maintenance target from the reviewed checkout and pin its resulting image for operational use. An existing API-image digest no longer supplies maintenance tools in new builds. Select the maintenance image explicitly and supply its operation as a command, for example `/app/bin/goformx-webhook-keys verify`. Follow the vault, writer-shutdown and backup prerequisites in [webhooks](webhooks.md) and [management audit](management-audit.md); do not pass secrets in command arguments or reuse serving credentials merely for convenience.
