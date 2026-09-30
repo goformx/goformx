@@ -21,9 +21,10 @@ assert_config() {
 prefix="goformx-packaging-$(date +%s)-$$"
 api="$prefix:api"
 maintenance="$prefix:maintenance"
+migration="$prefix:migration"
 default="$prefix:default"
 cleanup() {
-    docker image rm "$api" "$maintenance" "$default" >/dev/null 2>&1 || true
+    docker image rm "$api" "$maintenance" "$migration" "$default" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -31,6 +32,7 @@ trap 'exit 143' TERM
 
 docker build --target api -f docker/production/Dockerfile -t "$api" .
 docker build --target maintenance -f docker/production/Dockerfile -t "$maintenance" .
+docker build --target migration -f docker/production/Dockerfile -t "$migration" .
 docker build -f docker/production/Dockerfile -t "$default" .
 
 for serving in "$api" "$default"; do
@@ -70,4 +72,16 @@ docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-
         esac
     done
 '
-printf '%s\n' 'Packaging verified: API/default omit maintenance tools; maintenance CLIs execute as non-root.'
+assert_config "$migration" '{{json .Config.Healthcheck}}' 'null'
+assert_config "$migration" '{{json .Config.Entrypoint}}' '["./bin/migrate","-path","/app/migrations/postgresql"]'
+assert_config "$migration" '{{json .Config.Cmd}}' '["-help"]'
+assert_config "$migration" '{{json .Config.ExposedPorts}}' 'null'
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+    --entrypoint /bin/sh "$migration" -ec '
+    test "$(id -u)" = 1001
+    test "$(find /app/bin -type f | sort)" = /app/bin/migrate
+    test -s /app/migrations/postgresql/2026092904_submission_site_snapshot.up.sql
+    test -s /app/migrations/postgresql/2026092904_submission_site_snapshot.down.sql
+    /app/bin/migrate -version 2>&1 | grep -q "v4.19.1"
+'
+printf '%s\n' 'Packaging verified: API/default omit maintenance tools; maintenance and migration execute as non-root.'

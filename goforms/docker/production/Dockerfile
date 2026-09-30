@@ -30,7 +30,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
     -o bin/goformx-webhook-keys ./cmd/goformx-webhook-keys
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
     -o bin/goformx-token ./cmd/goformx-token
-RUN CGO_ENABLED=0 GOOS=linux go install -tags postgres \
+RUN CGO_ENABLED=0 GOOS=linux go install -tags postgres -ldflags="-X main.Version=v4.19.1" \
     github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
 # Shared non-root runtime; no application or maintenance executables.
