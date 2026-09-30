@@ -30,9 +30,14 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
     -o bin/goformx-webhook-keys ./cmd/goformx-webhook-keys
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" \
     -o bin/goformx-token ./cmd/goformx-token
+RUN CGO_ENABLED=0 GOOS=linux go install -tags postgres \
+    github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
 
 # Shared non-root runtime; no application or maintenance executables.
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS runtime
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.source="https://github.com/goformx/goformx" \
+      org.opencontainers.image.revision="$GIT_COMMIT"
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata wget
@@ -42,6 +47,14 @@ RUN addgroup -g 1001 -S goforms && \
     adduser -u 1001 -S goforms -G goforms
 
 WORKDIR /app
+
+# Schema changes use a separate image and an explicitly supplied migrator role.
+FROM runtime AS migration
+COPY --from=go-builder /go/bin/migrate ./bin/migrate
+COPY migrations/postgresql/ ./migrations/postgresql/
+USER goforms
+ENTRYPOINT ["./bin/migrate", "-path", "/app/migrations/postgresql"]
+CMD ["-help"]
 
 # Maintenance is opt-in and never inherits the API command or health check.
 FROM runtime AS maintenance
