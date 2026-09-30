@@ -1,0 +1,31 @@
+name: Codex contact client
+
+on:
+  push:
+    paths:
+      - 'tools/codex-contact/**'
+      - '.github/workflows/codex-client.yml'
+  pull_request:
+    paths:
+      - 'tools/codex-contact/**'
+      - '.github/workflows/codex-client.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  client:
+    name: client (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14.4'
+      - name: Run isolated standard-library client tests
+        run: python -m unittest discover -s tools/codex-contact -v
