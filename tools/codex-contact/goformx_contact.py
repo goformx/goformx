@@ -58,7 +58,7 @@ class API:
         self.opener = opener or urllib.request.build_opener(NoRedirect).open
 
     def call(self, method: str, path: str, body=None, *, key=None, public=False, extra_headers=None, with_headers=False, expect_json=True):
-        headers = {"Accept": "application/json"}
+        headers = {"Accept": "application/json", "User-Agent": "GoFormX-Codex-Contact/1.0"}
         if not public:
             headers["Authorization"] = "Bearer " + self.token
         if key:

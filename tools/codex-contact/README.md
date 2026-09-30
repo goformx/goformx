@@ -24,7 +24,22 @@ Before mutation, the client verifies that the token's organization from `GET /v1
 
 Publication is a distinct command requiring both `--confirm` and a connection with `forms:publish`. Codex should run it only after Russell explicitly names the form and schema version to publish. No create, discover, generate or test command publishes automatically. The current public submission endpoint accepts only published schemas, so the synthetic public test runs after explicit publication. The test sends the selected site's `Origin`, checks browser CORS preflight and response headers, pins `X-GoFormX-Schema-Version`, and rejects a result accepted under another version. There is no supported draft-only server submission preview yet. Generating code before publication does not establish a working live form.
 
-## Current integration dependencies
+## Hosted setup status
+
+The client accepts an HTTPS API origin and identifies its HTTP requests as
+`GoFormX-Codex-Contact/1.0`, rather than Python's default user agent. This brings
+the shipped request path in line with the identified client used in the separate
+personal-site integration. It does not bypass edge challenges, change grants or
+establish hosted end-to-end qualification. A 403 may come from the service grant
+or the hosting edge; inspect the failure before changing permissions.
+
+The verified two-site rehearsal was local. Hosted setup still requires normal
+account sign-in, a selected organization, an explicitly issued expiring token,
+and a controlled site. Publication must separately name the exact form/version.
+Qualification must use synthetic data, preserve retries, check the human inbox
+and revoke temporary grants. Email notifications remain unverified.
+
+## Historical integration dependencies
 
 - The server branch must add `Idempotency-Key` to `POST /v1/forms` and enforce one draft per logical retry. The local client persists and sends the header but this checkout alone cannot prove server behavior.
 - The server branch must add the documented site endpoints, `siteId` on form create and form readback, same-origin/name site-create reconciliation, and `meta.organizationId` on `GET /v1/sites` even for an empty page. This client implements those calls against the candidate contract but cannot prove them until integration.

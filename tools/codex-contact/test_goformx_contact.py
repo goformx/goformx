@@ -119,6 +119,16 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(origin("http://127.0.0.1:8080"), "http://127.0.0.1:8080")
         self.assertIsNone(NoRedirect().redirect_request(None, None, 302, "redirect", {}, "https://elsewhere.test"))
 
+    def test_management_and_public_requests_identify_the_client_without_public_credentials(self):
+        self.api.assert_organization()
+        management = self.fake.requests[-1]
+        self.assertEqual(management.get_header("User-agent"), "GoFormX-Codex-Contact/1.0")
+        self.assertEqual(management.get_header("Authorization"), "Bearer " + self.token)
+        self.api.call("OPTIONS", f"/v1/public/forms/{KEY}/submissions", public=True, expect_json=False)
+        public = self.fake.requests[-1]
+        self.assertEqual(public.get_header("User-agent"), "GoFormX-Codex-Contact/1.0")
+        self.assertIsNone(public.get_header("Authorization"))
+
     def test_create_reuses_durable_key_after_uncertain_response(self):
         self.fake.uncertain_once = True
         with tempfile.TemporaryDirectory() as folder:
