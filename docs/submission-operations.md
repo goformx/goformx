@@ -10,9 +10,15 @@ The same business contract serves external scoped clients and the human UI.
 owned by the authenticated organization. It accepts the filters and cursor below,
 plus optional `siteId` and `formId` UUID selectors. An absent, foreign, or
 site/form mismatched selector returns the same 404. Without a site selector,
-legacy forms with no site are included. The response adds the authoritative
-nullable `siteId`, `formName`, and `formTitle` to each existing redacted
-submission projection. The form metadata is read with the row, and the exact
+legacy forms with no site are included. The response adds nullable `siteId`,
+`formName`, and `formTitle` to each existing redacted submission projection.
+`siteId` is captured from the authoritative form under a row lock inside the
+acceptance transaction. A form move cannot reclassify older submissions, and
+an idempotent retry returns its original site. Pre-migration submissions retain
+null attribution even if their form is currently associated with a site; no
+historical site is guessed. A site/form selector remains valid for a form's
+former site if attributed rows exist there. The form name/title metadata is
+read with the row, and the exact
 accepted schema is loaded once per form/version in each page. No submission
 copy or organization query parameter is introduced. Both credential classes
 require `submissions:read`; a first-party assertion must sign
@@ -25,7 +31,11 @@ those tables through existing grants. The down migration removes only this
 index, retaining all accepted rows and site associations. On populated
 production data, measure ordinary index build time and write blocking before
 applying it. Keep the prior binary available during rollback; it ignores the
-new index. This local migration test is not the production migration rehearsal.
+new index. Migration `2026092904` adds a nullable acceptance-site snapshot and
+a site/time/ID index without backfilling old rows. Its down migration refuses
+to discard any populated snapshot. Runtime and backup privileges on
+`form_submissions` remain SELECT/INSERT and SELECT respectively, with no
+UPDATE. This local migration test is not the production migration rehearsal.
 
 `GET /v1/forms/{formId}/submissions` requires `submissions:read` and an owned,
 non-deleted form. `limit` (1–100, default 25) and the opaque `cursor` paginate by

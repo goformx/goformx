@@ -387,7 +387,10 @@ paths:
             Accepted submissions across non-deleted forms owned by the authenticated
             organization, ordered by submittedAt DESC and ID DESC. An absent,
             foreign, or mismatched siteId/formId selector returns the same 404.
-            Legacy forms without a site are included when siteId is omitted.
+            Each siteId is the immutable site recorded when that row was
+            accepted. Pre-snapshot history and legacy forms have null siteId;
+            their site cannot be inferred from a current form association.
+            A form moved between sites can have rows under both site filters.
             Reuse filters with nextCursor; pagination is not a snapshot of new
             inserts. Unknown, repeated, or invalid filters return 400. The
             encoded query is limited to 4096 bytes. Projection uses each row's
@@ -876,12 +879,12 @@ components:
     WorkspaceSubmissionSiteId:
       name: siteId
       in: query
-      description: Organization-owned site. Foreign and absent identifiers return the same 404.
+      description: Organization-owned site at submission acceptance. Foreign and absent identifiers return the same 404.
       schema: { type: string, format: uuid }
     WorkspaceSubmissionFormId:
       name: formId
       in: query
-      description: Organization-owned form. If siteId is also present, the form must belong to that site.
+      description: Organization-owned form. With siteId, the form must currently belong to that site or have accepted rows attributed to it historically.
       schema: { type: string, format: uuid }
     FormId:
       name: formId
@@ -1096,7 +1099,7 @@ components:
         - type: object
           required: [siteId, formName, formTitle]
           properties:
-            siteId: { type: [string, 'null'], format: uuid }
+            siteId: { type: [string, 'null'], format: uuid, description: Immutable site at acceptance; null for pre-snapshot history or a form without a site. }
             formName: { type: string }
             formTitle: { type: string }
     SubmissionDetailEnvelope:

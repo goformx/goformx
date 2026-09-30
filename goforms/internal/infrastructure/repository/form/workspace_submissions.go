@@ -15,9 +15,8 @@ import (
 
 type workspaceSubmissionRecord struct {
 	model.FormSubmission `gorm:"embedded"`
-	SiteID               *string `gorm:"column:site_id"`
-	FormName             string  `gorm:"column:form_name"`
-	FormTitle            string  `gorm:"column:form_title"`
+	FormName             string `gorm:"column:form_name"`
+	FormTitle            string `gorm:"column:form_title"`
 }
 
 // ListWorkspaceSubmissionsPage reads existing rows through their authoritative
@@ -40,9 +39,6 @@ func (s *Store) ListWorkspaceSubmissionsPage(ctx context.Context, organizationID
 		}
 		if options.FormID != "" {
 			query := tx.Table("forms").Where("organization_id = ? AND uuid = ? AND deleted_at IS NULL", organizationID, options.FormID)
-			if options.SiteID != "" {
-				query = query.Where("site_id = ?", options.SiteID)
-			}
 			var count int64
 			if err := query.Count(&count).Error; err != nil {
 				return err
@@ -50,13 +46,29 @@ func (s *Store) ListWorkspaceSubmissionsPage(ctx context.Context, organizationID
 			if count == 0 {
 				return common.NewNotFoundError("list", "submissions", "")
 			}
+			if options.SiteID != "" {
+				// A moved form may have accepted rows on its former site.
+				// A new form with no rows is valid on its current site.
+				var affiliated int64
+				if err := tx.Table("forms").Where("organization_id = ? AND uuid = ? AND site_id = ? AND deleted_at IS NULL", organizationID, options.FormID, options.SiteID).Count(&affiliated).Error; err != nil {
+					return err
+				}
+				if affiliated == 0 {
+					if err := tx.Table("form_submissions").Where("form_id = ? AND site_id_at_acceptance = ?", options.FormID, options.SiteID).Count(&affiliated).Error; err != nil {
+						return err
+					}
+				}
+				if affiliated == 0 {
+					return common.NewNotFoundError("list", "submissions", "")
+				}
+			}
 		}
 		query := tx.Table("form_submissions").
-			Select("form_submissions.*, forms.site_id AS site_id, forms.name AS form_name, forms.title AS form_title").
+			Select("form_submissions.*, forms.name AS form_name, forms.title AS form_title").
 			Joins("JOIN forms ON forms.uuid = form_submissions.form_id").
 			Where("forms.organization_id = ? AND forms.deleted_at IS NULL", organizationID)
 		if options.SiteID != "" {
-			query = query.Where("forms.site_id = ?", options.SiteID)
+			query = query.Where("form_submissions.site_id_at_acceptance = ?", options.SiteID)
 		}
 		if options.FormID != "" {
 			query = query.Where("forms.uuid = ?", options.FormID)
@@ -87,7 +99,7 @@ func (s *Store) ListWorkspaceSubmissionsPage(ctx context.Context, organizationID
 		result = make([]submission.WorkspaceRow, 0, len(records))
 		for i := range records {
 			row := &records[i]
-			result = append(result, submission.WorkspaceRow{Submission: &row.FormSubmission, SiteID: row.SiteID, FormName: row.FormName, FormTitle: row.FormTitle})
+			result = append(result, submission.WorkspaceRow{Submission: &row.FormSubmission, SiteID: row.SiteIDAtAcceptance, FormName: row.FormName, FormTitle: row.FormTitle})
 		}
 		return nil
 	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})

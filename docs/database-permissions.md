@@ -39,7 +39,7 @@ mean SELECT/INSERT/UPDATE/DELETE. No runtime DELETE is implicit in table ownersh
 | forms | S/I/U (GORM updates the model) | Backup S | repository/form/store.go, workspace_submissions.go |
 | form_create_receipts | S/I; no U/D | Backup S | repository/form/store.go |
 | form_schemas | S/I; U only state, published_at | Backup S | repository/form/store.go |
-| form_submissions | S/I; no U/D | Backup S | repository/form/store.go, submission_export.go, workspace_submissions.go |
+| form_submissions (including site_id_at_acceptance) | S/I; no U/D | Backup S | repository/form/store.go, submission_export.go, workspace_submissions.go |
 | service_tokens | S/I; U last_used_at, revoked_at, revocation_reason | Token operator S/I; U revoked_at, revocation_reason, replaced_by_token_id; backup S | repository/token/store.go; cmd/goformx-token/main.go |
 | first_party_assertion_replays | S/I/D; no U | Backup S | repository/assertionreplay/store.go |
 | management_audit | S/I only | Token operator S/I; backup S | repository/managementaudit; token/form repositories; token CLI |
@@ -53,6 +53,12 @@ Source paths above are relative to `goforms/internal/infrastructure/` except
 UUID/text; current migrations create no sequences. A new sequence/table/function
 requires an explicit permission-inventory and regression update, not automatic
 runtime access.
+
+Migration `2026092904` adds a nullable site snapshot to the existing
+`form_submissions` table and an index. It creates no new table or sequence, so
+the runtime and backup ACLs above do not expand. Its down migration refuses
+to drop populated snapshots. A production backup must preserve this column
+before any schema or binary rollback is considered.
 
 ### Locks and functions
 

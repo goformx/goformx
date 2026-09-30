@@ -531,6 +531,19 @@ func (s *Store) CreateSubmissionIdempotent(
 			return nil
 		}
 
+		// Serialize site reassociation with acceptance. The public caller cannot
+		// choose this value, and a replay always returns its original snapshot.
+		var formModel model.Form
+		if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Select("site_id").Where(
+			"uuid = ? AND deleted_at IS NULL", submission.FormID,
+		).First(&formModel).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return common.NewNotFoundErrorWithCause("get", "form", submission.FormID, err)
+			}
+			return fmt.Errorf("lock form for submission site snapshot: %w", err)
+		}
+		submission.SiteIDAtAcceptance = formModel.SiteID
+
 		var recent int64
 		windowStart := s.now().UTC().Add(-24 * time.Hour)
 		if err := tx.Model(&model.FormSubmission{}).Where(

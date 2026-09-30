@@ -539,7 +539,10 @@ export interface components {
             submittedAt: string;
         };
         WorkspaceSubmission: components["schemas"]["Submission"] & {
-            /** Format: uuid */
+            /**
+             * Format: uuid
+             * @description Immutable site at acceptance; null for pre-snapshot history or a form without a site.
+             */
             siteId: string | null;
             formName: string;
             formTitle: string;
@@ -789,9 +792,9 @@ export interface components {
         SubmissionStatusFilter: "accepted";
         /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
         SubmissionSchemaVersionFilter: number;
-        /** @description Organization-owned site. Foreign and absent identifiers return the same 404. */
+        /** @description Organization-owned site at submission acceptance. Foreign and absent identifiers return the same 404. */
         WorkspaceSubmissionSiteId: string;
-        /** @description Organization-owned form. If siteId is also present, the form must belong to that site. */
+        /** @description Organization-owned form. With siteId, the form must currently belong to that site or have accepted rows attributed to it historically. */
         WorkspaceSubmissionFormId: string;
         FormId: string;
         /** @description Rotatable, non-secret identifier safe for browser embeds. */
@@ -1236,9 +1239,9 @@ export interface operations {
                 status?: components["parameters"]["SubmissionStatusFilter"];
                 /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
                 schemaVersion?: components["parameters"]["SubmissionSchemaVersionFilter"];
-                /** @description Organization-owned site. Foreign and absent identifiers return the same 404. */
+                /** @description Organization-owned site at submission acceptance. Foreign and absent identifiers return the same 404. */
                 siteId?: components["parameters"]["WorkspaceSubmissionSiteId"];
-                /** @description Organization-owned form. If siteId is also present, the form must belong to that site. */
+                /** @description Organization-owned form. With siteId, the form must currently belong to that site or have accepted rows attributed to it historically. */
                 formId?: components["parameters"]["WorkspaceSubmissionFormId"];
             };
             header?: never;
@@ -1251,7 +1254,10 @@ export interface operations {
              * @description Accepted submissions across non-deleted forms owned by the authenticated
              *     organization, ordered by submittedAt DESC and ID DESC. An absent,
              *     foreign, or mismatched siteId/formId selector returns the same 404.
-             *     Legacy forms without a site are included when siteId is omitted.
+             *     Each siteId is the immutable site recorded when that row was
+             *     accepted. Pre-snapshot history and legacy forms have null siteId;
+             *     their site cannot be inferred from a current form association.
+             *     A form moved between sites can have rows under both site filters.
              *     Reuse filters with nextCursor; pagination is not a snapshot of new
              *     inserts. Unknown, repeated, or invalid filters return 400. The
              *     encoded query is limited to 4096 bytes. Projection uses each row's
