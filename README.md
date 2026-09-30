@@ -9,3 +9,5 @@ For agents and custom dashboards, use the [published API contract and tested cli
 Database runtime, migration, operator and backup authority is specified in the [tested PostgreSQL permission contract](docs/database-permissions.md); production provisioning remains infrastructure-owned.
 
 The former human-first web runtime and renderer fork were retired under [issue #83](https://github.com/goformx/goformx/issues/83). Recovery links and removal decisions are recorded in [the archive index](docs/archive/legacy-runtime.md).
+
+The [shared Go authentication roadmap](docs/shared-go-auth-roadmap.md) proposes a narrow versioned assertion/JWKS module for GoFormX and NorthCloud. It records exact donor revisions, product boundaries and two-consumer acceptance gates; no extraction or deployment is claimed.

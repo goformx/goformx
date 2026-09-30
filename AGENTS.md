@@ -42,3 +42,7 @@ When a change alters the API, schema rules, migrations, trust boundaries, or ope
 - Flag changes that mix service-token and first-party-assertion authorization or let a resolved user act across organization boundaries. Require evidence from the actual request path, not a constructor signature alone.
 - Check API/schema/migration changes against the matching OpenAPI or decision contract and observable tests. Do not describe static inspection as executed verification.
 - Review automation must remain manually requested, subscription-only, and unable to modify repository code. Failed, incomplete, or stale reviewer output is not approval; do not weaken limits or add paid fallbacks to make a review pass.
+
+## Authorized roadmap delivery
+
+For the 2026-09-30 NorthCloud/shared-auth documentation work, read docs/shared-go-auth-roadmap.md. The owner selected local checks and recorded review, followed by direct commit/merge and push, without PR creation or reliance on GitHub Actions. This overrides PR wording only for this scoped work. Preserve existing workflows/protections and unrelated application PRs; do not merge their code, alter security settings, implement extraction or deploy as part of the roadmap update.
