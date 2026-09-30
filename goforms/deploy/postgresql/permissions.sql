@@ -18,7 +18,9 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" REVOKE ALL ON SEQUENCES FROM PUBLIC;
 ALTER DEFAULT PRIVILEGES FOR ROLE :"owner" REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
 
 GRANT SELECT, INSERT, UPDATE ON public.forms TO :"runtime";
+GRANT SELECT, INSERT ON public.sites TO :"runtime";
 GRANT SELECT, INSERT ON public.form_schemas TO :"runtime";
+GRANT SELECT, INSERT ON public.form_create_receipts TO :"runtime";
 GRANT UPDATE (state, published_at) ON public.form_schemas TO :"runtime";
 GRANT SELECT, INSERT ON public.form_submissions TO :"runtime";
 GRANT SELECT, INSERT ON public.service_tokens TO :"runtime", :"token_operator";

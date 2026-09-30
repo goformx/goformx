@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,6 +41,17 @@ type schemaRecord struct {
 	PublishedAt *time.Time
 }
 
+type formCreateReceipt struct {
+	OrganizationID string    `gorm:"column:organization_id;primaryKey"`
+	IdempotencyKey string    `gorm:"column:idempotency_key;primaryKey"`
+	RequestDigest  string    `gorm:"column:request_digest"`
+	FormID         string    `gorm:"column:form_id"`
+	FormSnapshot   string    `gorm:"column:form_snapshot;type:jsonb"`
+	CreatedAt      time.Time `gorm:"column:created_at"`
+}
+
+func (formCreateReceipt) TableName() string { return "form_create_receipts" }
+
 func (schemaRecord) TableName() string { return "form_schemas" }
 
 // NewStore creates a schema-first form store.
@@ -69,12 +81,7 @@ func NewStoreWithOptions(db database.DB, logger logging.Logger, options StoreOpt
 // CreateForm creates a new form
 func (s *Store) CreateForm(ctx context.Context, formModel *model.Form) error {
 	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(formModel).Error; err != nil {
-			return err
-		}
-		record := schemaRecord{ID: uuid.NewString(), FormID: formModel.ID, Schema: formModel.Schema,
-			Version: formModel.CurrentSchemaVersion, State: string(model.SchemaVersionDraft), CreatedAt: time.Now().UTC()}
-		return tx.Create(&record).Error
+		return createFormAndVersion(tx, formModel)
 	})
 	if err != nil {
 		s.logger.Error("failed to create form",
@@ -85,6 +92,69 @@ func (s *Store) CreateForm(ctx context.Context, formModel *model.Form) error {
 	}
 
 	return nil
+}
+
+func createFormAndVersion(tx *gorm.DB, formModel *model.Form) error {
+	if err := validateSiteAssociation(tx, formModel.OrganizationID, formModel.SiteID); err != nil {
+		return err
+	}
+	if err := tx.Create(formModel).Error; err != nil {
+		return err
+	}
+	record := schemaRecord{ID: uuid.NewString(), FormID: formModel.ID, Schema: formModel.Schema,
+		Version: formModel.CurrentSchemaVersion, State: string(model.SchemaVersionDraft), CreatedAt: time.Now().UTC()}
+	return tx.Create(&record).Error
+}
+
+// CreateFormIdempotent commits a form, its first version and a durable
+// organization-scoped receipt in one transaction. The transaction lock makes
+// concurrent requests for one key wait, then inspect the committed receipt.
+func (s *Store) CreateFormIdempotent(ctx context.Context, candidate *model.Form, key, digest string) (*model.Form, bool, error) {
+	if candidate == nil || candidate.OrganizationID == "" || key == "" || digest == "" {
+		return nil, false, errors.New("form, organization, key and digest are required")
+	}
+	var stored *model.Form
+	replayed := false
+	err := s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		lockKey := "create-form:" + candidate.OrganizationID + ":" + key
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey).Error; err != nil {
+			return fmt.Errorf("lock form creation key: %w", err)
+		}
+		var receipt formCreateReceipt
+		result := tx.Where("organization_id = ? AND idempotency_key = ?", candidate.OrganizationID, key).Limit(1).Find(&receipt)
+		if result.Error != nil {
+			return fmt.Errorf("load form create receipt: %w", result.Error)
+		}
+		if result.RowsAffected != 0 {
+			if receipt.RequestDigest != digest {
+				return form.ErrFormIdempotencyConflict
+			}
+			var original model.Form
+			if err := json.Unmarshal([]byte(receipt.FormSnapshot), &original); err != nil {
+				return fmt.Errorf("decode form create receipt: %w", err)
+			}
+			stored, replayed = &original, true
+			return nil
+		}
+		if err := createFormAndVersion(tx, candidate); err != nil {
+			return err
+		}
+		encoded, err := json.Marshal(candidate)
+		if err != nil {
+			return fmt.Errorf("encode form create receipt: %w", err)
+		}
+		receipt = formCreateReceipt{OrganizationID: candidate.OrganizationID, IdempotencyKey: key,
+			RequestDigest: digest, FormID: candidate.ID, FormSnapshot: string(encoded), CreatedAt: time.Now().UTC()}
+		if err := tx.Create(&receipt).Error; err != nil {
+			return fmt.Errorf("save form create receipt: %w", err)
+		}
+		stored = candidate
+		return nil
+	})
+	if err != nil {
+		return nil, false, fmt.Errorf("create idempotent form: %w", err)
+	}
+	return stored, replayed, nil
 }
 
 // GetFormByID retrieves a form only inside the authenticated organization boundary.
@@ -196,6 +266,9 @@ func escapeLike(value string) string {
 // UpdateForm updates a form
 func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form, expectedUpdatedAt time.Time) error {
 	return s.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateSiteAssociation(tx, formModel.OrganizationID, formModel.SiteID); err != nil {
+			return err
+		}
 		var current schemaRecord
 		if err := tx.Where("form_id = ? AND version = ?", formModel.ID, formModel.CurrentSchemaVersion).First(&current).Error; err != nil {
 			return fmt.Errorf("load schema for update: %w", err)
@@ -223,6 +296,12 @@ func (s *Store) UpdateForm(ctx context.Context, formModel *model.Form, expectedU
 		}
 		if result.RowsAffected == 0 {
 			return model.ErrPreconditionFailed
+		}
+		if formModel.SiteIDSet && formModel.SiteID == nil {
+			if err := tx.Model(&model.Form{}).Where("organization_id = ? AND uuid = ?", formModel.OrganizationID, formModel.ID).
+				UpdateColumn("site_id", nil).Error; err != nil {
+				return fmt.Errorf("clear form site: %w", common.NewDatabaseError("update", "form", formModel.ID, err))
+			}
 		}
 		return nil
 	})
@@ -451,6 +530,19 @@ func (s *Store) CreateSubmissionIdempotent(
 			stored, replayed = existing, true
 			return nil
 		}
+
+		// Serialize site reassociation with acceptance. The public caller cannot
+		// choose this value, and a replay always returns its original snapshot.
+		var formModel model.Form
+		if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Select("site_id").Where(
+			"uuid = ? AND deleted_at IS NULL", submission.FormID,
+		).First(&formModel).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return common.NewNotFoundErrorWithCause("get", "form", submission.FormID, err)
+			}
+			return fmt.Errorf("lock form for submission site snapshot: %w", err)
+		}
+		submission.SiteIDAtAcceptance = formModel.SiteID
 
 		var recent int64
 		windowStart := s.now().UTC().Add(-24 * time.Hour)

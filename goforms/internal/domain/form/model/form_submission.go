@@ -15,17 +15,18 @@ const SubmissionStatusAccepted SubmissionStatus = "accepted"
 // FormSubmission is an immutable accepted payload tied to an exact schema version.
 // Delivery progress belongs to the webhook outbox, not to this record.
 type FormSubmission struct {
-	ID             string           `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
-	FormID         string           `gorm:"not null;index;type:uuid"                                   json:"form_id"`
-	SchemaVersion  int              `gorm:"not null"                                                   json:"schema_version"`
-	RequestID      string           `gorm:"column:request_id;not null"                                 json:"request_id"`
-	IdempotencyKey string           `gorm:"column:idempotency_key"                                     json:"-"`
-	Data           JSON             `gorm:"type:json;not null"                                         json:"data"`
-	SubmittedAt    time.Time        `gorm:"not null"                                                   json:"submitted_at"`
-	Status         SubmissionStatus `gorm:"not null;size:20"                                           json:"status"`
-	Metadata       JSON             `gorm:"type:jsonb"                                                 json:"metadata"`
-	CreatedAt      time.Time        `gorm:"not null;autoCreateTime"                                    json:"created_at"`
-	UpdatedAt      time.Time        `gorm:"not null;autoUpdateTime"                                    json:"updated_at"`
+	ID                 string           `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	FormID             string           `gorm:"not null;index;type:uuid"                                   json:"form_id"`
+	SiteIDAtAcceptance *string          `gorm:"column:site_id_at_acceptance;type:uuid"                    json:"-"`
+	SchemaVersion      int              `gorm:"not null"                                                   json:"schema_version"`
+	RequestID          string           `gorm:"column:request_id;not null"                                 json:"request_id"`
+	IdempotencyKey     string           `gorm:"column:idempotency_key"                                     json:"-"`
+	Data               JSON             `gorm:"type:json;not null"                                         json:"data"`
+	SubmittedAt        time.Time        `gorm:"not null"                                                   json:"submitted_at"`
+	Status             SubmissionStatus `gorm:"not null;size:20"                                           json:"status"`
+	Metadata           JSON             `gorm:"type:jsonb"                                                 json:"metadata"`
+	CreatedAt          time.Time        `gorm:"not null;autoCreateTime"                                    json:"created_at"`
+	UpdatedAt          time.Time        `gorm:"not null;autoUpdateTime"                                    json:"updated_at"`
 }
 
 func (*FormSubmission) TableName() string { return "form_submissions" }

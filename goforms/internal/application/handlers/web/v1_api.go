@@ -3,9 +3,11 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +45,7 @@ const requestTraceContextKey = "goformx.request_trace_id"
 // V1APIHandler implements the schema-first control and public data planes.
 type V1APIHandler struct {
 	repository   V1Repository
+	sites        SiteRepository
 	auth         *serviceauth.Middleware
 	validator    *validation.ComprehensiveValidator
 	admission    *submissionLimiter
@@ -59,6 +62,7 @@ type V1APIHandler struct {
 // It intentionally excludes legacy users, plans, pagination, and browser sessions.
 type V1Repository interface {
 	CreateForm(context.Context, *model.Form) error
+	CreateFormIdempotent(context.Context, *model.Form, string, string) (*model.Form, bool, error)
 	ListForms(context.Context, string, model.FormListOptions) ([]*model.Form, int64, error)
 	GetFormByID(context.Context, string, string) (*model.Form, error)
 	UpdateForm(context.Context, *model.Form, time.Time) error
@@ -67,6 +71,7 @@ type V1Repository interface {
 	GetSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
 	PublishSchemaVersion(context.Context, string, string, int) (*model.SchemaVersion, error)
 	ListSubmissionsPage(context.Context, string, string, domainsubmission.ListOptions) ([]*model.FormSubmission, bool, error)
+	ListWorkspaceSubmissionsPage(context.Context, string, domainsubmission.WorkspaceListOptions) ([]domainsubmission.WorkspaceRow, bool, error)
 	ReadSubmissionExport(context.Context, string, string, domainsubmission.ExportFilters) ([]domainsubmission.ExportRecord, error)
 	SaveSubmissionExportAudit(context.Context, domainsubmission.ExportAudit) error
 	GetSubmissionByOrganization(context.Context, string, string, string) (*model.FormSubmission, error)
@@ -144,12 +149,21 @@ func newV1APIHandlerWithLimits(
 	if candidate, ok := tokens.(ServiceTokenManagementRepository); ok {
 		tokenManagement = candidate
 	}
+	var sites SiteRepository
+	if candidate, ok := repository.(SiteRepository); ok {
+		sites = candidate
+	}
 	return &V1APIHandler{repository: repository, auth: serviceauth.New(tokens), validator: validator,
+		sites:     sites,
 		admission: newSubmissionLimiter(limits), webhooks: webhooks, tokens: tokenManagement,
 		destinations: deliveryapp.NewDestinationPolicy(nil), logger: logger}
 }
 
 func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
+	sites := e.Group(constants.PathV1Sites)
+	sites.GET("", h.instrument("list_sites", h.listSites), h.require(auth.ScopeFormsRead, "listSites"))
+	sites.POST("", h.instrument("create_site", h.createSite), h.require(auth.ScopeFormsWrite, "createSite"))
+	sites.GET("/:siteId", h.instrument("get_site", h.getSite), h.require(auth.ScopeFormsRead, "getSite"))
 	control := e.Group(constants.PathV1Forms)
 	control.GET("", h.instrument("list_forms", h.listForms), h.require(auth.ScopeFormsRead, "listForms"))
 	control.POST("", h.instrument("create_form", h.createForm), h.require(auth.ScopeFormsWrite, "createForm"))
@@ -160,6 +174,7 @@ func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control.GET("/:formId/versions/:version", h.instrument("get_schema_version", h.getSchemaVersion), h.require(auth.ScopeFormsRead, "getSchemaVersion"))
 	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish, "publishSchemaVersion"))
 	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead, "listSubmissions"))
+	e.GET("/v1/submissions", h.instrument("list_workspace_submissions", h.listWorkspaceSubmissions), h.require(auth.ScopeSubmissionsRead, "listWorkspaceSubmissions"))
 	control.POST("/:formId/submissions/export", h.instrument("export_submissions", h.exportSubmissions), h.require(auth.ScopeSubmissionsRead, "exportSubmissions"))
 	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead, "getSubmission"))
 	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite, "putWebhookEndpoint"))
@@ -271,6 +286,7 @@ func (h *V1APIHandler) require(scope auth.Scope, operationID string) echo.Middle
 }
 
 type createFormRequest struct {
+	SiteID         *string    `json:"siteId"`
 	Name           string     `json:"name"`
 	Title          string     `json:"title"`
 	Description    string     `json:"description"`
@@ -300,17 +316,52 @@ func (h *V1APIHandler) createForm(c echo.Context) error {
 	principal, _ := serviceauth.PrincipalFrom(c)
 	formModel := model.NewForm(principal.OwnerID, request.Title, request.Description, request.Schema)
 	formModel.Name = request.Name
+	formModel.SiteID = request.SiteID
 	formModel.SetCorsConfig(request.AllowedOrigins, []string{http.MethodGet, http.MethodPost, http.MethodOptions},
 		[]string{echo.HeaderContentType, constants.HeaderIdempotencyKey, constants.HeaderSchemaVersion})
 	if err := formModel.Validate(h.validator); err != nil {
 		return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", err.Error(), nil)
 	}
-	if err := h.repository.CreateForm(c.Request().Context(), formModel); err != nil {
+	if _, present := c.Request().Header[http.CanonicalHeaderKey(constants.HeaderIdempotencyKey)]; present {
+		key, ok := h.requireIdempotencyKey(c)
+		if !ok {
+			return nil
+		}
+		digest, err := createFormDigest(request)
+		if err != nil {
+			return h.writeError(c, http.StatusInternalServerError, "internal_error", "The request could not be completed.", nil)
+		}
+		stored, replayed, err := h.repository.CreateFormIdempotent(c.Request().Context(), formModel, key, digest)
+		if errors.Is(err, domainform.ErrFormIdempotencyConflict) {
+			return h.writeError(c, http.StatusConflict, "idempotency_conflict", "The idempotency key was already used with different form inputs.", nil)
+		}
+		if err != nil {
+			return h.writeRepositoryError(c, err)
+		}
+		formModel = stored
+		if replayed {
+			c.Response().Header().Set("X-GoFormX-Replayed", "true")
+		}
+	} else if err := h.repository.CreateForm(c.Request().Context(), formModel); err != nil {
 		return h.writeRepositoryError(c, err)
 	}
 	c.Response().Header().Set(constants.HeaderETag, formETag(formModel))
 	c.Response().Header().Set(echo.HeaderLocation, constants.PathV1Forms+"/"+formModel.ID)
 	return c.JSON(http.StatusCreated, map[string]any{"data": formResource(formModel)})
+}
+
+// createFormDigest covers the accepted request model, so adding a field to
+// createFormRequest automatically adds it to the idempotency comparison.
+func createFormDigest(request createFormRequest) (string, error) {
+	if request.AllowedOrigins == nil {
+		request.AllowedOrigins = []string{}
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(encoded)
+	return "create-form-v1:" + hex.EncodeToString(hash[:]), nil
 }
 
 func (h *V1APIHandler) listForms(c echo.Context) error {
@@ -356,9 +407,10 @@ func (h *V1APIHandler) getForm(c echo.Context) error {
 }
 
 type updateFormRequest struct {
-	Title          *string   `json:"title"`
-	Description    *string   `json:"description"`
-	AllowedOrigins *[]string `json:"allowedOrigins"`
+	SiteID         json.RawMessage `json:"siteId"`
+	Title          *string         `json:"title"`
+	Description    *string         `json:"description"`
+	AllowedOrigins *[]string       `json:"allowedOrigins"`
 }
 
 func (h *V1APIHandler) updateForm(c echo.Context) error {
@@ -378,7 +430,7 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 	if err := decodeJSON(c, &request, mediaTypeMergePatch); err != nil {
 		return h.writeRequestDecodeError(c, err, "")
 	}
-	if request.Title == nil && request.Description == nil && request.AllowedOrigins == nil {
+	if request.Title == nil && request.Description == nil && request.AllowedOrigins == nil && len(request.SiteID) == 0 {
 		return h.writeError(c, http.StatusBadRequest, "invalid_request", "At least one metadata field is required.", nil)
 	}
 	if request.Title != nil {
@@ -389,6 +441,19 @@ func (h *V1APIHandler) updateForm(c echo.Context) error {
 	}
 	if request.Description != nil {
 		formModel.Description = *request.Description
+	}
+	if len(request.SiteID) > 0 {
+		formModel.SiteIDSet = true
+		if bytes.Equal(bytes.TrimSpace(request.SiteID), []byte("null")) {
+			formModel.SiteID = nil
+		} else {
+			var siteID string
+			if err := json.Unmarshal(request.SiteID, &siteID); err != nil || siteID == "" {
+				return h.writeError(c, http.StatusUnprocessableEntity, "validation_failed", "Site association is invalid.",
+					[]validation.Error{{Pointer: "/siteId", Code: "format", Message: "Must be a site UUID or null."}})
+			}
+			formModel.SiteID = &siteID
+		}
 	}
 	if request.AllowedOrigins != nil {
 		if originErrors := validateOrigins(*request.AllowedOrigins); len(originErrors) > 0 {
@@ -546,6 +611,41 @@ func (h *V1APIHandler) listSubmissions(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{
 		"limit": options.Limit, "nextCursor": nextCursor,
 	}})
+}
+
+func (h *V1APIHandler) listWorkspaceSubmissions(c echo.Context) error {
+	principal, _ := serviceauth.PrincipalFrom(c)
+	options, err := workspaceSubmissionListOptions(c)
+	if err != nil {
+		return h.writeError(c, http.StatusBadRequest, "invalid_request", err.Error(), nil)
+	}
+	rows, hasMore, err := h.repository.ListWorkspaceSubmissionsPage(c.Request().Context(), principal.OwnerID, options)
+	if err != nil {
+		return h.writeRepositoryError(c, err)
+	}
+	data := make([]domainsubmission.WorkspaceProjection, 0, len(rows))
+	versions := make(map[string]*model.SchemaVersion)
+	for _, row := range rows {
+		key := fmt.Sprintf("%s:%d", row.Submission.FormID, row.Submission.SchemaVersion)
+		version := versions[key]
+		if version == nil {
+			version, err = h.repository.GetSchemaVersion(c.Request().Context(), principal.OwnerID, row.Submission.FormID, row.Submission.SchemaVersion)
+			if err != nil {
+				return h.writeRepositoryError(c, err)
+			}
+			versions[key] = version
+		}
+		projection, err := submissionResource(row.Submission, version)
+		if err != nil {
+			return h.writeRepositoryError(c, err)
+		}
+		data = append(data, domainsubmission.WorkspaceProjection{Projection: projection, SiteID: row.SiteID, FormName: row.FormName, FormTitle: row.FormTitle})
+	}
+	var nextCursor any
+	if hasMore && len(rows) > 0 {
+		nextCursor = encodeSubmissionCursor(rows[len(rows)-1].Submission)
+	}
+	return c.JSON(http.StatusOK, map[string]any{"data": data, "meta": map[string]any{"limit": options.Limit, "nextCursor": nextCursor}})
 }
 
 func (h *V1APIHandler) getSubmission(c echo.Context) error {
@@ -968,7 +1068,8 @@ func formResource(formModel *model.Form) map[string]any {
 		origins = []string{}
 	}
 	return map[string]any{"id": formModel.ID, "organizationId": formModel.OrganizationID,
-		"name": formModel.Name, "title": formModel.Title,
+		"siteId": formModel.SiteID,
+		"name":   formModel.Name, "title": formModel.Title,
 		"description": formModel.Description, "publicKey": formModel.PublicKey, "allowedOrigins": origins, "status": formModel.Status,
 		"currentVersion": formModel.CurrentSchemaVersion, "createdAt": formModel.CreatedAt.UTC().Format(time.RFC3339),
 		"updatedAt": formModel.UpdatedAt.UTC().Format(time.RFC3339)}

@@ -18,6 +18,19 @@ var submissionTimePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\
 const maxSubmissionQueryBytes = 4096
 
 func submissionListOptions(c echo.Context) (submission.ListOptions, error) {
+	return parseSubmissionListOptions(c, false)
+}
+
+func workspaceSubmissionListOptions(c echo.Context) (submission.WorkspaceListOptions, error) {
+	base, err := parseSubmissionListOptions(c, true)
+	if err != nil {
+		return submission.WorkspaceListOptions{}, err
+	}
+	options := submission.WorkspaceListOptions{ListOptions: base, SiteID: c.QueryParam("siteId"), FormID: c.QueryParam("formId")}
+	return options, options.Validate()
+}
+
+func parseSubmissionListOptions(c echo.Context, workspace bool) (submission.ListOptions, error) {
 	if len(c.Request().URL.RawQuery) > maxSubmissionQueryBytes {
 		return submission.ListOptions{}, fmt.Errorf("submission query must not exceed %d bytes", maxSubmissionQueryBytes)
 	}
@@ -28,6 +41,10 @@ func submissionListOptions(c echo.Context) (submission.ListOptions, error) {
 	for name, values := range parameters {
 		switch name {
 		case "limit", "cursor", "receivedFrom", "receivedBefore", "status", "schemaVersion":
+		case "siteId", "formId":
+			if !workspace {
+				return submission.ListOptions{}, errors.New("unsupported submission filter")
+			}
 		default:
 			return submission.ListOptions{}, errors.New("unsupported submission filter")
 		}

@@ -222,6 +222,13 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 					"#/components/parameters/SubmissionReceivedFrom", "#/components/parameters/SubmissionReceivedBefore",
 					"#/components/parameters/SubmissionStatusFilter", "#/components/parameters/SubmissionSchemaVersionFilter",
 				}, parameterRefs(op.Parameters))
+			case "listWorkspaceSubmissions":
+				require.Equal(t, []string{
+					"#/components/parameters/SubmissionLimit", "#/components/parameters/SubmissionCursor",
+					"#/components/parameters/SubmissionReceivedFrom", "#/components/parameters/SubmissionReceivedBefore",
+					"#/components/parameters/SubmissionStatusFilter", "#/components/parameters/SubmissionSchemaVersionFilter",
+					"#/components/parameters/WorkspaceSubmissionSiteId", "#/components/parameters/WorkspaceSubmissionFormId",
+				}, parameterRefs(op.Parameters))
 			case "listServiceTokens":
 				require.Equal(t, []string{
 					"#/components/parameters/PageLimit", "#/components/parameters/ServiceTokenCursor",
@@ -247,7 +254,7 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 		}
 	}
 	require.Equal(t, map[string]string{
-		"createForm": "application/json", "updateForm": "application/merge-patch+json",
+		"createForm": "application/json", "updateForm": "application/merge-patch+json", "createSite": "application/json",
 		"createSchemaVersion": "application/json", "exportSubmissions": "application/json",
 		"putWebhookEndpoint": "application/json", "patchWebhookEndpoint": "application/json",
 		"createServiceToken": "application/json", "createSubmission": "application/json",

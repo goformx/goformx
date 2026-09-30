@@ -38,6 +38,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List organization sites */
+        get: operations["listSites"];
+        put?: never;
+        /**
+         * Create or reconcile a site by its normalized origin
+         * @description The same organization, normalized origin and name returns the existing site with 200. A different name for that origin returns 409.
+         */
+        post: operations["createSite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/sites/{siteId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                siteId: string;
+            };
+            cookie?: never;
+        };
+        /** Get organization site */
+        get: operations["getSite"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/forms": {
         parameters: {
             query?: never;
@@ -130,6 +170,23 @@ export interface paths {
         put?: never;
         /** Publish a schema version */
         post: operations["publishSchemaVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List submissions across organization-owned forms */
+        get: operations["listWorkspaceSubmissions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -416,6 +473,11 @@ export interface components {
             id: string;
             /** Format: uuid */
             organizationId: string;
+            /**
+             * Format: uuid
+             * @description Null for legacy forms not associated with a site.
+             */
+            siteId: string | null;
             name: string;
             title: string;
             description?: string;
@@ -432,6 +494,11 @@ export interface components {
         };
         CreateForm: {
             name: string;
+            /**
+             * Format: uuid
+             * @description Organization-owned site to associate.
+             */
+            siteId?: string;
             title: string;
             description?: string;
             schema: components["schemas"]["FormDefinition"];
@@ -471,10 +538,57 @@ export interface components {
             /** Format: date-time */
             submittedAt: string;
         };
+        WorkspaceSubmission: components["schemas"]["Submission"] & {
+            /**
+             * Format: uuid
+             * @description Immutable site at acceptance; null for pre-snapshot history or a form without a site.
+             */
+            siteId: string | null;
+            formName: string;
+            formTitle: string;
+        };
         SubmissionDetailEnvelope: {
             data: components["schemas"]["Submission"] & {
                 schema: components["schemas"]["FormDefinition"];
             };
+        };
+        CreateSite: {
+            name: string;
+            /**
+             * Format: uri
+             * @description HTTPS origin, or HTTP localhost for development. No path, credentials, query or fragment.
+             */
+            origin: string;
+        };
+        Site: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            organizationId: string;
+            name: string;
+            /** Format: uri */
+            origin: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SiteEnvelope: {
+            data: components["schemas"]["Site"];
+        };
+        SiteCollection: {
+            data: components["schemas"]["Site"][];
+            meta: components["schemas"]["SitePageMeta"];
+        };
+        SitePageMeta: {
+            limit: number;
+            offset: number;
+            total: number;
+            /**
+             * Format: uuid
+             * @description Authenticated organization used to scope this result, including an empty page.
+             */
+            organizationId: string;
         };
         FormEnvelope: {
             data: components["schemas"]["Form"];
@@ -678,6 +792,10 @@ export interface components {
         SubmissionStatusFilter: "accepted";
         /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
         SubmissionSchemaVersionFilter: number;
+        /** @description Organization-owned site at submission acceptance. Foreign and absent identifiers return the same 404. */
+        WorkspaceSubmissionSiteId: string;
+        /** @description Organization-owned form. With siteId, the form must currently belong to that site or have accepted rows attributed to it historically. */
+        WorkspaceSubmissionFormId: string;
         FormId: string;
         /** @description Rotatable, non-secret identifier safe for browser embeds. */
         PublicKey: string;
@@ -766,6 +884,95 @@ export interface operations {
             "4XX": components["responses"]["Error"];
         };
     };
+    listSites: {
+        parameters: {
+            query?: {
+                /** @description Maximum resources returned in this bounded collection. */
+                limit?: components["parameters"]["PageLimit"];
+                /** @description Zero-based form collection offset; bounded to prevent unbounded scans. */
+                offset?: components["parameters"]["PageOffset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization-owned site page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteCollection"];
+                };
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    createSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateSite"];
+            };
+        };
+        responses: {
+            /** @description Exact origin and name resolved to existing site */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteEnvelope"];
+                };
+            };
+            /** @description Site created */
+            201: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteEnvelope"];
+                };
+            };
+            409: components["responses"]["Error"];
+            415: components["responses"]["UnsupportedMediaType"];
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    getSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                siteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization-owned site */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteEnvelope"];
+                };
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
     listForms: {
         parameters: {
             query?: {
@@ -803,7 +1010,10 @@ export interface operations {
     createForm: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optional for legacy callers. A key of 16 to 128 characters is scoped to the authenticated organization and permanently binds the accepted create inputs. Retrying with the same inputs returns the original 201 response; changing inputs returns idempotency_conflict. Use a fresh first-party assertion for each retry because assertions are single use. */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -819,12 +1029,15 @@ export interface operations {
                     Location?: string;
                     /** @description Strong validator required by later metadata updates. */
                     ETag?: string;
+                    /** @description Set to true when this key returned the original creation result. */
+                    "X-GoFormX-Replayed"?: "true";
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["FormEnvelope"];
                 };
             };
+            409: components["responses"]["Error"];
             415: components["responses"]["UnsupportedMediaType"];
             default: components["responses"]["Error"];
             "4XX": components["responses"]["Error"];
@@ -873,6 +1086,11 @@ export interface operations {
                 "application/merge-patch+json": {
                     title?: string;
                     description?: string;
+                    /**
+                     * Format: uuid
+                     * @description Move the form to a site owned by the same organization, or null to clear the association.
+                     */
+                    siteId?: string | null;
                     allowedOrigins?: string[];
                 };
             };
@@ -1000,6 +1218,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SchemaVersionEnvelope"];
+                };
+            };
+            default: components["responses"]["Error"];
+            "4XX": components["responses"]["Error"];
+        };
+    };
+    listWorkspaceSubmissions: {
+        parameters: {
+            query?: {
+                /** @description Maximum submissions returned in this page. */
+                limit?: components["parameters"]["SubmissionLimit"];
+                /** @description Opaque cursor returned as meta.nextCursor by the previous page. */
+                cursor?: components["parameters"]["SubmissionCursor"];
+                /** @description Inclusive submittedAt lower bound, RFC 3339 with an explicit offset and at most microsecond precision. Indexed with formId. */
+                receivedFrom?: components["parameters"]["SubmissionReceivedFrom"];
+                /** @description Exclusive submittedAt upper bound, RFC 3339 with an explicit offset and at most microsecond precision. Must be later than receivedFrom when both are present. */
+                receivedBefore?: components["parameters"]["SubmissionReceivedBefore"];
+                /** @description Accepted payloads are immutable; webhook delivery progress is a separate resource, not a submission status transition. */
+                status?: components["parameters"]["SubmissionStatusFilter"];
+                /** @description Exact schema version used at acceptance; indexed with formId and submittedAt. Not the form's current published version. */
+                schemaVersion?: components["parameters"]["SubmissionSchemaVersionFilter"];
+                /** @description Organization-owned site at submission acceptance. Foreign and absent identifiers return the same 404. */
+                siteId?: components["parameters"]["WorkspaceSubmissionSiteId"];
+                /** @description Organization-owned form. With siteId, the form must currently belong to that site or have accepted rows attributed to it historically. */
+                formId?: components["parameters"]["WorkspaceSubmissionFormId"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Accepted submissions across non-deleted forms owned by the authenticated
+             *     organization, ordered by submittedAt DESC and ID DESC. An absent,
+             *     foreign, or mismatched siteId/formId selector returns the same 404.
+             *     Each siteId is the immutable site recorded when that row was
+             *     accepted. Pre-snapshot history and legacy forms have null siteId;
+             *     their site cannot be inferred from a current form association.
+             *     A form moved between sites can have rows under both site filters.
+             *     Reuse filters with nextCursor; pagination is not a snapshot of new
+             *     inserts. Unknown, repeated, or invalid filters return 400. The
+             *     encoded query is limited to 4096 bytes. Projection uses each row's
+             *     immutable accepted schema version. No organization selector exists.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["WorkspaceSubmission"][];
+                        meta: components["schemas"]["CursorPageMeta"];
+                    };
                 };
             };
             default: components["responses"]["Error"];

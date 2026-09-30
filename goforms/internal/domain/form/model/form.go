@@ -35,6 +35,8 @@ var (
 type Form struct {
 	ID                   string          `gorm:"column:uuid;primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
 	OrganizationID       string          `gorm:"column:organization_id;not null;index;type:uuid"            json:"organization_id"`
+	SiteID               *string         `gorm:"column:site_id;type:uuid"                                     json:"site_id"`
+	SiteIDSet            bool            `gorm:"-" json:"-"`
 	Name                 string          `gorm:"not null;size:63"                                           json:"name"`
 	Title                string          `gorm:"not null;size:100"                                          json:"title"`
 	Description          string          `gorm:"size:500"                                                   json:"description"`
