@@ -1,82 +1,40 @@
-# GoFormX roadmap: forms managed from your AI workflow
+# GoFormX roadmap: safe private use first
 
-Authoritative roadmap, adopted 2026-09-29. Supersedes the previous schema-first resurrection/dashboard-launch sequence. Read [PRODUCT-VISION.md](PRODUCT-VISION.md) first. Phases describe acceptance order, not promised dates. Local planning files live under `C:/projects/GoFormX/product`; centrally tracked work remains in `goformx/goformx`, including control-plane work.
+This repository copy synchronizes the revised roadmap for review. Russell's central `C:/projects/GoFormX/product/ROADMAP.md` remains authoritative until this copy is reviewed and merged. [PRODUCT-VISION.md](PRODUCT-VISION.md) supplies the product direction. This file owns priority and scope. The single private-release checklist owns release gates and links to evidence; the checklist, evidence register, operations worksheet, cutover runbook, prior roadmap, issue ledgers and local acceptance result remain in Russell's central product workspace at `C:/projects/GoFormX/product` until those records are separately reviewed for repository publication. Those central records remain historical and factual, not competing priorities. GitHub [#84](https://github.com/goformx/goformx/issues/84) should point to the central roadmap until this repository copy lands through review; the issue is not a second priority list.
 
-## R0. Qualify the foundation
+## Next release target
 
-Next implementation slice: upgrade the control plane from alpha.299 to the latest published Waaseyaa alpha, verified as alpha.302 on September 29. Recheck release availability at execution time and pin exact released packages.
+Russell can use the working Codex client to create, connect, validate and explicitly publish a form on his next real site. Public submissions are accepted reliably, signed webhook notification works, and he sees them in one authorized inbox alongside submissions from his other sites. The private deployment preserves existing forms, public keys, consumers and data. Public registration stays closed unless real verification and reset mail passes. This target needs one supported assistant path, not portability claims or a larger builder.
 
-- Complete #169's operation-specific bounded PHP/browser reads and completeness tests. The upstream fix is released; waiting for it is no longer the blocker.
-- Complete #118 account/reset/session gates on installed packages, with no source overlays.
-- Reconcile #120 residual token-mint authority and #123 integration acceptance.
-- Pair the candidate control plane with the exact candidate Go SHA in all cross-service suites. The existing CI Go pin predates main.
-- Keep `task verify`, `composer check`, site-contract diagnostics and all five boundary suites as the baseline.
+The disposable two-site journey already passed at recorded Go `b7b1a22d5ffbe5447f0627b336e4a2f8a871e6f5` and PHP `0cb26709b5e6c41833ad3dbce049e7aed7c217e6`: named version 1 publication, browser submissions with retry deduplication, signed HTTPS notification, shared inbox/site filters, isolation and revocation. Russell's central `C:/projects/GoFormX/product/local-journey/RESULT.md` records the evidence. These are recorded heads, not assumptions about current GitHub or production. Do not rebuild or repeat that journey without a concrete source, environment or acceptance change.
 
-Exit: exact package/source pair passes clean bootstrap, authorization, response integrity and the full real-service lifecycle. No production rollout is implied.
+The affected local rehearsal workspace cannot be reused until permitted host-side cleanup of restricted fixture files is verified. The command approval layer rejected deletion with `blocked by policy`; do not retry through another tool or relax permissions. Independent work may continue in clean locations without copying fixture secrets.
 
-## R1. Prove one assistant-driven form workflow
+## Keep, defer, simplify
 
-Write the adapter/connection contract before implementation. Start with a documented API-backed path in Russell's chosen development harness, with MCP as the preferred portable adapter where supported.
-
-- Define secure connection setup, per-connection identity, granted operations, revocation and local credential custody. Decide local versus remote adapter transport from actual client constraints; do not prescribe one universal connection mechanism without a compatibility spike.
-- Reuse existing API operations. If a capability is missing, change OpenAPI and shared behavior first.
-- Discover/reuse existing forms; create a draft; set/validate schema; prepare site integration code; submit a test; request explicit publication; report the endpoint and result.
-- Define retry/idempotency and uncertain-outcome handling for each operation. Do not promise idempotency for operations that lack a contract.
-- Keep management and submission-read permissions separate. Test foreign tenants, wrong scopes, revocation and attempted instruction injection from tool data.
-- Choose the smallest notification path that satisfies the contact-form workflow. Existing webhooks may be reused; email product delivery must be deliberately implemented and tested before advertising it.
-
-Exit: a recorded, reproducible contact-form journey on a real development site, without hidden server/database interventions or manual dashboard setup beyond necessary account consent. No secrets in frontend code, logs or recorded evidence.
-
-## R2. Deliver one useful inbox across sites
-
-- Define site identity and form association, including ownership and authorization. Keep organizations as tenancy, not an assumed synonym for a site.
-- Add authorized cross-form reads through Go's API where missing, with bounded pagination, explicit filters and stable ordering.
-- Provide a human inbox with site/form filters, submission detail and links back to the relevant form/site. Preserve exact data and safe exports.
-- Make account connections, scopes and revocation visible. Keep current form management as a fallback and recovery surface.
-- Support contact, consent-bearing newsletter capture and short intake examples. Avoid campaign-management scope.
-
-Exit: Russell launches forms on two distinct sites and sees both sets of submissions in one authorized inbox. A user cannot infer or retrieve another tenant's forms or submissions. An assistant without submission-read permission remains unable to read the inbox.
-
-## R3. Prove portability and developer onboarding
-
-- Test Hermes, ChatGPT and Claude connection paths individually against their actual available client/edition/version. Record transport, authentication, allowed operations, limitations, date and evidence.
-- Provide copyable setup instructions and tested examples for each supported path. API/script support is valid when MCP is unavailable; label the path accurately.
-- Continue management of the same form from at least two harnesses without recreating its identity or moving data.
-- Document disconnect/reconnect, expired credentials, publication confirmation, failed requests and recovery.
-- Test first-run onboarding with a small invited group of developers who maintain multiple sites. Record friction and second-site reuse before growing the scope.
-
-Exit: two harnesses pass the same end-to-end conformance journey. Publish support claims only for verified paths. A third target stays explicitly experimental until it passes.
-
-## R4. Deploy and launch the focused product
-
-The infrastructure preparation can proceed alongside R1-R3 after R0. Public positioning as an assistant-managed product requires the workflow, inbox and compatibility evidence, not merely healthy containers. A separately approved private dogfood deployment may happen earlier if its relevant safety gates pass.
-
-- Carry forward #125 and private infra #75/#62/#66 acceptance: separate database roles, controlled image contexts, attested immutable images, key custody, consistent encrypted offsite backups, restore proof, capacity, migration and rollback rehearsals.
-- Proposed host remains fetder-droplet, subject to capacity verification. www.goformx.com is the canonical UI; api.goformx.com preserves public API consumers; plan apex compatibility explicitly.
-- Use the deployment handoff for operational detail, amended by this roadmap. The old ARM64-only target and dashboard-led public launch criteria are superseded.
-- With explicit approval, move the authoritative data plane from the Pi without split writers or stale-database rollback. Preserve public form keys and existing consumers.
-- Demonstrate account connection, assistant creation/integration, explicit publishing, public submission, notification, shared inbox and recovery on the deployed release.
-
-Exit: reproducible release evidence, operational monitoring, restore/rollback proof, two real sites and verified multi-harness use. No DNS, deployment, merge or spending authority is granted by this roadmap.
-
-## Retained work and superseded assumptions
-
-| Existing item | New disposition |
+| Disposition | Decision |
 | --- | --- |
-| #118, #169 | Immediate R0 installed-release and integrity gates. |
-| #120, #123 | Finish acceptance; do not expand dashboards merely to justify closing them. |
-| #125 | R4 operations plus the new assistant-to-inbox release journey. |
-| #57 and existing personal-site tests | Retained regression/reliability gate; no longer the entire product acceptance definition. |
-| #110 | Deferred until multiple API instances or measured distributed admission need. |
-| #111 | Evidence-triggered abuse control; no blanket CAPTCHA-first product requirement. |
-| #165 | Measure before optimization. |
-| #171 and dependency PRs | Reassess with candidate dependencies and reachable-vulnerability evidence; do not blindly waive license/security checks. |
-| Broad visual builder, hosted AI chat, billing-first launch | Outside initial scope. |
-| September handoffs and review ledger | Historical evidence; neither future priorities nor proof of current release qualification. |
-| Deployment plan of September 29 | Operational reference subordinate to this vision; infrastructure choice is retained provisionally. |
+| Keep | Tenant isolation and fresh human authorization; separate form-management and submission-read permissions; explicit publication and revocable credentials; durable retries; immutable accepted schema, site and data; Secure cookies; bounded requests; private database access; consistent encrypted backups, independently verified restore and data-safe rollback. |
+| Keep for private use | Codex API client, browser-safe site integration, shared human inbox and signed webhooks. Product email notification is optional. A private-account provisioning path may replace open registration only if it uses supported authenticated setup and passes account/session tests. |
+| Defer | MCP until a selected client needs it; a second harness until after private deployment, then require it before advertising portability. Defer draft-submission preview APIs: perform draft/schema checks, explicit publication and post-publication synthetic tests. |
+| Defer | AI analysis of submissions, billing, enterprise administration, broad integrations, visual-builder expansion and horizontal scaling. Revisit only when real usage creates a specific need. |
+| Simplify | Prefer an in-place droplet rollback using retained immutable images and recoverable authoritative data. Keep the Pi as a recovery dependency only until an independently restored target, post-write recovery path and preserved consumer routing make it unnecessary. Do not decommission it without authorization. Retain ARM64 artifacts while Pi recovery actually depends on them. |
 
-## Measurement and release records
+The Codex client's SQLite intent record is the durable key written before POST; its JSON file also preserves earlier intent keys and caches a form ID. Removing that compatibility path now could change a key after an uncertain request. Keep it until a documented migration window and server retry evidence justify removal. Waaseyaa preflight is already one supported CLI call at FPM startup; removing or moving it to image build would lose its live database/schema check. No code-only simplification is justified by this pass.
 
-Record time from successful connection to first valid submission, completion and failure by step, reuse on a second site, harness switching, duplicates/unauthorized mutations, delivery errors and restore outcomes. Establish a baseline before inventing conversion or speed claims. Store only necessary event metadata; exclude submitted content, tokens and prompts.
+## Minimum path to private use
 
-For every slice, record owner, issue, exact source/package versions, verification commands/results, outstanding constraints and next gate. Closed legacy implementation issues do not establish completion of the new workflow. No schedule or pricing commitment has been made.
+1. **Reconcile and review one source pair.** Fetch current Go/PHP refs and local changes. Preserve unrelated work, use isolated worktrees, review the combined product source and the stacked foundation/packaging drafts, and submit reviewable draft PRs. Qualify the exact Go/PHP pair with the required contract, PostgreSQL, browser, cross-service and image gates. Assess the development-tooling advisory. Do not merge without authorization.
+2. **Bound worker occupancy.** Prove a total response deadline or the simplest supported equivalent under a slow-drip upstream and concurrent maximum export. The current per-read idle timeout is insufficient evidence. Change Waaseyaa upstream only if its supported extension points cannot provide the required bound. Keep the observable response and failure contract intact.
+3. **Qualify boot and immutable artifacts.** Inspect the durable retry client and field-access preflight lifecycle for unnecessary abstraction, changing them only when behavior and security stay intact. Prove preflight regeneration and fail-closed behavior through migration, restart, restore and compatible rollback. Build coherent API, migration, maintenance, PHP and web artifacts from reviewed source with registry digests, provenance and a clean tracked build context. Do not treat `/healthz` alone as readiness.
+4. **Prove the chosen host and recovery.** Measure representative combined traffic on a 2 GB equivalent and, in an approved window, the shared droplet. Include inbox queries, public submissions, slow responses, exports, webhooks, backup load, migration locks, existing tenants, RAM/swap/OOM, latency, disk and WAL. Rehearse separate database roles and restored grants, key custody, encrypted offsite PostgreSQL and consistent PHP SQLite backups, independent restore, populated migration, one-writer fencing and rollback after new writes. If capacity fails, obtain an explicit host/resize decision; do not incur spending automatically.
+5. **Prove private account and notification.** Existing signed webhooks satisfy the initial notification path. Keep registration closed unless real verification/reset mail is qualified. If Russell's private account can be created through a supported authenticated operator path, document and test it, including login, session, CSRF, tenancy and recovery. Inventory any existing authoritative PHP account store before assuming a fresh bootstrap.
+6. **Present the exact cutover package.** Freeze source and image digests, capacity thresholds/results, restored-data counts, keys and grants, route/DNS diff, write-fence proof, expected downtime, recovery owner and post-write rollback decision. The private-release checklist in Russell's central product workspace links its evidence and cutover runbook. Production deploy, DNS edits, data or credential mutation, PR merges, Pi decommissioning and extra spending each require Russell's explicit authorization.
+
+After an authorized cutover, repeat the Codex-to-real-site submission, signed notification, inbox and isolation journey against deployed services and observe backups and adjacent tenants. Private use is complete only when that deployed path and recovery checks pass. Public launch and portability remain later decisions; a second independently tested harness is required before claiming that assistants can be switched without recreating forms.
+
+## Release and record rules
+
+The private-release checklist in Russell's central product workspace is the only release gate matrix. Its evidence register in Russell's central product workspace, operations worksheet in Russell's central product workspace and cutover runbook in Russell's central product workspace are supporting records, not rival roadmaps. Record exact source and image identities, commands/results, timestamps, reviewers, open risks and required decisions. Historical green checks qualify only their recorded heads. Keep #118, #169, #120, #123 and #125 open until their own accepted evidence and authorized issue disposition warrant closure.
+
+No production deployment, DNS change, PR merge, production data or credential mutation, infrastructure decommissioning or additional spending is authorized by this roadmap.
