@@ -151,29 +151,29 @@ func newV1APIHandlerWithLimits(
 
 func (h *V1APIHandler) RegisterRoutes(e *echo.Echo) {
 	control := e.Group(constants.PathV1Forms)
-	control.GET("", h.instrument("list_forms", h.listForms), h.require(auth.ScopeFormsRead))
-	control.POST("", h.instrument("create_form", h.createForm), h.require(auth.ScopeFormsWrite))
-	control.GET("/:formId", h.instrument("get_form", h.getForm), h.require(auth.ScopeFormsRead))
-	control.PATCH("/:formId", h.instrument("update_form", h.updateForm), h.require(auth.ScopeFormsWrite))
-	control.GET("/:formId/versions", h.instrument("list_schema_versions", h.listSchemaVersions), h.require(auth.ScopeFormsRead))
-	control.POST("/:formId/versions", h.instrument("create_schema_version", h.createSchemaVersion), h.require(auth.ScopeFormsWrite))
-	control.GET("/:formId/versions/:version", h.instrument("get_schema_version", h.getSchemaVersion), h.require(auth.ScopeFormsRead))
-	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish))
-	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead))
-	control.POST("/:formId/submissions/export", h.instrument("export_submissions", h.exportSubmissions), h.require(auth.ScopeSubmissionsRead))
-	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead))
-	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite))
-	control.PATCH("/:formId/webhook", h.instrument("patch_webhook", h.patchWebhook), h.require(auth.ScopeWebhooksWrite))
-	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeWebhooksRead))
-	control.DELETE("/:formId/webhook", h.instrument("delete_webhook", h.deleteWebhook), h.require(auth.ScopeWebhooksWrite))
-	control.GET("/:formId/deliveries", h.instrument("list_deliveries", h.listWebhookDeliveries), h.require(auth.ScopeSubmissionsRead))
+	control.GET("", h.instrument("list_forms", h.listForms), h.require(auth.ScopeFormsRead, "listForms"))
+	control.POST("", h.instrument("create_form", h.createForm), h.require(auth.ScopeFormsWrite, "createForm"))
+	control.GET("/:formId", h.instrument("get_form", h.getForm), h.require(auth.ScopeFormsRead, "getForm"))
+	control.PATCH("/:formId", h.instrument("update_form", h.updateForm), h.require(auth.ScopeFormsWrite, "updateForm"))
+	control.GET("/:formId/versions", h.instrument("list_schema_versions", h.listSchemaVersions), h.require(auth.ScopeFormsRead, "listSchemaVersions"))
+	control.POST("/:formId/versions", h.instrument("create_schema_version", h.createSchemaVersion), h.require(auth.ScopeFormsWrite, "createSchemaVersion"))
+	control.GET("/:formId/versions/:version", h.instrument("get_schema_version", h.getSchemaVersion), h.require(auth.ScopeFormsRead, "getSchemaVersion"))
+	control.POST("/:formId/versions/:version/publish", h.instrument("publish_schema_version", h.publishSchemaVersion), h.require(auth.ScopeFormsPublish, "publishSchemaVersion"))
+	control.GET("/:formId/submissions", h.instrument("list_submissions", h.listSubmissions), h.require(auth.ScopeSubmissionsRead, "listSubmissions"))
+	control.POST("/:formId/submissions/export", h.instrument("export_submissions", h.exportSubmissions), h.require(auth.ScopeSubmissionsRead, "exportSubmissions"))
+	control.GET("/:formId/submissions/:submissionId", h.instrument("get_submission", h.getSubmission), h.require(auth.ScopeSubmissionsRead, "getSubmission"))
+	control.PUT("/:formId/webhook", h.instrument("put_webhook", h.putWebhook), h.require(auth.ScopeWebhooksWrite, "putWebhookEndpoint"))
+	control.PATCH("/:formId/webhook", h.instrument("patch_webhook", h.patchWebhook), h.require(auth.ScopeWebhooksWrite, "patchWebhookEndpoint"))
+	control.GET("/:formId/webhook", h.instrument("get_webhook", h.getWebhook), h.require(auth.ScopeWebhooksRead, "getWebhookEndpoint"))
+	control.DELETE("/:formId/webhook", h.instrument("delete_webhook", h.deleteWebhook), h.require(auth.ScopeWebhooksWrite, "deleteWebhookEndpoint"))
+	control.GET("/:formId/deliveries", h.instrument("list_deliveries", h.listWebhookDeliveries), h.require(auth.ScopeSubmissionsRead, "listWebhookDeliveries"))
 	control.POST("/:formId/deliveries/:deliveryId/replay", h.instrument("replay_delivery", h.replayWebhookDelivery),
-		h.require(auth.ScopeWebhooksWrite))
+		h.require(auth.ScopeWebhooksWrite, "replayWebhookDelivery"))
 
 	tokens := e.Group(constants.PathV1ServiceTokens)
-	tokens.GET("", h.instrument("list_service_tokens", h.listServiceTokens), h.require(auth.ScopeTokensRead))
-	tokens.POST("", h.instrument("create_service_token", h.createServiceToken), h.require(auth.ScopeTokensWrite))
-	tokens.DELETE("/:tokenId", h.instrument("revoke_service_token", h.revokeServiceToken), h.require(auth.ScopeTokensWrite))
+	tokens.GET("", h.instrument("list_service_tokens", h.listServiceTokens), h.require(auth.ScopeTokensRead, "listServiceTokens"))
+	tokens.POST("", h.instrument("create_service_token", h.createServiceToken), h.require(auth.ScopeTokensWrite, "createServiceToken"))
+	tokens.DELETE("/:tokenId", h.instrument("revoke_service_token", h.revokeServiceToken), h.require(auth.ScopeTokensWrite, "revokeServiceToken"))
 
 	public := e.Group(constants.PathV1PublicForms)
 	public.Use(h.publicCORS())
@@ -241,8 +241,8 @@ func (h *V1APIHandler) publicCORS() echo.MiddlewareFunc {
 	}
 }
 
-func (h *V1APIHandler) require(scope auth.Scope) echo.MiddlewareFunc {
-	inner := h.auth.Require(scope)
+func (h *V1APIHandler) require(scope auth.Scope, operationID string) echo.MiddlewareFunc {
+	inner := h.auth.Require(scope, operationID)
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		secured := inner(next)
 		return func(c echo.Context) error {

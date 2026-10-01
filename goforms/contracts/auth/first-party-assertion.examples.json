@@ -1,5 +1,5 @@
 {
-  "profile": "gofx-fpa-v1",
+  "profile": "gofx-fpa-v2",
   "valid": {
     "header": {
       "alg": "EdDSA",
@@ -17,10 +17,21 @@
       "exp": 1788033660,
       "jti": "33333333-3333-4333-8333-333333333333",
       "rid": "44444444-4444-4444-8444-444444444444",
-      "ver": 1
+      "op": "listForms",
+      "ver": 2
     }
   },
   "negative": [
+    {
+      "name": "wrong-operation",
+      "change": { "claim": "op", "value": "createServiceToken" },
+      "expected": "invalid_operation"
+    },
+    {
+      "name": "version-one",
+      "change": { "claim": "ver", "value": 1 },
+      "expected": "invalid_version"
+    },
     {
       "name": "wrong-issuer",
       "change": { "claim": "iss", "value": "https://attacker.example" },

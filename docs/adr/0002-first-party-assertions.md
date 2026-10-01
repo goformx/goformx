@@ -55,11 +55,14 @@ Claims:
 | `exp` | NumericDate no more than 60 seconds after `iat`. |
 | `jti` | Unique UUIDv4 generated for this assertion and consumed once. |
 | `rid` | UUID request/correlation identifier propagated to audit records and logs. |
-| `ver` | Integer `1`. Other versions are rejected until an ADR and verifier change introduce them. |
+| `op` | Canonical OpenAPI `operationId` for exactly one management route. The issuer binds this value to the intended outbound method and path. GoFormX compares it with the matched route before consuming `jti` or invoking a handler. |
+| `ver` | Integer `2`. Version 1 lacks route binding and is rejected at the management boundary. Other versions are rejected until an ADR and verifier change introduce them. |
 
 The verifier permits at most five seconds of clock skew when checking `iat`, `nbf`, and `exp`. It rejects assertions issued more than five seconds in the future, assertions older than their 60-second lifetime, or any claim set that does not match [the committed schema](../../goforms/contracts/auth/first-party-assertion.claims.schema.json). The schema is structural; the verifier owns temporal relationships, signature validation, replay state, key state, and resource ownership.
 
 The assertion contains no form data, submission content, schema, secret, email address, display name, role list, IP address, user agent, or other unnecessary personal data. `sub`, `org`, `jti`, `rid`, and `kid` are safe identifiers for correlation but still receive the ordinary log-redaction and retention policy.
+
+Version 2 is a coordinated issuer and verifier change. A Go verifier that requires `op` rejects older version 1 assertions, so rollout must deploy compatible candidates together and keep the first-party boundary disabled if either side is still on version 1. External `gfst_` tokens are unaffected. This ADR does not authorize production rollout.
 
 ### Authorization convergence
 

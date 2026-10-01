@@ -50,7 +50,7 @@ type Middleware struct {
 }
 
 type AssertionVerifier interface {
-	VerifyAndConsume(context.Context, string, time.Time) (auth.FirstPartyPrincipal, error)
+	VerifyAndConsume(context.Context, string, time.Time, string) (auth.FirstPartyPrincipal, error)
 }
 
 func New(repository Repository) *Middleware {
@@ -62,7 +62,7 @@ func NewWithAssertions(repository Repository, assertions AssertionVerifier) *Mid
 }
 
 // Require authenticates a Bearer token and enforces one explicit control-plane scope.
-func (m *Middleware) Require(scope auth.Scope) echo.MiddlewareFunc {
+func (m *Middleware) Require(scope auth.Scope, operationID string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			credential, err := bearerCredential(c.Request().Header.Get(echo.HeaderAuthorization))
@@ -73,7 +73,7 @@ func (m *Middleware) Require(scope auth.Scope) echo.MiddlewareFunc {
 				return m.authenticateServiceToken(c, next, credential, scope)
 			}
 			if auth.IsFirstPartyAssertion(credential) {
-				return m.authenticateFirstPartyAssertion(c, next, credential, scope)
+				return m.authenticateFirstPartyAssertion(c, next, credential, scope, operationID)
 			}
 			return echo.NewHTTPError(http.StatusUnauthorized, "unsupported bearer credential")
 		}
@@ -116,11 +116,12 @@ func (m *Middleware) authenticateFirstPartyAssertion(
 	next echo.HandlerFunc,
 	compact string,
 	scope auth.Scope,
+	operationID string,
 ) error {
 	if m.assertions == nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "first-party assertions are not configured")
 	}
-	verified, err := m.assertions.VerifyAndConsume(c.Request().Context(), compact, m.now())
+	verified, err := m.assertions.VerifyAndConsume(c.Request().Context(), compact, m.now(), operationID)
 	if err != nil {
 		if errors.Is(err, auth.ErrFirstPartyAuthUnavailable) {
 			return echo.NewHTTPError(http.StatusServiceUnavailable, "first-party authentication is unavailable")

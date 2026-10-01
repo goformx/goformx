@@ -265,7 +265,7 @@ func TestV1ContractDeclaresCanonicalDialectAndOperationSemantics(t *testing.T) {
 	require.Equal(t, "bearer", assertion.Scheme)
 	require.Equal(t, "JWT (EdDSA)", assertion.BearerFormat)
 	require.Equal(t, "first-party-assertion", assertion.CredentialClass)
-	require.Equal(t, "gofx-fpa-v1", assertion.JWTProfile)
+	require.Equal(t, "gofx-fpa-v2", assertion.JWTProfile)
 	require.Equal(t, "https://goformx.com/.well-known/goformx-control-plane-jwks.json", assertion.JWKSURI)
 }
 
@@ -293,13 +293,14 @@ func TestFirstPartyAssertionContractAndNegativeFixtures(t *testing.T) {
 	require.Equal(t, "https://json-schema.org/draft/2020-12/schema", schema.Dialect)
 	require.False(t, schema.AdditionalProperties)
 	require.ElementsMatch(t,
-		[]string{"iss", "aud", "sub", "org", "scp", "iat", "nbf", "exp", "jti", "rid", "ver"},
+		[]string{"iss", "aud", "sub", "org", "scp", "iat", "nbf", "exp", "jti", "rid", "op", "ver"},
 		schema.Required,
 	)
-	require.Len(t, schema.Properties, 11)
+	require.Len(t, schema.Properties, 12)
 	require.JSONEq(t, `{"const":"https://goformx.com"}`, string(schema.Properties["iss"]))
 	require.JSONEq(t, `{"const":"https://api.goformx.com"}`, string(schema.Properties["aud"]))
-	require.JSONEq(t, `{"const":1}`, string(schema.Properties["ver"]))
+	require.JSONEq(t, `{"const":2}`, string(schema.Properties["ver"]))
+	require.JSONEq(t, `{"type":"string","minLength":1}`, string(schema.Properties["op"]))
 	require.JSONEq(t, `{
 		"type":"array",
 		"minItems":1,
@@ -330,7 +331,7 @@ func TestFirstPartyAssertionContractAndNegativeFixtures(t *testing.T) {
 		} `json:"negative"`
 	}
 	require.NoError(t, json.Unmarshal(fixtureDocument, &fixtures))
-	require.Equal(t, "gofx-fpa-v1", fixtures.Profile)
+	require.Equal(t, "gofx-fpa-v2", fixtures.Profile)
 	require.Equal(t, "EdDSA", fixtures.Valid.Header["alg"])
 	require.Equal(t, "gofx-fpa+jwt", fixtures.Valid.Header["typ"])
 	require.Equal(t, "https://goformx.com", fixtures.Valid.Claims["iss"])
@@ -343,7 +344,7 @@ func TestFirstPartyAssertionContractAndNegativeFixtures(t *testing.T) {
 		negativeNames = append(negativeNames, fixture.Name)
 	}
 	require.ElementsMatch(t, []string{
-		"wrong-issuer", "wrong-audience", "wrong-organization", "missing-scope", "expired", "replayed-jti", "revoked-key",
+		"wrong-issuer", "wrong-audience", "wrong-organization", "missing-scope", "expired", "replayed-jti", "revoked-key", "wrong-operation", "version-one",
 	}, negativeNames)
 }
 

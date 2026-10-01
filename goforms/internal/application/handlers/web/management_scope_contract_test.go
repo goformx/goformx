@@ -118,6 +118,70 @@ func TestManagementScopeContract(t *testing.T) {
 	}
 }
 
+func TestEveryManagementRouteRejectsWrongAssertionOperationBeforeDispatch(t *testing.T) {
+	t.Parallel()
+	for _, operation := range managementOperations(t) {
+		t.Run(operation.ID, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			repositories := scopeRepositories{mockform.NewMockRepository(ctrl), mockform.NewMockWebhookRepository(ctrl)}
+			tokens := scopeTokenRepository{MockServiceTokenManagementRepository: mockform.NewMockServiceTokenManagementRepository(ctrl)}
+			wrongOperation := "createServiceToken"
+			if operation.ID == wrongOperation {
+				wrongOperation = "listForms"
+			}
+			verifier, assertion := scopeAssertion(t, auth.AllScopes(), wrongOperation)
+			handler := NewV1APIHandlerWithLimits(repositories, tokens, nil, DefaultV1Limits(), verifier)
+			router := echo.New()
+			handler.RegisterRoutes(router)
+			path := strings.NewReplacer("{formId}", scopeFormID, "{version}", "1",
+				"{submissionId}", scopeResourceID, "{deliveryId}", scopeResourceID, "{tokenId}", scopeResourceID).Replace(operation.path)
+			response := requestJSON(t, router, operation.method, path, nil, assertion, "", nil)
+			require.Equal(t, http.StatusUnauthorized, response.Code, response.Body.String())
+			require.Zero(t, handler.requests.Load(), "wrong operation must stop before handler dispatch")
+			// Empty gomock expectations also prove there was no repository or audit mutation.
+		})
+	}
+}
+
+func TestTokenMintAssertionCannotBeReusedForOtherOperations(t *testing.T) {
+	t.Parallel()
+	ctrl := gomock.NewController(t)
+	repositories := scopeRepositories{mockform.NewMockRepository(ctrl), mockform.NewMockWebhookRepository(ctrl)}
+	tokens := scopeTokenRepository{MockServiceTokenManagementRepository: mockform.NewMockServiceTokenManagementRepository(ctrl)}
+	verifier, assertion := scopeAssertion(t, []auth.Scope{auth.ScopeTokensWrite, auth.ScopeFormsRead}, "createServiceToken")
+	handler := NewV1APIHandlerWithLimits(repositories, tokens, nil, DefaultV1Limits(), verifier)
+	router := echo.New()
+	handler.RegisterRoutes(router)
+	for _, probe := range []struct{ method, path string }{
+		{http.MethodGet, "/v1/forms"},
+		{http.MethodDelete, "/v1/service-tokens/" + scopeResourceID},
+	} {
+		response := requestJSON(t, router, probe.method, probe.path, nil, assertion, "", nil)
+		require.Equal(t, http.StatusUnauthorized, response.Code, response.Body.String())
+	}
+	require.Zero(t, handler.requests.Load(), "wrong-operation probes must not dispatch or mutate")
+	tokens.MockServiceTokenManagementRepository.EXPECT().Save(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, token *auth.ServiceToken, actor auth.AuditActor) error {
+			require.Equal(t, scopeOrganizationID, token.OwnerID)
+			require.Equal(t, map[auth.Scope]struct{}{auth.ScopeFormsRead: {}}, token.Scopes)
+			require.NoError(t, actor.Validate())
+			return nil
+		})
+	body := map[string]any{"name": "Least privilege", "scopes": []auth.Scope{auth.ScopeFormsRead}}
+	created := requestJSON(t, router, http.MethodPost, "/v1/service-tokens", body, assertion, "", nil)
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	replay := requestJSON(t, router, http.MethodPost, "/v1/service-tokens", body, assertion, "", nil)
+	require.Equal(t, http.StatusUnauthorized, replay.Code, replay.Body.String())
+	require.Equal(t, uint64(1), handler.requests.Load())
+
+	// The existing scope matrix checks equivalent gfst_ success on both paths.
+	for _, operation := range managementOperations(t) {
+		if operation.ID == "listForms" || operation.ID == "revokeServiceToken" {
+			runManagementScopeCase(t, operation, "serviceToken", []auth.Scope{auth.ScopeTokensWrite, auth.ScopeFormsRead})
+		}
+	}
+}
+
 func TestManagementScopeInventoryMatchesOpenAPI(t *testing.T) {
 	t.Parallel()
 	document, err := os.ReadFile("../../../../contracts/openapi.v1.yaml")
@@ -174,7 +238,7 @@ func runManagementScopeCase(t *testing.T, operation managementOperation, credent
 	ctrl := gomock.NewController(t)
 	repositories := scopeRepositories{mockform.NewMockRepository(ctrl), mockform.NewMockWebhookRepository(ctrl)}
 	tokens := scopeTokenRepository{MockServiceTokenManagementRepository: mockform.NewMockServiceTokenManagementRepository(ctrl)}
-	verifier, assertion := scopeAssertion(t, scopes)
+	verifier, assertion := scopeAssertion(t, scopes, operation.ID)
 	var credential string
 	switch credentialClass {
 	case "serviceToken":
@@ -424,7 +488,7 @@ func (s *scopeAssertionStore) Consume(_ context.Context, replay auth.AssertionRe
 
 // Exercise the production Ed25519 verifier, not an always-authenticated stub.
 // PostgreSQL atomic replay and key rotation have separate integration tests.
-func scopeAssertion(t *testing.T, scopes []auth.Scope) (*auth.FirstPartyVerifier, string) {
+func scopeAssertion(t *testing.T, scopes []auth.Scope, operationID string) (*auth.FirstPartyVerifier, string) {
 	t.Helper()
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
@@ -441,7 +505,7 @@ func scopeAssertion(t *testing.T, scopes []auth.Scope) (*auth.FirstPartyVerifier
 	claims := encode(map[string]any{
 		"iss": "https://control.example", "aud": "https://api.example", "sub": scopeResourceID,
 		"org": scopeOrganizationID, "scp": scopes, "iat": now, "nbf": now, "exp": now + 60,
-		"jti": uuid.NewString(), "rid": uuid.NewString(), "ver": auth.FirstPartyAssertionVersion,
+		"jti": uuid.NewString(), "rid": uuid.NewString(), "op": operationID, "ver": auth.FirstPartyAssertionVersion,
 	})
 	message := header + "." + claims
 	return verifier, message + "." + base64.RawURLEncoding.EncodeToString(ed25519.Sign(private, []byte(message)))

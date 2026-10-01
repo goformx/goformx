@@ -168,11 +168,48 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 			logger := mocklogging.NewMockLogger(gomock.NewController(t))
 			web.NewV1APIHandlerWithLimits(formrepository.NewStore(database, logger), tokens, nil,
 				web.DefaultV1Limits(), verifier).RegisterRoutes(router)
+			if credentialClass == auth.CredentialClassFirstPartyAssertion {
+				var beforeTokens, beforeAudits, beforeReplays int64
+				require.NoError(t, db.Table("service_tokens").Count(&beforeTokens).Error)
+				require.NoError(t, db.Table("management_audit").Count(&beforeAudits).Error)
+				require.NoError(t, db.Table("first_party_assertion_replays").Count(&beforeReplays).Error)
+				assertion := signBoundaryAssertionWithScopes(t, privateKey, "audit-key", organizationID,
+					uuid.NewString(), []auth.Scope{auth.ScopeTokensWrite, auth.ScopeFormsRead}, "createServiceToken", time.Now().UTC())
+				require.Equal(t, http.StatusUnauthorized,
+					boundaryRequest(router, http.MethodGet, "/v1/forms", assertion).Code)
+				require.Equal(t, http.StatusUnauthorized,
+					boundaryRequest(router, http.MethodDelete, "/v1/service-tokens/"+uuid.NewString(), assertion).Code)
+				var afterTokens, afterAudits, afterReplays int64
+				require.NoError(t, db.Table("service_tokens").Count(&afterTokens).Error)
+				require.NoError(t, db.Table("management_audit").Count(&afterAudits).Error)
+				require.NoError(t, db.Table("first_party_assertion_replays").Count(&afterReplays).Error)
+				require.Equal(t, beforeTokens, afterTokens, "wrong operation cannot mint or revoke a token")
+				require.Equal(t, beforeAudits, afterAudits, "wrong operation cannot write an audit")
+				require.Equal(t, beforeReplays, afterReplays, "wrong operation cannot consume a replay identity")
+				mint := func() *httptest.ResponseRecorder {
+					request := httptest.NewRequest(http.MethodPost, "/v1/service-tokens",
+						strings.NewReader(`{"name":"operation-boundary-probe","scopes":["forms:read"]}`))
+					request.Header.Set(echo.HeaderAuthorization, "Bearer "+assertion)
+					request.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+					response := httptest.NewRecorder()
+					router.ServeHTTP(response, request)
+					return response
+				}
+				created := mint()
+				require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+				require.Equal(t, http.StatusUnauthorized, mint().Code, "a successful mint consumes its assertion")
+				require.NoError(t, db.Table("service_tokens").Count(&afterTokens).Error)
+				require.NoError(t, db.Table("management_audit").Count(&afterAudits).Error)
+				require.NoError(t, db.Table("first_party_assertion_replays").Count(&afterReplays).Error)
+				require.Equal(t, beforeTokens+1, afterTokens)
+				require.Equal(t, beforeAudits+1, afterAudits)
+				require.Equal(t, beforeReplays+1, afterReplays)
+			}
 			server := httptest.NewServer(router)
 			t.Cleanup(server.Close)
 			client := &http.Client{Timeout: 10 * time.Second}
 			var lastActor auth.AuditActor
-			credentialForScope := func(organization string, scope auth.Scope) string {
+			credentialForScope := func(organization string, scope auth.Scope, operationID string) string {
 				if credentialClass == auth.CredentialClassServiceToken {
 					caller, secret := parent, parentSecret
 					if organization != organizationID || scope != auth.ScopeTokensWrite {
@@ -185,7 +222,7 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 					return secret
 				}
 				assertionID := uuid.NewString()
-				bearer := signBoundaryAssertion(t, privateKey, "audit-key", organization, assertionID, scope, time.Now().UTC())
+				bearer := signBoundaryAssertion(t, privateKey, "audit-key", organization, assertionID, scope, operationID, time.Now().UTC())
 				payload, err := base64.RawURLEncoding.DecodeString(strings.Split(bearer, ".")[1])
 				require.NoError(t, err)
 				var claims struct {
@@ -197,8 +234,8 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 					CredentialClass: credentialClass, CredentialID: assertionID, RequestID: claims.Request}
 				return bearer
 			}
-			credential := func(organization string) string {
-				return credentialForScope(organization, auth.ScopeTokensWrite)
+			credential := func(organization, operationID string) string {
+				return credentialForScope(organization, auth.ScopeTokensWrite, operationID)
 			}
 			requestWithMedia := func(method, path, bearer string, body []byte, contentType *string, status int) []byte {
 				req, err := http.NewRequestWithContext(t.Context(), method, server.URL+path, bytes.NewReader(body))
@@ -244,7 +281,7 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				return requestWithMedia(method, path, bearer, body, &contentType, status)
 			}
 			body := []byte(`{"name":"private-token-nickname","scopes":["tokens:write"],"expiresInSeconds":3600}`)
-			denied := request(http.MethodPost, "/v1/service-tokens", credentialForScope(organizationID, auth.ScopeFormsRead),
+			denied := request(http.MethodPost, "/v1/service-tokens", credentialForScope(organizationID, auth.ScopeFormsRead, "createServiceToken"),
 				body, http.StatusForbidden)
 			require.Contains(t, string(denied), `"code":"forbidden"`)
 			var initialTokens, initialAudits int64
@@ -263,7 +300,7 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 				{"trailing document", string(body) + ` {}`, pointerTo("application/json"), http.StatusBadRequest},
 			} {
 				t.Run(rejection.name, func(t *testing.T) {
-					response := requestWithMedia(http.MethodPost, "/v1/service-tokens", credential(organizationID),
+					response := requestWithMedia(http.MethodPost, "/v1/service-tokens", credential(organizationID, "createServiceToken"),
 						[]byte(rejection.body), rejection.media, rejection.status)
 					if rejection.status == http.StatusUnsupportedMediaType {
 						require.Contains(t, string(response), `"code":"unsupported_media_type"`)
@@ -277,7 +314,7 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 			require.NoError(t, db.Table("management_audit").Count(&rejectedAudits).Error)
 			require.Equal(t, initialTokens, rejectedTokens, "rejected request bodies cannot issue credentials")
 			require.Equal(t, initialAudits, rejectedAudits, "rejected request bodies cannot append mutation audits")
-			created := request(http.MethodPost, "/v1/service-tokens", credential(organizationID), body, http.StatusCreated)
+			created := request(http.MethodPost, "/v1/service-tokens", credential(organizationID, "createServiceToken"), body, http.StatusCreated)
 			createdActor := lastActor
 			var envelope struct {
 				Data struct {
@@ -316,24 +353,24 @@ func TestTokenMutationsHaveAtomicActorAuditThroughRealHTTPAndPostgres(t *testing
 			require.NoError(t, db.Exec(`CREATE FUNCTION reject_audit() RETURNS trigger LANGUAGE plpgsql AS $$
 				BEGIN RAISE EXCEPTION 'audit-failure-canary'; END $$;
 				CREATE TRIGGER reject_audit BEFORE INSERT ON management_audit FOR EACH ROW EXECUTE FUNCTION reject_audit();`).Error)
-			failed := request(http.MethodPost, "/v1/service-tokens", credential(organizationID), body, http.StatusServiceUnavailable)
+			failed := request(http.MethodPost, "/v1/service-tokens", credential(organizationID, "createServiceToken"), body, http.StatusServiceUnavailable)
 			require.NotContains(t, string(failed), "gfst_")
 			var afterFailure int64
 			require.NoError(t, db.Table("service_tokens").Count(&afterFailure).Error)
 			require.Equal(t, tokenCount, afterFailure)
 			path := "/v1/service-tokens/" + tokenID
-			request(http.MethodDelete, path, credential(organizationID), nil, http.StatusServiceUnavailable)
+			request(http.MethodDelete, path, credential(organizationID, "revokeServiceToken"), nil, http.StatusServiceUnavailable)
 			active, err := tokens.FindByID(t.Context(), tokenID)
 			require.NoError(t, err)
 			require.NoError(t, active.Authenticate(tokenSecret, organizationID, time.Now()))
 			require.NoError(t, db.Exec("DROP TRIGGER reject_audit ON management_audit").Error)
-			request(http.MethodDelete, path, credential(organizationID), nil, http.StatusNoContent)
-			request(http.MethodDelete, path, credential(organizationID), nil, http.StatusNoContent)
+			request(http.MethodDelete, path, credential(organizationID, "revokeServiceToken"), nil, http.StatusNoContent)
+			request(http.MethodDelete, path, credential(organizationID, "revokeServiceToken"), nil, http.StatusNoContent)
 			var audits int64
 			require.NoError(t, db.Table("management_audit").Where("target_id = ?", tokenID).Count(&audits).Error)
 			require.EqualValues(t, 2, audits, "one creation and one actual revocation, not one audit per retry")
 			request(http.MethodDelete, "/v1/service-tokens/nonexistent", tokenSecret, nil, http.StatusUnauthorized)
-			request(http.MethodDelete, path, credential(uuid.NewString()), nil, http.StatusNotFound)
+			request(http.MethodDelete, path, credential(uuid.NewString(), "revokeServiceToken"), nil, http.StatusNotFound)
 			for _, query := range []string{"UPDATE management_audit SET request_id = 'changed'", "DELETE FROM management_audit", "TRUNCATE management_audit"} {
 				require.Error(t, db.Exec(query).Error)
 			}

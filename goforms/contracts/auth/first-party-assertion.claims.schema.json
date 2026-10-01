@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://api.goformx.com/contracts/auth/first-party-assertion.claims.v1.schema.json",
-  "title": "GoFormX first-party assertion claims v1",
+  "$id": "https://api.goformx.com/contracts/auth/first-party-assertion.claims.v2.schema.json",
+  "title": "GoFormX first-party assertion claims v2",
   "type": "object",
-  "required": ["iss", "aud", "sub", "org", "scp", "iat", "nbf", "exp", "jti", "rid", "ver"],
+  "required": ["iss", "aud", "sub", "org", "scp", "iat", "nbf", "exp", "jti", "rid", "op", "ver"],
   "additionalProperties": false,
   "properties": {
     "iss": { "const": "https://goformx.com" },
@@ -32,6 +32,7 @@
     "exp": { "type": "integer", "minimum": 0 },
     "jti": { "type": "string", "format": "uuid" },
     "rid": { "type": "string", "format": "uuid" },
-    "ver": { "const": 1 }
+    "op": { "type": "string", "minLength": 1 },
+    "ver": { "const": 2 }
   }
 }
